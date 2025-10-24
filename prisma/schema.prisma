@@ -1,0 +1,260 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Trip {
+  id               String   @id @default(uuid())
+  serviceType      String
+  routeName        String
+  routeOrigin      String
+  routeDestination String
+  departureDate    DateTime
+  departureTime    String
+  totalSeats       Int
+  availableSeats   Int
+  occupiedSeats    String?
+  fare             Int
+  durationMinutes  Int
+  boardingPoint    String
+  droppingPoint    String
+  promoActive      Boolean  @default(false)
+  hasDeparted      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  // Charter metadata
+  isChartered      Boolean  @default(false)
+  charterCompany   String?
+  charterDates     String?
+  // NEW: Explicit charter linking
+  charterTripId    String?  // Points to the original charter trip
+  charterStartDate DateTime? // Separate start date for precise queries
+  charterEndDate   DateTime? // Separate end date for precise queries
+
+  // NEW: Multiple vehicles support (JSON array)
+  replacementVehicles String?  // JSON string of vehicle array
+  vehicleCount        Int?     // Total number of vehicles
+
+  bookings       Booking[]   @relation("TripBooking")
+  returnBookings Booking[]   @relation("ReturnTripBooking")
+  passengers     Passenger[]
+  reservations   TripReservation[]
+}
+
+model Booking {
+  id                  String    @id @default(uuid())
+  tripId              String
+  trip                Trip      @relation("TripBooking", fields: [tripId], references: [id])
+  returnTripId        String?
+  returnTrip          Trip?     @relation("ReturnTripBooking", fields: [returnTripId], references: [id])
+  userName            String
+  userEmail           String
+  userPhone           String?
+  seats               String
+  returnSeats         String?
+  seatCount           Int
+  totalPrice          Float
+  paymentMode         String
+  boardingPoint       String
+  droppingPoint       String
+  returnBoardingPoint String?
+  returnDroppingPoint String?
+  orderId             String    @unique
+  transactionToken    String?
+  paymentStatus       String    @default("pending")
+  bookingStatus       String    @default("confirmed")
+  promoCode           String?
+  discountAmount      Float     @default(0)
+  competitorInfo      Json?
+  scanned             Boolean   @default(false)
+  lastScanned         DateTime?
+  scannerId           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  contactIdNumber       String
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  addons                Json?
+
+  passengers Passenger[]
+
+  agentId String? // nullable for normal bookings
+  agent   Agent?  @relation(fields: [agentId], references: [id])
+
+  consultantId String?
+  consultant   Consultant? @relation(fields: [consultantId], references: [id])
+
+  // Optional back-relation for voucher authorization (one-to-one)
+  voucherAuthorization VoucherAuthorization?
+}
+
+model Passenger {
+  id                   String   @id @default(uuid())
+  booking              Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId            String
+  tripId               String
+  trip                 Trip     @relation(fields: [tripId], references: [id])
+  firstName            String
+  lastName             String
+  seatNumber           String
+  title                String
+  isReturn             Boolean  @default(false)
+  boarded              Boolean  @default(false)
+  hasInfant            Boolean  @default(false)
+  infantBirthdate      String?
+  infantName           String?
+  infantPassportNumber String?
+  birthdate            String? // <-- Add this for child
+  passportNumber       String? // <-- Add this for adult/child
+  type                 String? // <-- Add this for adult/child
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  nextOfKinName        String?
+  nextOfKinPhone       String?
+  phone                String? // Passenger's own phone
+
+  @@unique([tripId, seatNumber]) // Prevent double booking of seat for a trip
+}
+
+model Inquiry {
+  id              String   @id @default(uuid())
+  companyName     String
+  contactPerson   String
+  email           String
+  phone           String
+  passengers      Int
+  date            String
+  time            String
+  origin          String
+  destination     String
+  returnDate      String // <-- Add this line
+  specialRequests String?
+  status          String   @default("pending")
+  requestedAt     DateTime @default(now())
+}
+
+model Agent {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  organization   String
+  mobile         String
+  idNumber       String
+  password       String // hashed
+  createdAt      DateTime  @default(now())
+  bookings       Booking[]
+  approved       Boolean   @default(false)
+  suspended      Boolean   @default(false)
+  suspensionDate DateTime?
+}
+
+model Consultant {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  organization   String
+  mobile         String
+  idNumber       String
+  password       String // hashed
+  createdAt      DateTime  @default(now())
+  bookings       Booking[]
+  approved       Boolean   @default(false)
+  suspended      Boolean   @default(false)
+  suspensionDate DateTime?
+}
+
+model FareSetting {
+  id        String   @id @default(uuid())
+  type      String   @unique // "infant" or "child"
+  price     Int
+  updatedAt DateTime @updatedAt
+}
+
+model Policy {
+  id        String   @id @default(uuid())
+  content   String
+  updatedAt DateTime @updatedAt
+}
+
+model Promotion {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SeatReservation {
+  id         String   @id @default(uuid())
+  tripId     String
+  seatNumber String
+  reservedBy String? // session id or order id
+  tripReservationId String?
+  tripReservation TripReservation? @relation(fields: [tripReservationId], references: [id])
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([tripId, seatNumber])
+  @@index([expiresAt])
+}
+
+model VoucherAuthorization {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  bookingId  String   @unique
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  status     String   @default("pending") // pending | approved | expired
+  adminEmail String?
+  approvedBy String?
+  approvedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+// Admin reservations of seats (for phone bookings or client holds)
+model TripReservation {
+  id            String   @id @default(uuid())
+  tripId        String
+  trip          Trip     @relation(fields: [tripId], references: [id])
+  // Reservation contact & metadata
+  reservedClientName    String
+  reservedContactPhone  String?
+  reservedContactEmail  String?
+  reservedLiaisonPerson String?
+  reservedCompany       String?
+  reservedNotes         String?
+  reservedSeatsCount    Int
+  reservationDate       DateTime @default(now())
+  status                String   @default("reserved") // reserved | converted | cancelled
+  createdAt             DateTime @default(now())
+
+  seatReservations SeatReservation[]
+  reservationLinks  ReservationLink[]
+
+  @@index([tripId])
+}
+
+// Links generated for a TripReservation to allow a client to complete booking.
+// Tokens expire (e.g. 6 hours) and can be used once to convert a reservation to a booking.
+model ReservationLink {
+  id                 String   @id @default(uuid())
+  token              String   @unique
+  tripReservationId  String
+  tripReservation    TripReservation @relation(fields: [tripReservationId], references: [id])
+  contactEmail       String?
+  createdBy          String?  // admin email or id who created the link
+  prepaid            Boolean  @default(false)
+  expiresAt          DateTime
+  used               Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  @@index([expiresAt])
+}

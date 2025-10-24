@@ -1,0 +1,2199 @@
+"use client";
+import React, { useState, useEffect } from "react";
+import { useToast, toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Luggage,
+  ShoppingBag,
+  Shield,
+  Info,
+  Gift,
+  UserPlus,
+} from "lucide-react";
+import { SearchData, BoardingPoint } from "@/lib/types";
+import { format } from "date-fns";
+import { PolicyModal } from "@/components/PolicyModal";
+import PaymentGateway from "../paymentgateway";
+
+type PassengerType = "adult" | "child";
+
+interface Passenger {
+  type: PassengerType;
+  id: string;
+  title: string;
+  firstName: string;
+  lastName: string;
+  seatNumber: string;
+  isReturn: boolean;
+  hasInfant?: boolean;
+  infantName?: string;
+  infantPassportNumber?: string;
+  infantBirthdate?: string;
+  birthdate: string;
+  passportNumber: string;
+  phone?: string;
+  phoneCountryCode?: string;
+  nextOfKinName?: string;
+  nextOfKinPhone?: string;
+  nextOfKinPhoneCountryCode?: string;
+  isNeighbourFreeSeat?: boolean;
+}
+
+interface PassengerGroup {
+  primarySeat: string;
+  companionSeat?: string;
+  isNeighbourFree: boolean;
+}
+
+interface ContactDetails {
+  name: string;
+  email: string;
+  mobile: string;
+  mobileCountryCode?: string;
+  alternateMobile: string;
+  idType: string;
+  idNumber: string;
+}
+
+interface EmergencyContact {
+  name: string;
+  phone: string;
+  phoneCountryCode?: string;
+}
+
+interface SectionState {
+  passengers: boolean;
+  contact: boolean;
+  emergency: boolean;
+  points: boolean;
+  addons: boolean;
+}
+
+interface PassengerDetailsFormProps {
+  departureBus: any;
+  returnBus: any;
+  departureSeats: string[];
+  returnSeats: string[];
+  passengerGroups: PassengerGroup[];
+  searchData: SearchData;
+  boardingPoints: Record<string, BoardingPoint[]>;
+  onProceedToPayment: () => void;
+  showPayment: boolean;
+  setShowPayment: (show: boolean) => void;
+  onPaymentComplete: () => void;
+  departureNeighbourFree: boolean;
+  returnNeighbourFree: boolean;
+  reservationToken?: string;
+  initialPaymentMode?: string;
+  allowedPaymentModes?: string[];
+}
+
+const ADDONS = [
+  {
+    key: "extraBaggage",
+    label: "Extra Baggage",
+    description: "Additional baggage allowance for your trip.",
+    price: 300,
+    icon: <Luggage className="h-5 w-5 text-[#ffc721]" />,
+    showOnReturn: true,
+  },
+  {
+    key: "wimpyMeal",
+    label: "Wimpy Meal",
+    description: "Delicious Wimpy meal for your journey available from Gaborone only.",
+    price: 67,
+    icon: <ShoppingBag className="h-5 w-5 text-[#ffc721]" />,
+    showOnReturn: false,
+  },
+  {
+    key: "travelInsurance",
+    label: "Add Travel Insurance",
+    description: "Comprehensive travel insurance coverage.",
+    price: 150,
+    icon: <Shield className="h-5 w-5 text-[#ffc721]" />,
+    showOnReturn: true,
+  },
+];
+
+const areSeatsAdjacent = (seat1: string, seat2: string): boolean => {
+  if (!seat1 || !seat2 || seat1.length < 2 || seat2.length < 2) return false;
+  const row1 = parseInt(seat1.slice(0, -1));
+  const pos1 = seat1.slice(-1);
+  const row2 = parseInt(seat2.slice(0, -1));
+  const pos2 = seat2.slice(-1);
+  if (row1 !== row2) return false;
+  return (
+    (pos1 === "A" && pos2 === "B") ||
+    (pos1 === "B" && pos2 === "A") ||
+    (pos1 === "C" && pos2 === "D") ||
+    (pos1 === "D" && pos2 === "C")
+  );
+};
+
+const groupSeatsForNeighbourFree = (seats: string[]) => {
+  const primary: string[] = [];
+  const companion: string[] = [];
+  const used = new Set<string>();
+  for (let i = 0; i < seats.length; i++) {
+    if (used.has(seats[i])) continue;
+    const seat = seats[i];
+    const adj = seats.find((s) => s !== seat && areSeatsAdjacent(seat, s) && !used.has(s));
+    if (adj) {
+      primary.push(seat);
+      companion.push(adj);
+      used.add(seat);
+      used.add(adj);
+    } else {
+      primary.push(seat);
+      used.add(seat);
+    }
+  }
+  return { primary, companion };
+};
+
+function generateOrderId() {
+  return `RT${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
+const COUNTRY_CODES = [
+  { code: "+267", flag: "🇧🇼", name: "Botswana" },
+  { code: "+27", flag: "🇿🇦", name: "South Africa" },
+  { code: "+263", flag: "🇿🇼", name: "Zimbabwe" },
+  { code: "+260", flag: "🇿🇲", name: "Zambia" },
+  { code: "+255", flag: "🇹🇿", name: "Tanzania" },
+  { code: "+254", flag: "🇰🇪", name: "Kenya" },
+  { code: "+44", flag: "🇬🇧", name: "UK" },
+  { code: "+1", flag: "🇺🇸", name: "USA/Canada" },
+  { code: "+91", flag: "🇮🇳", name: "India" },
+  { code: "+234", flag: "🇳🇬", name: "Nigeria" },
+  { code: "+49", flag: "🇩🇪", name: "Germany" },
+  { code: "+33", flag: "🇫🇷", name: "France" },
+  { code: "+61", flag: "🇦🇺", name: "Australia" },
+  { code: "+81", flag: "🇯🇵", name: "Japan" },
+  { code: "+86", flag: "🇨🇳", name: "China" },
+  { code: "+351", flag: "🇵🇹", name: "Portugal" },
+  { code: "+34", flag: "🇪🇸", name: "Spain" },
+  { code: "+7", flag: "🇷🇺", name: "Russia" },
+  { code: "+974", flag: "🇶🇦", name: "Qatar" },
+  { code: "+971", flag: "🇦🇪", name: "UAE" },
+  { code: "+20", flag: "🇪🇬", name: "Egypt" },
+  { code: "+212", flag: "🇲🇦", name: "Morocco" },
+  { code: "+258", flag: "🇲🇿", name: "Mozambique" },
+  { code: "+256", flag: "🇺🇬", name: "Uganda" },
+  { code: "+94", flag: "🇱🇰", name: "Sri Lanka" },
+  { code: "+66", flag: "🇹🇭", name: "Thailand" },
+  { code: "+82", flag: "🇰🇷", name: "South Korea" },
+  { code: "+62", flag: "🇮🇩", name: "Indonesia" },
+  { code: "+60", flag: "🇲🇾", name: "Malaysia" },
+  { code: "+358", flag: "🇫🇮", name: "Finland" },
+  { code: "+46", flag: "🇸🇪", name: "Sweden" },
+  { code: "+41", flag: "🇨🇭", name: "Switzerland" },
+  { code: "+90", flag: "🇹🇷", name: "Turkey" },
+  { code: "+380", flag: "🇺🇦", name: "Ukraine" },
+  { code: "+48", flag: "🇵🇱", name: "Poland" },
+  { code: "+420", flag: "🇨🇿", name: "Czechia" },
+];
+
+const CountryCodeSelect = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === value) || COUNTRY_CODES[0];
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="border border-gray-300 rounded-md px-2 py-1 focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] bg-white text-sm"
+      style={{ maxWidth: 100 }}
+    >
+      {COUNTRY_CODES.map((country) => (
+        <option key={country.code} value={country.code}>
+          {country.code} ({country.name})
+        </option>
+      ))}
+    </select>
+  );
+};
+
+const CountryCodeDisplay = ({ value }: { value: string }) => {
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === value) || COUNTRY_CODES[0];
+  return (
+    <div className="border border-gray-300 rounded-md px-2 py-1 bg-white text-sm flex items-center justify-center"
+      style={{ maxWidth: 100, minWidth: 80 }}>
+      {selectedCountry.code}
+    </div>
+  );
+};
+
+import { deduplicateRequest, generateRequestKey } from "@/utils/requestDeduplication";
+
+export default function PassengerDetailsForm({
+  departureBus,
+  returnBus,
+  departureSeats = [],
+  returnSeats = [],
+  passengerGroups = [],
+  searchData = {} as SearchData,
+  boardingPoints = {},
+  onProceedToPayment,
+  showPayment,
+  setShowPayment,
+  onPaymentComplete,
+  departureNeighbourFree,
+  returnNeighbourFree,
+  reservationToken,
+  initialPaymentMode,
+  allowedPaymentModes,
+}: PassengerDetailsFormProps) {
+  const isRoundTrip = !!returnBus;
+  const [selectedAddons, setSelectedAddons] = useState<{
+    [key: string]: { departure: boolean; return: boolean };
+  }>({});
+
+  const depNF = departureNeighbourFree
+    ? groupSeatsForNeighbourFree(departureSeats)
+    : { primary: departureSeats, companion: [] };
+  const retNF = returnNeighbourFree
+    ? groupSeatsForNeighbourFree(returnSeats)
+    : { primary: returnSeats, companion: [] };
+
+  const [passengers, setPassengers] = useState<Passenger[]>(() => {
+    const dep: Passenger[] = depNF.primary.map((seat) => ({
+      id: `departure-${seat}`,
+      type: "adult",
+      title: "Mr",
+      firstName: "",
+      lastName: "",
+      seatNumber: seat,
+      isReturn: false,
+      birthdate: "",
+      passportNumber: "",
+      hasInfant: false,
+      infantBirthdate: "",
+      infantName: "",
+      infantPassportNumber: "",
+      // Primary seats collect passenger details. Companion seats are marked separately.
+      isNeighbourFreeSeat: false,
+    }));
+    const depComp: Passenger[] = depNF.companion.map((seat) => ({
+      id: `departure-${seat}`,
+      type: "adult",
+      title: "Mr",
+      firstName: "",
+      lastName: "",
+      seatNumber: seat,
+      isReturn: false,
+      birthdate: "",
+      passportNumber: "",
+      hasInfant: false,
+      infantBirthdate: "",
+      infantName: "",
+      infantPassportNumber: "",
+      isNeighbourFreeSeat: true,
+    }));
+    const ret: Passenger[] = retNF.primary.map((seat) => ({
+      id: `return-${seat}`,
+      type: "adult",
+      title: "Mr",
+      firstName: "",
+      lastName: "",
+      seatNumber: seat,
+      isReturn: true,
+      birthdate: "",
+      passportNumber: "",
+      hasInfant: false,
+      infantBirthdate: "",
+      infantName: "",
+      infantPassportNumber: "",
+      isNeighbourFreeSeat: false,
+    }));
+    const retComp: Passenger[] = retNF.companion.map((seat) => ({
+      id: `return-${seat}`,
+      type: "adult",
+      title: "Mr",
+      firstName: "",
+      lastName: "",
+      seatNumber: seat,
+      isReturn: true,
+      birthdate: "",
+      passportNumber: "",
+      hasInfant: false,
+      infantBirthdate: "",
+      infantName: "",
+      infantPassportNumber: "",
+      isNeighbourFreeSeat: true,
+    }));
+    return [...dep, ...depComp, ...ret, ...retComp];
+  });
+
+  const [contactDetails, setContactDetails] = useState<ContactDetails>({
+    name: "",
+    email: "",
+    mobile: "",
+    alternateMobile: "",
+    idType: "Passport",
+    idNumber: "",
+  });
+
+  const [emergencyContact, setEmergencyContact] = useState<EmergencyContact>({
+    name: "",
+    phone: "",
+  });
+
+  const [paymentMode, setPaymentMode] = useState(initialPaymentMode || "Credit Card");
+  const [showBankDepositNotice, setShowBankDepositNotice] = useState(false);
+  const [consultantDiscountType, setConsultantDiscountType] = useState<string>("none");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [showBankDepositLoading, setShowBankDepositLoading] = useState(false);
+  const [useFreeVoucher, setUseFreeVoucher] = useState(false);
+  const [departureBoardingPoint, setDepartureBoardingPoint] = useState("");
+  const [departureDroppingPoint, setDepartureDroppingPoint] = useState("");
+  const [returnBoardingPoint, setReturnBoardingPoint] = useState("");
+  const [returnDroppingPoint, setReturnDroppingPoint] = useState("");
+
+  const [openSections, setOpenSections] = useState<SectionState>({
+    passengers: true,
+    contact: true,
+    emergency: true,
+    points: true,
+    addons: true,
+  });
+
+  const [agent, setAgent] = useState<{ id: string; name: string; email: string } | null>(
+    null
+  );
+  const [consultant, setConsultant] = useState<{ id: string; name: string; email: string } | null>(
+    null
+  );
+  const [infantFare, setInfantFare] = useState(250);
+  const [childFare, setChildFare] = useState(400);
+  const [showInsuranceInfo, setShowInsuranceInfo] = useState(false);
+  const [promotions, setPromotions] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [voucherToken, setVoucherToken] = useState<string | null>(null);
+  const [voucherStatus, setVoucherStatus] = useState<string | null>(null); // pending | approved | expired | not_found
+  const [isWaitingForApproval, setIsWaitingForApproval] = useState(false);
+  const [showReservationConflict, setShowReservationConflict] = useState(false);
+  const [reservationMessage, setReservationMessage] = useState<string | null>(null);
+  const [currentUnavailable, setCurrentUnavailable] = useState<string[]>([]);
+  const { toast: makeToast } = useToast();
+  const [showVoucherExpiredDialog, setShowVoucherExpiredDialog] = useState(false);
+
+  // Helper to (re)request voucher authorization for current booking payload
+  const requestVoucherAuth = async () => {
+    try {
+      setIsProcessing(true);
+      const bookingPayload = createBookingPayload();
+      const res = await fetch("/api/request-voucher-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingPayload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to request voucher authorization");
+      }
+      const body = await res.json();
+      setVoucherToken(body.token);
+      setVoucherStatus("pending");
+      setIsWaitingForApproval(true);
+      setShowVoucherExpiredDialog(false);
+    } catch (err: any) {
+      makeToast({ title: "Request failed", description: err?.message || "Failed to request voucher authorization" });
+      setIsProcessing(false);
+    }
+  };
+
+  // Centralized addon price resolver (keeps UI and calculations consistent)
+  const getAddonPrice = (key: string, departureOrigin?: string) => {
+    const origin = (departureOrigin || "").toLowerCase().trim();
+    switch (key) {
+      case "extraBaggage":
+        return 300;
+      case "wimpyMeal":
+        // Wimpy meal is 67, but you may vary by origin in future
+        return 67;
+      case "travelInsurance":
+        // Use the actual insurance rate used in UI (450)
+        return 450;
+      default:
+        return 0;
+    }
+  };
+
+  const getAddonsTotal = () => {
+    let total = 0;
+    // Count only paying passengers (exclude neighbour-free companion seats)
+    const departurePayingPassengers = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat);
+    const returnPayingPassengers = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat);
+
+    ADDONS.forEach((addon) => {
+      const price = getAddonPrice(addon.key, departureBus?.routeOrigin);
+      if (selectedAddons[addon.key]?.departure) {
+        total += price * departurePayingPassengers.length;
+      }
+      if (isRoundTrip && selectedAddons[addon.key]?.return) {
+        total += price * returnPayingPassengers.length;
+      }
+    });
+    return total;
+  };
+
+  const openOnlySection = (section: keyof SectionState) => {
+    setOpenSections((prev) => {
+      const newState: SectionState = { ...prev };
+      Object.keys(newState).forEach((key) => {
+        newState[key as keyof SectionState] = key === section;
+      });
+      return newState;
+    });
+  };
+
+  const copyDepartureToReturn = () => {
+    const departurePassengers = passengers.filter((p) => !p.isReturn);
+    const returnPassengers = passengers.filter((p) => p.isReturn);
+    const updatedPassengers = passengers.map((passenger) => {
+      if (passenger.isReturn) {
+        const index = returnPassengers.findIndex((rp) => rp.id === passenger.id);
+        if (index !== -1 && departurePassengers[index]) {
+          const departurePassenger = departurePassengers[index];
+          return {
+            ...passenger,
+            type: departurePassenger.type,
+            title: departurePassenger.title,
+            firstName: departurePassenger.firstName,
+            lastName: departurePassenger.lastName,
+            passportNumber: departurePassenger.passportNumber,
+            birthdate: departurePassenger.birthdate,
+            hasInfant: departurePassenger.hasInfant,
+            infantName: departurePassenger.infantName,
+            infantBirthdate: departurePassenger.infantBirthdate,
+            infantPassportNumber: departurePassenger.infantPassportNumber,
+            phone: departurePassenger.phone,
+            nextOfKinName: departurePassenger.nextOfKinName,
+            nextOfKinPhone: departurePassenger.nextOfKinPhone,
+          };
+        }
+      }
+      return passenger;
+    });
+    setPassengers(updatedPassengers);
+  };
+
+  const departurePricePerSeat = departureBus?.fare || 0;
+
+  const getPassengerFare = (p: Passenger) => {
+    if (p.type === "child") return childFare;
+    return departurePricePerSeat;
+  };
+
+  // Infants attached to a passenger that is the PRIMARY in a neighbour-free pair are free.
+  // passengerGroups contains pairs as { primarySeat, companionSeat } so check that.
+  const infantCount = passengers.filter((p) => {
+    if (!p.hasInfant) return false;
+    // if this passenger's seat is a primary seat with a companion, infant is free -> do not count
+    const isPrimaryWithCompanion = passengerGroups.some(
+      (g) => g.primarySeat === p.seatNumber && !!g.companionSeat
+    );
+    return !isPrimaryWithCompanion;
+  }).length;
+  const infantTotal = infantCount * infantFare;
+
+  let departureTotal = 0;
+  let returnTotal = 0;
+
+  if (departureNeighbourFree) {
+    departureTotal = depNF.primary.reduce((sum, seat) => {
+      const passenger = passengers.find((p) => p.seatNumber === seat && !p.isReturn);
+      return sum + (passenger ? 2 * getPassengerFare(passenger) : 0);
+    }, 0);
+  } else {
+    departureTotal = passengers.filter((p) => !p.isReturn).reduce((sum, p) => sum + getPassengerFare(p), 0);
+  }
+
+  if (returnNeighbourFree) {
+    returnTotal = retNF.primary.reduce((sum, seat) => {
+      const passenger = passengers.find((p) => p.seatNumber === seat && p.isReturn);
+      return sum + (passenger ? 2 * getPassengerFare(passenger) : 0);
+    }, 0);
+  } else {
+    returnTotal = passengers.filter((p) => p.isReturn).reduce((sum, p) => sum + getPassengerFare(p), 0);
+  }
+
+  const baseTotal = departureTotal + returnTotal + infantTotal + getAddonsTotal();
+
+  const syncCompanionPassenger = (primaryPassenger: Passenger) => {
+    const isDepNF = !primaryPassenger.isReturn && departureNeighbourFree;
+    const isRetNF = primaryPassenger.isReturn && returnNeighbourFree;
+
+    if (isDepNF || isRetNF) {
+      const primaryIndex = isDepNF
+        ? depNF.primary.indexOf(primaryPassenger.seatNumber)
+        : retNF.primary.indexOf(primaryPassenger.seatNumber);
+
+      if (primaryIndex !== -1) {
+        const companionSeat = isDepNF ? depNF.companion[primaryIndex] : retNF.companion[primaryIndex];
+        if (companionSeat) {
+          const companionId = `${primaryPassenger.isReturn ? "return" : "departure"}-${companionSeat}`;
+          setPassengers((prev) =>
+            prev.map((p) => {
+              if (p.id === companionId) {
+                return {
+                  ...p,
+                  type: primaryPassenger.type,
+                  title: primaryPassenger.title,
+                  firstName: primaryPassenger.firstName,
+                  lastName: primaryPassenger.lastName,
+                  passportNumber: primaryPassenger.passportNumber,
+                  birthdate: primaryPassenger.birthdate,
+                  phone: primaryPassenger.phone,
+                  nextOfKinName: primaryPassenger.nextOfKinName,
+                  nextOfKinPhone: primaryPassenger.nextOfKinPhone,
+                  hasInfant: false,
+                  infantName: "",
+                  infantBirthdate: "",
+                  infantPassportNumber: "",
+                };
+              }
+              return p;
+            })
+          );
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetch("/api/agent/me")
+      .then(async (res) => {
+        if (res.ok) {
+          const agentData = await res.json();
+          setAgent(agentData);
+        } else {
+          setAgent(null);
+        }
+      })
+      .catch(() => setAgent(null));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/consultant/me")
+      .then(async (res) => {
+        if (res.ok) {
+          const consultantData = await res.json();
+          setConsultant(consultantData);
+        } else {
+          setConsultant(null);
+        }
+      })
+      .catch(() => setConsultant(null));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/getfareprices")
+      .then((res) => res.json())
+      .then((data) => {
+        setInfantFare(data.infant ?? 250);
+        setChildFare(data.child ?? 400);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/promotions")
+      .then((res) => res.json())
+      .then((data) => setPromotions((data.promotions || []).filter((p: any) => p.active)));
+  }, []);
+
+  let consultantDiscount = 0;
+  if (consultant && consultantDiscountType !== "none") {
+    if (consultantDiscountType === "student") {
+      consultantDiscount = Math.round(baseTotal * 0.05);
+    } else if (consultantDiscountType === "senior") {
+      consultantDiscount = Math.round(baseTotal * 0.15);
+    } else if (consultantDiscountType === "family") {
+      if (passengers.length >= 5) {
+        consultantDiscount = Math.round((baseTotal / passengers.length) * 0.2);
+      }
+    } else if (consultantDiscountType === "group") {
+      if (passengers.length >= 10) {
+        consultantDiscount = Math.round(baseTotal * 0.1);
+      }
+    }
+  }
+  const agentDiscount: number = agent ? Math.round(baseTotal * 0.1) : 0;
+  const finalTotal: number = baseTotal - agentDiscount - consultantDiscount;
+
+  const getBoardingPoints = (key: string): BoardingPoint[] => {
+    if (!boardingPoints || typeof boardingPoints !== "object") {
+      return [{ id: "default", name: "Default", times: [] }];
+    }
+    const normalizedKey = key.trim().toLowerCase() || "default";
+    const points = boardingPoints[normalizedKey];
+    if (!points || !Array.isArray(points)) {
+      return [
+        {
+          id: "default",
+          name: key.trim(),
+          times: [],
+        },
+      ];
+    }
+    return points;
+  };
+
+  const departureOriginKey = ((departureBus?.routeOrigin || searchData.from || "") as string)
+    .toLowerCase()
+    .trim() || "default";
+  const departureDestinationKey = ((departureBus?.routeDestination || searchData.to || "") as string)
+    .toLowerCase()
+    .trim() || "default";
+  const departureOriginPoints = getBoardingPoints(departureOriginKey);
+  const departureDestinationPoints = getBoardingPoints(departureDestinationKey);
+
+  let returnOriginPoints: BoardingPoint[] = [];
+  let returnDestinationPoints: BoardingPoint[] = [];
+
+  if (isRoundTrip) {
+    const returnOriginKey = ((returnBus?.routeOrigin || searchData.to || "") as string)
+      .toLowerCase()
+      .trim() || "default";
+    const returnDestinationKey = ((returnBus?.routeDestination || searchData.from || "") as string)
+      .toLowerCase()
+      .trim() || "default";
+    returnOriginPoints = getBoardingPoints(returnOriginKey);
+    returnDestinationPoints = getBoardingPoints(returnDestinationKey);
+  }
+
+  const updatePassenger = (id: string, field: string, value: string | boolean) => {
+    setPassengers((prev) => {
+      const updated = prev.map((passenger) => {
+        if (passenger.id === id) {
+          const updatedPassenger = { ...passenger, [field]: value };
+          if (!passenger.isNeighbourFreeSeat) {
+            setTimeout(() => syncCompanionPassenger(updatedPassenger), 0);
+          }
+          return updatedPassenger;
+        }
+        return passenger;
+      });
+      return updated;
+    });
+  };
+
+  const handleContactChange = (field: keyof ContactDetails, value: string) => {
+    setContactDetails((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleEmergencyChange = (field: keyof EmergencyContact, value: string) => {
+    setEmergencyContact((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleAddonChange = (addonKey: string, tripType: "departure" | "return", checked: boolean) => {
+    setSelectedAddons((prev) => ({
+      ...prev,
+      [addonKey]: {
+        ...prev[addonKey],
+        [tripType]: checked,
+      },
+    }));
+  };
+
+  const createBookingPayload = () => {
+    const passengersForPayload = passengers.map((p) => ({
+      firstName: p.firstName,
+      lastName: p.lastName,
+      seatNumber: p.seatNumber,
+      title: p.title,
+      isReturn: p.isReturn,
+      hasInfant: !!p.hasInfant,
+      infantBirthdate: p.infantBirthdate || null,
+      type: p.type,
+      birthdate: p.birthdate || null,
+      passportNumber: p.passportNumber || null,
+      infantName: p.infantName || null,
+      infantPassportNumber: p.infantPassportNumber || null,
+      phone: p.phone || null,
+      nextOfKinName: p.nextOfKinName || null,
+      nextOfKinPhone: p.nextOfKinPhone || null,
+    }));
+
+    return {
+      orderId: generateOrderId(),
+      tripId: departureBus?.id,
+      totalPrice: finalTotal,
+      discountAmount: agentDiscount + consultantDiscount,
+      consultantDiscountType,
+      selectedSeats: [...departureSeats, ...returnSeats],
+      departureSeats,
+      returnSeats,
+      addons: selectedAddons,
+      passengers: passengersForPayload,
+      userName: contactDetails.name,
+      userEmail: contactDetails.email,
+      userPhone: contactDetails.mobile,
+      boardingPoint: departureBoardingPoint,
+      droppingPoint: departureDroppingPoint,
+      contactDetails,
+      emergencyContact: {
+        name: emergencyContact.name,
+        phone: emergencyContact.phone,
+      },
+      paymentMode,
+      returnTripId: returnBus?.id,
+      returnBoardingPoint,
+      returnDroppingPoint,
+      agentId: agent?.id,
+      consultantId: consultant?.id,
+      reservationToken: reservationToken || undefined,
+      status: "pending",
+    };
+  };
+
+  const handleSubmit = async () => {
+    if (isSubmitting) {
+      console.log("[Submit] Request already in progress, skipping duplicate submission");
+      return;
+    }
+    if (paymentMode === "Bank Deposit") {
+      setShowBankDepositNotice(true);
+      return;
+    }
+
+    const primaryPassengers = passengers.filter((p) => !p.isNeighbourFreeSeat);
+    if (primaryPassengers.some((p) => !p.firstName.trim() || !p.lastName.trim())) {
+      alert("Please provide first and last names for all passengers");
+      return;
+    }
+
+    if (!contactDetails.name || !contactDetails.email || !contactDetails.mobile) {
+      alert("Please provide your name, email and mobile number");
+      return;
+    }
+
+    if (!emergencyContact.name || !emergencyContact.phone) {
+      alert("Please provide emergency contact details");
+      return;
+    }
+
+    if (!departureBoardingPoint || !departureDroppingPoint) {
+      alert("Please select departure boarding and dropping points");
+      return;
+    }
+
+    if (isRoundTrip && (!returnBoardingPoint || !returnDroppingPoint)) {
+      alert("Please select return boarding and dropping points");
+      return;
+    }
+
+    if (!agreedToTerms) {
+      alert("Please agree to the terms and conditions");
+      return;
+    }
+
+    if (
+      primaryPassengers.some(
+        (p) =>
+          (p.type === "child" && !isValidChild(p.birthdate)) ||
+          (p.hasInfant && !isValidInfant(p.infantBirthdate || ""))
+      )
+    ) {
+      alert("Children must be 2-11 years old. Infants must be under 2 years old.");
+      return;
+    }
+
+    onProceedToPayment();
+  };
+
+  const handleBankDepositProceed = () => {
+    setShowBankDepositNotice(false);
+    onProceedToPayment();
+  };
+
+  const formatPoint = (point: string) => {
+    if (point.trim().toLowerCase() === "or tambo" || point.trim().toLowerCase() === "or tambo airport") {
+      return "OR Tambo Airport Bus Terminal";
+    }
+    return point;
+  };
+
+  function isValidChild(birthdate: string): boolean {
+    if (!birthdate) return false;
+    const birth = new Date(birthdate);
+    const now = new Date();
+    const age = (now.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+    return age >= 2 && age < 11;
+  }
+
+  function isValidInfant(birthdate: string): boolean {
+    if (!birthdate) return false;
+    const birth = new Date(birthdate);
+    const now = new Date();
+    const age = (now.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+    return age >= 0 && age < 2;
+  }
+
+  useEffect(() => {
+    if (showPayment && departureBus) {
+      const bookingData = createBookingPayload();
+    }
+  }, [showPayment]);
+
+  const fetchAvailability = async () => {
+    try {
+      const res = await fetch(`/api/trips/${departureBus.id}/availability`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const unavailable = Array.from(new Set([...(data.occupiedSeats || []), ...(data.bookedSeats || []), ...((data.reservations || []).map((r:any) => r.seatNumber))]));
+      setCurrentUnavailable(unavailable);
+      return data;
+    } catch (err) {
+      console.warn('Failed to fetch availability', err);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (paymentMode === "Bank Deposit") {
+      setShowBankDepositNotice(true);
+    } else {
+      setShowBankDepositNotice(false);
+    }
+  }, [paymentMode]);
+
+  // Ensure the selected paymentMode is allowed when allowedPaymentModes is provided
+  useEffect(() => {
+    if (!allowedPaymentModes || allowedPaymentModes.length === 0) return;
+    if (!allowedPaymentModes.includes(paymentMode)) {
+      // prefer initialPaymentMode if it's allowed
+      if (initialPaymentMode && allowedPaymentModes.includes(initialPaymentMode)) {
+        setPaymentMode(initialPaymentMode);
+      } else {
+        setPaymentMode(allowedPaymentModes[0]);
+      }
+    }
+  }, [allowedPaymentModes]);
+
+  if (!boardingPoints || !departureBus || !searchData) {
+    return <div className="text-center py-8 text-gray-600">Loading form data...</div>;
+  }
+
+  // Poll voucher status when a voucher token is present
+  useEffect(() => {
+    if (!voucherToken || !isWaitingForApproval) return;
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/voucher-status?token=${encodeURIComponent(voucherToken)}`);
+        if (!res.ok) return;
+        const body = await res.json();
+        if (cancelled) return;
+        setVoucherStatus(body.status || null);
+        if (body.status === "approved") {
+          setIsWaitingForApproval(false);
+          setIsProcessing(false);
+          // redirect to ticket page (use orderId if returned by API)
+          const orderId = body.orderId || body.bookingRef || '';
+          window.location.href = `/ticket/${orderId}`;
+        } else if (body.status === "expired") {
+          setIsWaitingForApproval(false);
+          setIsProcessing(false);
+          // show toast and open retry dialog
+          makeToast({
+            title: "Voucher expired",
+            description: "Voucher request expired. You can retry or contact admin.",
+            action: (
+              <button
+                onClick={() => {
+                  setShowVoucherExpiredDialog(true);
+                }}
+                className="underline text-[rgb(0,153,153)]"
+              >
+                Retry
+              </button>
+            ),
+          });
+        }
+      } catch (err) {
+        // ignore intermittent errors
+      }
+    };
+
+    // initial check then interval
+    check();
+    const id = setInterval(check, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [voucherToken, isWaitingForApproval]);
+
+  const displayPassengers = passengers.filter((p) => !p.isNeighbourFreeSeat);
+
+  return (
+    <div className="max-w-7xl mx-auto my-4 sm:my-8 px-3 sm:px-4 font-sans">
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+        <div className="p-4 sm:p-6 border-b" style={{ backgroundColor: "rgb(0, 153, 153)" }}>
+          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
+            Passenger Details & Contacts
+          </h2>
+          <p className="text-sm text-white/90 mt-1">
+            Please provide details for all passengers and your contact information
+          </p>
+        </div>
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+          {/* Fare Summary */}
+          <div className="bg-gray-50 rounded-lg p-4 sm:p-5 border border-gray-200 shadow-sm">
+            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center">
+              <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-sm">
+                1
+              </span>
+              Fare Summary
+            </h3>
+            <div className="space-y-3">
+              {departureBus && (
+                <div className="flex flex-col sm:flex-row sm:justify-between border-b pb-2">
+                  <div className="mb-2 sm:mb-0">
+                    <p className="font-medium text-gray-700 text-sm sm:text-base">
+                      Departure: {departureBus.routeOrigin} → {departureBus.routeDestination}
+                    </p>
+                    <p className="text-xs sm:text-sm text-gray-500">
+                      {departureBus.departureDate
+                        ? format(new Date(departureBus.departureDate), "dd MMM yyyy")
+                        : "N/A"}{" "}
+                      • {departureSeats?.length || 0} seat(s)
+                    </p>
+                  </div>
+                  <p className="font-semibold text-[rgb(0,153,153)] text-sm sm:text-base">
+                    P {departureTotal.toFixed(2)}
+                  </p>
+                </div>
+              )}
+
+              {returnBus && (
+                <div className="flex flex-col sm:flex-row sm:justify-between border-b pb-2">
+                  <div className="mb-2 sm:mb-0">
+                    <p className="font-medium text-gray-700 text-sm sm:text-base">
+                      Return: {returnBus.routeOrigin} → {returnBus.routeDestination}
+                    </p>
+                    <p className="text-xs sm:text-sm text-gray-500">
+                      {returnBus.departureDate
+                        ? format(new Date(returnBus.departureDate), "dd MMM yyyy")
+                        : "N/A"}{" "}
+                      • {returnSeats?.length || 0} seat(s)
+                      {returnNeighbourFree && (
+                        <span className="ml-2 text-xs font-medium px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                          Neighbour-Free
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <p className="font-semibold text-[rgb(0,153,153)] text-sm sm:text-base">
+                    P {returnTotal.toFixed(2)}
+                  </p>
+                </div>
+              )}
+
+              {passengers.filter((p) => p.type === "child").length > 0 && (
+                <div className="flex justify-between pt-2">
+                  <p className="font-medium text-gray-700 text-sm sm:text-base">
+                    Child Fare ({passengers.filter((p) => p.type === "child").length}):
+                  </p>
+                  <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
+                    P {passengers.filter((p) => p.type === "child").length * childFare}
+                  </p>
+                </div>
+              )}
+
+              {infantCount > 0 && (
+                <div className="flex justify-between pt-2">
+                  <p className="font-medium text-gray-700 text-sm sm:text-base">Infant Fare ({infantCount}):</p>
+                  <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
+                    P {infantTotal.toFixed(2)}
+                  </p>
+                </div>
+              )}
+
+              {Object.entries(selectedAddons).map(([key, value]) => {
+                const addon = ADDONS.find((a) => a.key === key);
+                if (addon && (value.departure || value.return)) {
+                  const departurePayingCount = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat).length;
+                  const returnPayingCount = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat).length;
+                  const price = getAddonPrice(key, departureBus?.routeOrigin);
+                  const addonTotal = (value.departure ? price * departurePayingCount : 0) + (isRoundTrip && value.return ? price * returnPayingCount : 0);
+                  return (
+                    <div key={key} className="flex justify-between pt-2">
+                      <p className="font-medium text-gray-700 text-sm sm:text-base">{addon.label}:</p>
+                      <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
+                        P {addonTotal.toFixed(2)}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+
+              {agent && (
+                <div className="flex justify-between pt-2">
+                  <p className="font-medium text-gray-700 text-sm sm:text-base">Agent Discount (10%):</p>
+                  <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
+                    -P {agentDiscount.toFixed(2)}
+                  </p>
+                </div>
+              )}
+
+              {consultant && consultantDiscount > 0 && (
+                <div className="flex justify-between pt-2">
+                  <p className="font-medium text-gray-700 text-sm sm:text-base">
+                    Consultant Discount ({
+                      consultantDiscountType === "student"
+                        ? "5% Student"
+                        : consultantDiscountType === "senior"
+                        ? "15% Senior"
+                        : consultantDiscountType === "family"
+                        ? "Family Bundle"
+                        : consultantDiscountType === "group"
+                        ? "Group Discount"
+                        : ""
+                    }):
+                  </p>
+                  <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
+                    -P {consultantDiscount.toFixed(2)}
+                  </p>
+                </div>
+              )}
+              <div className="flex justify-between pt-3 border-t-2 border-gray-200 mt-2">
+                <p className="font-bold text-base sm:text-lg text-gray-800">Grand Total:</p>
+                <p className="font-bold text-[rgb(0,153,153)] text-lg sm:text-xl">P {useFreeVoucher ? '0.00' : finalTotal.toFixed(2)}</p>
+              </div>
+          {/* Consultant Discount Tab (Consultant Only) */}
+          {consultant && (
+            <div className="border border-gray-200 rounded-lg overflow-hidden mt-6">
+              <button
+                type="button"
+                className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex justify-between items-center transition-colors"
+                style={{ borderBottom: "1px solid #e5e7eb" }}
+                tabIndex={-1}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7" /></svg>
+                  </span>
+                  <h3 className="font-bold text-lg text-gray-800">Consultant Discount</h3>
+                </div>
+              </button>
+              <div className="p-4 flex flex-col sm:flex-row gap-3 sm:gap-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Discount</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "none" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                    onClick={() => setConsultantDiscountType("none")}
+                  >
+                    No Discount
+                  </button>
+                  {/* Free Voucher quick action for consultants */}
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${useFreeVoucher ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                    onClick={() => {
+                      // toggle free voucher
+                      if (!useFreeVoucher) {
+                        setPaymentMode("Free Voucher");
+                        setUseFreeVoucher(true);
+                        // clear consultant discount selection visually
+                        setConsultantDiscountType("none");
+                      } else {
+                        // restore default
+                        setPaymentMode("Credit Card");
+                        setUseFreeVoucher(false);
+                      }
+                    }}
+                  >
+                    Free Voucher
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "student" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                    onClick={() => setConsultantDiscountType("student")}
+                  >
+                    5% Student Discount <span className="ml-1 text-xs">(Present student ID)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "senior" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                    onClick={() => setConsultantDiscountType("senior")}
+                  >
+                    15% Senior Discount <span className="ml-1 text-xs">(60yrs+)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "family" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                    onClick={() => setConsultantDiscountType("family")}
+                  >
+                    Family Bundle <span className="ml-1 text-xs">(20% off 5th person)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "group" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                    onClick={() => setConsultantDiscountType("group")}
+                  >
+                    Group Discount <span className="ml-1 text-xs">(10% for 10+)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+            </div>
+          </div>
+
+          {/* Passenger Details Section */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => openOnlySection("passengers")}
+              className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex flex-col sm:flex-row sm:justify-between sm:items-center transition-colors"
+            >
+              <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-sm">
+                  2
+                </span>
+                <h3 className="font-bold text-lg text-gray-800">Passenger Details ({passengers.length} total seats)</h3>
+                {(departureNeighbourFree || returnNeighbourFree) && (
+                  <span
+                    className="ml-3 flex items-center gap-1 bg-[#f7f5ef] border rounded px-2 py-1 text-xs font-medium"
+                    style={{ borderColor: "rgb(148,138,84)", color: "rgb(148,138,84)" }}
+                  >
+                    <UserPlus className="w-4 h-4 mr-1" style={{ color: "rgb(148,138,84)" }} />
+                    Neighbour-Free: Companion seats auto-filled with same details
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                {returnSeats.length > 0 && (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyDepartureToReturn();
+                    }}
+                    className="bg-[rgb(255,199,33)] hover:bg-[rgb(255,219,33)] text-white px-3 py-1 h-auto text-xs sm:text-sm border border-[rgb(255,199,33)] w-full sm:w-auto"
+                    tabIndex={-1}
+                  >
+                    <Copy className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" /> Copy to Return
+                  </Button>
+                )}
+                {openSections.passengers ? (
+                  <ChevronUp className="text-gray-500 mt-1 sm:mt-0" />
+                ) : (
+                  <ChevronDown className="text-gray-500 mt-1 sm:mt-0" />
+                )}
+              </div>
+            </button>
+
+            {openSections.passengers && (
+              <div className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
+                {displayPassengers.length > 0 ? (
+                  displayPassengers.map((passenger: Passenger, idx: number) => {
+                    const isChild = passenger.type === "child";
+                    let companionSeat = null;
+                    if (!passenger.isReturn && departureNeighbourFree) {
+                      const primaryIndex = depNF.primary.indexOf(passenger.seatNumber);
+                      if (primaryIndex !== -1) {
+                        companionSeat = depNF.companion[primaryIndex];
+                      }
+                    } else if (passenger.isReturn && returnNeighbourFree) {
+                      const primaryIndex = retNF.primary.indexOf(passenger.seatNumber);
+                      if (primaryIndex !== -1) {
+                        companionSeat = retNF.companion[primaryIndex];
+                      }
+                    }
+                    return (
+                      <div key={passenger.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3">
+                          <span
+                            className={`font-medium text-white px-3 py-1 rounded-full text-sm w-fit ${
+                              passenger.isReturn ? "bg-[rgb(148,138,84)]" : "bg-[rgb(255,199,33)]"
+                            }`}
+                          >
+                            {passenger.seatNumber}
+                            {companionSeat && ` + ${companionSeat}`}
+                            {((departureNeighbourFree && !passenger.isReturn) ||
+                              (returnNeighbourFree && passenger.isReturn)) && (
+                              <span className="ml-2  text-white-800 text-xs px-2 py-1 rounded"style={{ backgroundColor: "rgb(255,199,33)" }}  >
+                                Neighbour-Free
+                              </span>
+                            )}
+                          </span>
+                          <Select
+                            value={passenger.type || "adult"}
+                            onValueChange={(value) => updatePassenger(passenger.id, "type", value)}
+                          >
+                            <SelectTrigger className="w-full sm:w-[180px] border-gray-300 focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)]">
+                              <SelectValue placeholder="Passenger Type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="adult">Adult</SelectItem>
+                              <SelectItem value="child">Child (2-11 yrs)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                            <Select
+                              value={passenger.title}
+                              onValueChange={(value) => updatePassenger(passenger.id, "title", value)}
+                            >
+                              <SelectTrigger className="w-full border-gray-300 focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)]">
+                                <SelectValue placeholder="Title" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Mr">Mr</SelectItem>
+                                <SelectItem value="Mrs">Mrs</SelectItem>
+                                <SelectItem value="Ms">Ms</SelectItem>
+                                <SelectItem value="Miss">Miss</SelectItem>
+                                <SelectItem value="Dr">Dr</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+                            <Input
+                              value={passenger.firstName}
+                              onChange={(e) => updatePassenger(passenger.id, "firstName", e.target.value)}
+                              placeholder="First name"
+                              required
+                              className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+                            <Input
+                              value={passenger.lastName}
+                              onChange={(e) => updatePassenger(passenger.id, "lastName", e.target.value)}
+                              placeholder="Last name"
+                              required
+                              className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4">
+                          {isChild && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Birthdate</label>
+                              <Input
+                                type="date"
+                                value={passenger.birthdate || ""}
+                                onChange={(e) => updatePassenger(passenger.id, "birthdate", e.target.value)}
+                                placeholder="Birthdate"
+                                required={isChild}
+                                className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                                min={getDateYearsAgo(11)}
+                                max={getDateYearsAgo(2)}
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
+                            <Input
+                              value={passenger.passportNumber || ""}
+                              onChange={(e) => updatePassenger(passenger.id, "passportNumber", e.target.value)}
+                              placeholder="Passport Number"
+                              required
+                              className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Passenger Phone</label>
+                            <div className="flex gap-2">
+                              <CountryCodeSelect
+                                value={passenger.phoneCountryCode || "+267"}
+                                onChange={(value) => updatePassenger(passenger.id, "phoneCountryCode", value)}
+                              />
+                              <Input
+                                value={passenger.phone || ""}
+                                onChange={(e) => updatePassenger(passenger.id, "phone", e.target.value)}
+                                placeholder="Phone Number"
+                                className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Next of Kin Name</label>
+                            <Input
+                              value={passenger.nextOfKinName || ""}
+                              onChange={(e) => updatePassenger(passenger.id, "nextOfKinName", e.target.value)}
+                              placeholder="Next of Kin Name"
+                              className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Next of Kin Phone</label>
+                            <div className="flex gap-2">
+                              <CountryCodeSelect
+                                value={passenger.nextOfKinPhoneCountryCode || "+267"}
+                                onChange={(value) => updatePassenger(passenger.id, "nextOfKinPhoneCountryCode", value)}
+                              />
+                              <Input
+                                value={passenger.nextOfKinPhone || ""}
+                                onChange={(e) => updatePassenger(passenger.id, "nextOfKinPhone", e.target.value)}
+                                placeholder="Next of Kin Phone"
+                                className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-4">
+                          <Checkbox
+                            id={`infant-${passenger.id}`}
+                            checked={!!passenger.hasInfant}
+                            onCheckedChange={(checked) => updatePassenger(passenger.id, "hasInfant", checked)}
+                            className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                            // Disable infant only for companion/neighbour-free seats (they are auto-filled)
+                            disabled={!!passenger.isNeighbourFreeSeat}
+                            title={passenger.isNeighbourFreeSeat ? "Infant addition is disabled for companion Neighbour-Free seats." : ""}
+                          />
+                          <label htmlFor={`infant-${passenger.id}`} className="text-sm text-gray-600">
+                            Bringing an infant (0-2 yrs, sits on lap)
+                            {(departureNeighbourFree && !passenger.isReturn) ||
+                            (returnNeighbourFree && passenger.isReturn) ? (
+                              <span className="ml-2 text-xs font-medium" style={{ color: "rgb(148,138,84)" }}>
+                                No Charge for infant in Neighbour-Free
+                              </span>
+                            ) : null}
+                          </label>
+                        </div>
+                        {passenger.hasInfant && (
+                          <div className="mt-4 p-3 sm:p-4 rounded bg-gray-50 border border-gray-200">
+                            <h4 className="font-medium text-[rgb(0,153,153)] mb-3">Infant Details</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Infant's Name</label>
+                                <Input
+                                  value={passenger.infantName || ""}
+                                  onChange={(e) => updatePassenger(passenger.id, "infantName", e.target.value)}
+                                  placeholder="Infant's Name"
+                                  required
+                                  className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Infant's Birthdate</label>
+                                <Input
+                                  type="date"
+                                  value={passenger.infantBirthdate || ""}
+                                  onChange={(e) => updatePassenger(passenger.id, "infantBirthdate", e.target.value)}
+                                  placeholder="Infant's Birthdate"
+                                  required
+                                  className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                                  max={new Date().toISOString().split("T")[0]}
+                                />
+                              </div>
+                            </div>
+                            <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
+                              <Input
+                                value={passenger.infantPassportNumber || ""}
+                                onChange={(e) => updatePassenger(passenger.id, "infantPassportNumber", e.target.value)}
+                                placeholder="Passport Number"
+                                required
+                                className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-4 text-gray-500">No passengers to display</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Contact Details Section */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => openOnlySection("contact")}
+              className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex justify-between items-center transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                  3
+                </span>
+                <h3 className="font-bold text-lg text-gray-800">Purchaser Details</h3>
+              </div>
+              {openSections.contact ? (
+                <ChevronUp className="text-gray-500" />
+              ) : (
+                <ChevronDown className="text-gray-500" />
+              )}
+            </button>
+            {openSections.contact && (
+              <div className="p-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                    <Input
+                      value={contactDetails.name}
+                      onChange={(e) => handleContactChange("name", e.target.value)}
+                      placeholder="Your Name"
+                      className="w-full focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <Input
+                      type="email"
+                      value={contactDetails.email}
+                      onChange={(e) => handleContactChange("email", e.target.value)}
+                      placeholder="Email"
+                      className="w-full focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
+                    <div className="flex gap-2">
+                      <CountryCodeSelect
+                        value={contactDetails.mobileCountryCode || "+267"}
+                        onChange={(value) => handleContactChange("mobileCountryCode", value)}
+                      />
+                      <Input
+                        type="tel"
+                        value={contactDetails.mobile}
+                        onChange={(e) => handleContactChange("mobile", e.target.value)}
+                        placeholder="Mobile"
+                        className="w-full focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ID Type</label>
+                    <Select
+                      value={contactDetails.idType}
+                      onValueChange={(value) => handleContactChange("idType", value)}
+                      required
+                    >
+                      <SelectTrigger className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300">
+                        <SelectValue placeholder="ID Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Passport">Passport</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
+                    <Input
+                      value={contactDetails.idNumber}
+                      onChange={(e) => handleContactChange("idNumber", e.target.value)}
+                      placeholder="Passport Number"
+                      className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Emergency Contact Section */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => openOnlySection("emergency")}
+              className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex justify-between items-center transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                  4
+                </span>
+                <h3 className="font-bold text-lg text-gray-800">Emergency Contact</h3>
+              </div>
+              {openSections.emergency ? (
+                <ChevronUp className="text-gray-500" />
+              ) : (
+                <ChevronDown className="text-gray-500" />
+              )}
+            </button>
+            {openSections.emergency && (
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <Input
+                    value={emergencyContact.name}
+                    onChange={(e) => handleEmergencyChange("name", e.target.value)}
+                    placeholder="Name"
+                    className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <div className="flex gap-2">
+                    <CountryCodeSelect
+                      value={emergencyContact.phoneCountryCode || "+267"}
+                      onChange={(value) => handleEmergencyChange("phoneCountryCode", value)}
+                    />
+                    <Input
+                      type="tel"
+                      value={emergencyContact.phone}
+                      onChange={(e) => handleEmergencyChange("phone", e.target.value)}
+                      placeholder="Phone Number"
+                      className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Trip Points Section */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => openOnlySection("points")}
+              className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex justify-between items-center transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                  5
+                </span>
+                <h3 className="font-bold text-lg text-gray-800">Trip Points</h3>
+              </div>
+              {openSections.points ? (
+                <ChevronUp className="text-gray-500" />
+              ) : (
+                <ChevronDown className="text-gray-500" />
+              )}
+            </button>
+            {openSections.points && (
+              <div className="p-4 space-y-6">
+                <div>
+                  <h4 className="font-bold text-[rgb(148,138,84)] mb-3 text-base sm:text-lg">Departure Trip Points</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Boarding Point</label>
+                      <select
+                        value={departureBoardingPoint}
+                        onChange={(e) => setDepartureBoardingPoint(e.target.value)}
+                        className="w-full p-2 sm:p-3 border border-gray-300 rounded-md focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] text-sm sm:text-base"
+                      >
+                        <option value="">Select boarding point</option>
+                        {departureOriginPoints.map((point) => (
+                          <option key={point.id} value={point.name}>
+                            {formatPoint(point.name)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dropping Point</label>
+                      <select
+                        value={departureDroppingPoint}
+                        onChange={(e) => setDepartureDroppingPoint(e.target.value)}
+                        className="w-full p-2 sm:p-3 border border-gray-300 rounded-md focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] text-sm sm:text-base"
+                      >
+                        <option value="">Select dropping point</option>
+                        {departureDestinationPoints.map((point) => (
+                          <option key={point.id} value={point.name}>
+                            {formatPoint(point.name)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {isRoundTrip && (
+                  <div>
+                    <h4 className="font-bold text-[rgb(148,138,84)] mb-3 text-base sm:text-lg">Return Trip Points</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Boarding Point</label>
+                        <select
+                          value={returnBoardingPoint}
+                          onChange={(e) => setReturnBoardingPoint(e.target.value)}
+                          className="w-full p-2 sm:p-3 border border-gray-300 rounded-md focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] text-sm sm:text-base"
+                        >
+                          <option value="">Select boarding point</option>
+                          {returnOriginPoints.map((point) => (
+                            <option key={point.id} value={point.name}>
+                              {formatPoint(point.name)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Dropping Point</label>
+                        <select
+                          value={returnDroppingPoint}
+                          onChange={(e) => setReturnDroppingPoint(e.target.value)}
+                          className="w-full p-2 sm:p-3 border border-gray-300 rounded-md focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] text-sm sm:text-base"
+                        >
+                          <option value="">Select dropping point</option>
+                          {returnDestinationPoints.map((point) => (
+                            <option key={point.id} value={point.name}>
+                              {formatPoint(point.name)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Add-ons Section */}
+          <div className="border-2 border-[rgb(255,199,33)] rounded-xl overflow-hidden mt-6 bg-gray-50">
+            <button
+              onClick={() => openOnlySection("addons")}
+              className="w-full p-4 bg-gray-100 text-left flex justify-between items-center hover:bg-gray-200 transition-all"
+            >
+              <h3 className="font-bold text-lg text-[rgb(148,138,84)] flex items-center gap-2">
+                Personalize Your Trip
+              </h3>
+              {openSections.addons ? (
+                <ChevronUp className="text-[rgb(148,138,84)]" />
+              ) : (
+                <ChevronDown className="text-[rgb(148,138,84)]" />
+              )}
+            </button>
+            {openSections.addons && (
+              <div className="p-4 space-y-4">
+                <div className="text-sm text-[rgb(0,153,153)] mb-4 font-medium bg-gray-100 p-3 rounded-lg border border-gray-200">
+                  Select extras for each passenger. Prices are per passenger, per trip.
+                </div>
+
+                {ADDONS.map((addon) => {
+                  const depOrigin = (departureBus?.routeOrigin || searchData.from || "")
+                    .toLowerCase()
+                    .trim();
+                  const isWimpy = addon.key === "wimpyMeal";
+                  const isInsurance = addon.key === "travelInsurance";
+                  let wimpyDisabled = false;
+                  let wimpyInfo = null;
+                  let insuranceInfo = null;
+                  let price = getAddonPrice(addon.key, depOrigin);
+
+                  if (isWimpy) {
+                    if (depOrigin !== "gaborone") return null;
+                    price = 67;
+                    const depDate = departureBus?.departureDate
+                      ? new Date(departureBus.departureDate)
+                      : null;
+                    const now = new Date();
+                    wimpyDisabled = !!depDate && (depDate.getTime() - now.getTime()) < 24 * 60 * 60 * 1000;
+                    wimpyInfo = (
+                      <span className="ml-2 inline-flex items-center text-xs text-gray-500">
+                        <Info className="h-4 w-4 mr-1 text-yellow-600" />
+                        Order 24hrs before departure
+                      </span>
+                    );
+                  }
+
+                  if (isInsurance) {
+                    insuranceInfo = (
+                      <div className="mt-2 p-3 bg-gray-100 rounded-lg border border-gray-200 text-sm text-gray-700">
+                        <p className="font-medium text-[rgb(0,153,153)] mb-2">Travel Insurance Information</p>
+                        <p>
+                          This is standard cover valid for 1-7 days of travel excluding America. Including
+                          America will be additional P105 for up to 7 days travel. Contact our office for
+                          long stay &/ comprehensive cover. Share passport copy if clicking this option
+                          to{" "}
+                          <span className="font-semibold">tickets@reecatravel.co.bw</span> with
+                          your ticket ID.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={addon.key}
+                      className="flex flex-col border border-gray-200 rounded-lg p-3 sm:p-4 bg-white hover:bg-gray-50 transition-all mb-2"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="p-2 bg-gray-100 rounded-full border border-gray-200">
+                            {addon.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-[rgb(0,153,153)] text-sm sm:text-base flex items-center gap-1">
+                              {addon.label}
+                              {isWimpy && wimpyInfo}
+                              {isInsurance && (
+                                <button
+                                  type="button"
+                                  aria-label="More info"
+                                  onClick={() => setShowInsuranceInfo(!showInsuranceInfo)}
+                                  className="ml-1 p-1 rounded-full hover:bg-gray-200 transition-colors border border-gray-200"
+                                  style={{ lineHeight: 0, display: "inline-flex", alignItems: "center" }}
+                                >
+                                  <Info className="h-4 w-4 text-gray-600" />
+                                </button>
+                              )}
+                            </div>
+                            <div className="text-xs sm:text-sm text-[rgb(148,138,84)] mt-1">
+                              {addon.description}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-row items-center gap-4 ml-auto">
+                          <div className="flex gap-3">
+                            <label className="flex items-center gap-1 text-sm">
+                              <Checkbox
+                                checked={!!selectedAddons[addon.key]?.departure}
+                                onCheckedChange={(checked) =>
+                                  handleAddonChange(addon.key, "departure", !!checked)
+                                }
+                                className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                                disabled={isWimpy ? wimpyDisabled : false}
+                                title={isWimpy && wimpyDisabled ? "Order 24hrs before departure" : ""}
+                              />
+                              <span className="text-xs sm:text-sm">Departure</span>
+                            </label>
+                            {isRoundTrip && addon.showOnReturn && (
+                              <label className="flex items-center gap-1 text-sm">
+                                <Checkbox
+                                  checked={!!selectedAddons[addon.key]?.return}
+                                  onCheckedChange={(checked) =>
+                                    handleAddonChange(addon.key, "return", !!checked)
+                                  }
+                                  disabled={isWimpy}
+                                  className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                                />
+                                <span className="text-xs sm:text-sm">Return</span>
+                              </label>
+                            )}
+                          </div>
+                          <span className="font-bold text-[rgb(255,199,33)] text-sm sm:text-base bg-gray-100 px-2 py-1 rounded-full border border-gray-200 min-w-[60px] text-center">
+                            {price > 0 ? `P ${price}` : "FREE"}
+                          </span>
+                        </div>
+                      </div>
+                      {showInsuranceInfo && insuranceInfo}
+                    </div>
+                  );
+                })}
+
+                {promotions.map((promo: any) => (
+                  <div
+                    key={promo.id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 border border-gray-200 rounded-lg p-3 sm:p-4 bg-white hover:bg-gray-50 transition-all"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="p-2 bg-yellow-50 rounded-full border border-yellow-200">
+                        <Gift className="h-5 w-5 text-[rgb(255,199,33)]" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-[rgb(0,153,153)] text-sm sm:text-base">
+                          {promo.title}
+                        </div>
+                        <div className="text-xs sm:text-sm text-[rgb(148,138,84)] mt-1">
+                          {promo.description}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 ml-auto">
+                      <div className="flex gap-3">
+                        <label className="flex items-center gap-1 text-sm">
+                          <Checkbox
+                            checked={!!selectedAddons[promo.id]?.departure}
+                            onCheckedChange={(checked) =>
+                              handleAddonChange(promo.id, "departure", !!checked)
+                            }
+                            className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                          />
+                          <span className="text-xs sm:text-sm">Departure</span>
+                        </label>
+                        {isRoundTrip && (
+                          <label className="flex items-center gap-1 text-sm">
+                            <Checkbox
+                              checked={!!selectedAddons[promo.id]?.return}
+                              onCheckedChange={(checked) =>
+                                handleAddonChange(promo.id, "return", !!checked)
+                              }
+                              className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                            />
+                            <span className="text-xs sm:text-sm">Return</span>
+                          </label>
+                        )}
+                      </div>
+                      <span className="font-bold text-[rgb(255,199,33)] text-sm sm:text-base bg-gray-100 px-2 py-1 rounded-full border border-gray-200">
+                        FREE
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Payment Mode Section */}
+          <div className="border border-gray-200 rounded-lg p-4 sm:p-5 bg-gray-50">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center text-base sm:text-lg">
+              <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-sm">
+                6
+              </span>
+              Payment Mode
+            </h3>
+            <div>
+                <Select value={paymentMode} onValueChange={(v) => { setPaymentMode(v); setUseFreeVoucher(false); }} required>
+                <SelectTrigger className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300">
+                  <SelectValue placeholder="Select payment mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Build a canonical list of options in desired order.
+                      - Free Voucher remains consultant-only via conditional.
+                      - Reservation Paid is hidden by default unless explicitly included in allowedPaymentModes.
+                      - If allowedPaymentModes is provided, only options in that list are shown. */}
+                  {(() => {
+                    const canonical = [
+                      { value: 'Credit Card', label: 'Credit Card | Debit Card' },
+                      { value: 'Bank Deposit', label: 'Pay with Bank Deposit' },
+                      { value: 'Cash', label: 'Paid with Payment Link', conditional: !!consultant },
+                      { value: 'Free Voucher', label: 'Free Voucher (Request Auth)', conditional: !!consultant },
+                      { value: 'Reservation Paid', label: 'Already Paid (Reservation)' },
+                    ] as { value: string; label: string; conditional?: boolean }[];
+
+                    const filtered = canonical.filter((opt) => {
+                      // enforce consultant-only options
+                      if (opt.value === 'Free Voucher' && !consultant) return false;
+
+                      // if allowedPaymentModes is provided, only allow options explicitly listed
+                      if (allowedPaymentModes && allowedPaymentModes.length > 0) {
+                        return allowedPaymentModes.includes(opt.value);
+                      }
+
+                      // default: hide Reservation Paid unless explicitly allowed
+                      if (opt.value === 'Reservation Paid') return false;
+
+                      return true;
+                    });
+
+                    return filtered.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ));
+                  })()}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Terms and Conditions */}
+          <div className="flex items-start space-x-2 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <Checkbox
+              id="terms"
+              checked={agreedToTerms}
+              onCheckedChange={(checked: boolean | string) => {
+                setAgreedToTerms(!!checked);
+                if (checked) setShowPolicyModal(true);
+              }}
+              className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)] mt-1"
+            />
+            <label
+              htmlFor="terms"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
+            >
+              By continuing you agree to our{" "}
+              <span
+                className="underline text-[rgb(0,153,153)] cursor-pointer hover:text-[rgb(0,123,123)] font-semibold"
+                onClick={() => setShowPolicyModal(true)}
+              >
+                TERMS & CONDITIONS
+              </span>{" "}
+              and Cancellation Policies
+            </label>
+          </div>
+
+          {/* Submit Button */}
+          <Button
+            className="w-full h-12 sm:h-14 bg-[#FFD700] hover:bg-[rgb(0,123,123)] text-white font-semibold rounded-xl text-base sm:text-lg transition-all transform hover:scale-[1.02] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            disabled={isProcessing || !agreedToTerms || !policyAccepted || !contactDetails.name || !contactDetails.email || !contactDetails.mobile}
+            onClick={async () => {
+              if (!policyAccepted) {
+                setShowPolicyModal(true);
+                return;
+              }
+
+              // Prevent double submissions
+              setIsProcessing(true);
+              if (paymentMode === "Bank Deposit") {
+                // Bank Deposit requires the user to make the payment externally and then confirm.
+                // Do not mark the booking as paid automatically here. We'll create a pending booking
+                // (status pending) and show bank deposit instructions. The admin can later mark it paid.
+                try {
+                  setShowBankDepositLoading(true);
+                  const bookingPayload = createBookingPayload();
+                  const res = await fetch("/api/booking", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(bookingPayload),
+                  });
+                  if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    throw new Error(errBody?.error || "Failed to create booking");
+                  }
+                  const data = await res.json();
+                  // Booking created but not marked paid. Redirect to a page with bank deposit instructions or ticket page showing pending payment.
+                  setTimeout(() => {
+                    setShowBankDepositLoading(false);
+                    setIsProcessing(false);
+                    const orderId = data.bookingRef || bookingPayload.orderId;
+                    window.location.href = `/ticket/${orderId}`;
+                  }, 800);
+                } catch (err: any) {
+                  setShowBankDepositLoading(false);
+                  setIsProcessing(false);
+                  alert(err?.message || "Error creating booking. Please try again.");
+                }
+              } else if (paymentMode === "Reservation Paid") {
+                // Client already paid prior to filling passenger details (reservation link prepaid).
+                // Create the booking and mark it paid immediately (skip DPO).
+                try {
+                  setIsProcessing(true);
+                  const bookingPayload = createBookingPayload();
+                  const res = await fetch('/api/create-dpo-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...bookingPayload, skipDPO: true }),
+                  });
+                  if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    throw new Error(errBody?.error || 'Failed to create booking');
+                  }
+                  const data = await res.json();
+                  const orderId = data.orderId || bookingPayload.orderId;
+                  window.location.href = `/ticket/${orderId}`;
+                } catch (err: any) {
+                  setIsProcessing(false);
+                  alert(err?.message || 'Error creating booking. Please try again.');
+                }
+              } else if (paymentMode === "Free Voucher") {
+                // Initiate voucher auth request flow and start polling for approval
+                try {
+                  const bookingPayload = createBookingPayload();
+                  const res = await fetch("/api/request-voucher-auth", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(bookingPayload),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.error || "Failed to request voucher authorization");
+                  }
+                  const body = await res.json();
+                  // body should contain token and bookingRef
+                  setVoucherToken(body.token);
+                  setVoucherStatus("pending");
+                  setIsWaitingForApproval(true);
+                  // keep isProcessing true so button shows disabled/loading
+                } catch (err: any) {
+                  makeToast({ title: "Request failed", description: err?.message || "Failed to request voucher authorization" });
+                  setIsProcessing(false);
+                }
+              } else {
+                try {
+                  await onProceedToPayment();
+                } finally {
+                  // onProceedToPayment may navigate away; guard clearing
+                  setIsProcessing(false);
+                }
+              }
+            }}
+          >
+            {useFreeVoucher
+              ? isWaitingForApproval
+                ? "Waiting for approval..."
+                : "Request Auth"
+              : paymentMode === "Bank Deposit"
+              ? "Proceed"
+              : paymentMode === "Cash"
+              ? "Mark as Paid"
+              : paymentMode === "Reservation Paid"
+              ? "Submit"
+              : `Pay (P ${finalTotal.toFixed(2)})`}
+          </Button>
+
+          {showBankDepositLoading && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50">
+              <div className="bg-white rounded-xl shadow-lg p-6 max-w-xs w-[90vw] text-center animate-fade-in">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <svg
+                    className="animate-spin h-8 w-8 text-teal-600 mb-2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    ></path>
+                  </svg>
+                  <h2 className="text-lg font-bold text-teal-700">Processing Booking...</h2>
+                  <p className="text-gray-700 text-sm mt-1">
+                    Please wait while we create your booking.
+                    <br />
+                    <span className="font-semibold text-[rgb(0,153,153)]">IMPORTANT:</span> Share
+                    proof of deposit to{" "}
+                    <span className="font-semibold">tickets@reecatravel.co.bw</span> at least{" "}
+                    <span className="font-semibold">1 hours after booking</span>  or your booking
+                    will be <span className="font-semibold text-red-600">nullified</span>.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Payment Gateway Dialog */}
+      <Dialog open={showPayment} onOpenChange={setShowPayment}>
+        <DialogContent className="max-w-lg mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle>Complete Your Booking</DialogTitle>
+          </DialogHeader>
+          {departureBus && (
+            <PaymentGateway
+              bookingData={createBookingPayload()}
+              onPaymentComplete={onPaymentComplete}
+              setShowPayment={setShowPayment}
+              onReservationConflict={(msg) => {
+                setReservationMessage(msg || 'One or more seats are no longer available');
+                setShowReservationConflict(true);
+                // refresh availability to show current unavailable seats
+                fetchAvailability();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reservation Conflict Modal */}
+      {showReservationConflict && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold text-gray-800">Seat conflict detected</h3>
+            <p className="text-sm text-gray-600 mt-2">{reservationMessage}</p>
+            {currentUnavailable.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm font-medium text-gray-700">Currently unavailable seats:</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {currentUnavailable.map((s) => (
+                    <span key={s} className="px-2 py-1 bg-red-100 text-red-800 rounded text-sm">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                onClick={async () => {
+                  // Refresh availability and keep payment open
+                  await fetchAvailability();
+                }}
+              >
+                Refresh availability
+              </button>
+              <button
+                className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
+                onClick={() => {
+                  // Close payment dialog so user can reselect seats
+                  setShowReservationConflict(false);
+                  setShowPayment(false);
+                }}
+              >
+                Reselect seats
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Voucher Expired Retry Dialog */}
+      <Dialog open={showVoucherExpiredDialog} onOpenChange={setShowVoucherExpiredDialog}>
+        <DialogContent className="max-w-md mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle>Voucher expired</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-700">Your voucher request has expired. Would you like to retry requesting authorization?</p>
+            <div className="mt-4 flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setShowVoucherExpiredDialog(false)}>Cancel</Button>
+              <Button onClick={() => requestVoucherAuth()} disabled={isProcessing}>{isProcessing ? 'Retrying...' : 'Retry'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Policy Modal */}
+      <PolicyModal
+        isOpen={showPolicyModal}
+        onClose={() => setShowPolicyModal(false)}
+        mode="user"
+        onAgree={() => {
+          setPolicyAccepted(true);
+          setShowPolicyModal(false);
+        }}
+      />
+
+      {/* Bank Deposit Notice */}
+      {showBankDepositNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full text-center">
+            <h2 className="text-xl font-bold mb-2 text-teal-700">Bank Deposit Instructions</h2>
+            <p className="mb-4 text-gray-700">
+              With this option you are required to provide proof of deposit within 1
+              hour of your booking reservations to{" "}
+              <span className="font-semibold">tickets@reecatravel.co.bw</span> or visit our
+              office.
+            </p>
+            <button
+              className="mt-2 px-6 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
+              onClick={() => setShowBankDepositNotice(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getDateYearsAgo(years: number) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  return d.toISOString().split("T")[0];
+}

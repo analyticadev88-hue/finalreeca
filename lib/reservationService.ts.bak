@@ -1,0 +1,105 @@
+import { Prisma } from '@prisma/client';
+import { prisma } from './prisma';
+
+function uuidv4() {
+  // simple UUIDv4 generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+export async function createReservation({ tripId, seatNumber, reservedBy, expiresAt }: { tripId: string; seatNumber: string; reservedBy?: string | null; expiresAt: Date }) {
+  // Prefer typed client if available
+  try {
+    const model = (prisma as any).seatReservation;
+    if (model && typeof model.create === 'function') {
+      return await model.create({ data: { tripId, seatNumber, reservedBy: reservedBy || null, expiresAt } });
+    }
+  } catch (err) {
+    // If typed client raised a unique constraint error, propagate so callers can handle it
+    if ((err as any)?.code === 'P2002') throw err;
+    // otherwise fall through to raw SQL fallback
+    console.warn('Typed seatReservation client not available or failed, falling back to raw SQL', err);
+  }
+
+  // Raw SQL fallback
+  const id = uuidv4();
+  const createdAt = new Date();
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO "SeatReservation" ("id","tripId","seatNumber","reservedBy","expiresAt","createdAt")
+      VALUES (${id}, ${tripId}, ${seatNumber}, ${reservedBy}, ${expiresAt}, ${createdAt})`;
+    return { id, tripId, seatNumber, reservedBy, expiresAt, createdAt };
+  } catch (err: any) {
+    // Normalize duplicate-key / unique constraint errors to P2002 so callers can treat uniformly
+    // Postgres 23505 is unique_violation
+    if (err?.code === 'P2010' || err?.code === '23505' || /already exists/i.test(err?.message || '')) {
+      const e: any = new Error('Unique constraint failed on the fields: (tripId, seatNumber)');
+      e.code = 'P2002';
+      throw e;
+    }
+    throw err;
+  }
+}
+
+export async function deleteReservationsByTripSeats(tripId: string, seats: string[]) {
+  try {
+    const model = (prisma as any).seatReservation;
+    if (model && typeof model.deleteMany === 'function') {
+      return await model.deleteMany({ where: { tripId, seatNumber: { in: seats } } });
+    }
+  } catch (err) {
+    console.warn('Typed deleteMany not available, falling back to raw SQL', err);
+  }
+  const res = await prisma.$executeRaw`
+    DELETE FROM "SeatReservation" WHERE "tripId" = ${tripId} AND "seatNumber" IN (${Prisma.join(seats)})`;
+  return res;
+}
+
+export async function deleteReservationsByReservedBy(tripId: string, reservedBy: string) {
+  try {
+    const model = (prisma as any).seatReservation;
+    if (model && typeof model.deleteMany === 'function') {
+      return await model.deleteMany({ where: { tripId, reservedBy } });
+    }
+  } catch (err) {
+    console.warn('Typed deleteMany not available, falling back to raw SQL', err);
+  }
+  const res = await prisma.$executeRaw`
+    DELETE FROM "SeatReservation" WHERE "tripId" = ${tripId} AND "reservedBy" = ${reservedBy}`;
+  return res;
+}
+
+export async function deleteExpiredReservations() {
+  try {
+    const model = (prisma as any).seatReservation;
+    if (model && typeof model.deleteMany === 'function') {
+      const now = new Date();
+      return await model.deleteMany({ where: { expiresAt: { lt: now } } });
+    }
+  } catch (err) {
+    console.warn('Typed deleteMany not available, falling back to raw SQL', err);
+  }
+  const now = new Date();
+  const res = await prisma.$executeRaw`
+    DELETE FROM "SeatReservation" WHERE "expiresAt" < ${now}`;
+  return res;
+}
+
+export async function findActiveReservations(tripId: string) {
+  try {
+    const model = (prisma as any).seatReservation;
+    if (model && typeof model.findMany === 'function') {
+      const now = new Date();
+      return await model.findMany({ where: { tripId, expiresAt: { gt: now } } });
+    }
+  } catch (err) {
+    console.warn('Typed findMany not available, falling back to raw SQL', err);
+  }
+  const now = new Date();
+  const rows: any[] = await prisma.$queryRaw`
+    SELECT "id","tripId","seatNumber","reservedBy","expiresAt","createdAt" FROM "SeatReservation" WHERE "tripId" = ${tripId} AND "expiresAt" > ${now}`;
+  return rows;
+}
