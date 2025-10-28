@@ -1,100 +1,180 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Image from "next/image";
+
 export default function ComingSoon() {
+  const [timeLeft, setTimeLeft] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+  });
+
+  useEffect(() => {
+    const launchDate = new Date();
+    launchDate.setDate(launchDate.getDate() + 45);
+
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = launchDate.getTime() - now.getTime();
+      if (diff > 0) {
+        setTimeLeft({
+          days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((diff / (1000 * 60)) % 60),
+          seconds: Math.floor((diff / 1000) % 60),
+        });
+      }
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#009999] flex items-center justify-center p-6">
-      <div className="max-w-5xl mx-auto w-full">
-        <div className="grid lg:grid-cols-2 gap-8 items-center">
-          {/* Logo Section */}
-          <div className="flex justify-center">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#febf00] to-[#847B4B] rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-1000"></div>
-              <div className="relative bg-white p-6 rounded-xl shadow-xl backdrop-blur-sm border border-white/20">
-                <img 
-                  src="/images/reeca-travel-logo.png" 
-                  alt="Reeca Travel"
-                  className="w-60 h-60 object-contain transform group-hover:scale-105 transition duration-500"
-                />
-              </div>
+    <main className="min-h-screen bg-white">
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-4xl">
+        {/* Logo */}
+        <div className="flex justify-center mb-8 md:mb-12">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 shadow-sm">
+            <Image
+              src="/images/reeca-travel-logo.png"
+              alt="Reeca Travel Logo"
+              width={140}
+              height={140}
+              className="object-contain md:w-40 md:h-40"
+              priority
+            />
+          </div>
+        </div>
+
+        {/* Red Alert Banner */}
+        <div className="flex justify-center mb-6 md:mb-8">
+          <div className="bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
+            <span className="text-red-600 font-bold text-sm md:text-base flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+              NEW ROUTE ALERT
+              <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+            </span>
+          </div>
+        </div>
+
+        {/* Main Heading */}
+        <div className="text-center mb-8 md:mb-12">
+          <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-3">
+            Gaborone <span className="text-[#009999]">↔</span> Johannesburg
+          </h1>
+          <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto">
+            New bus booking system launching soon
+          </p>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 md:p-8 mb-8 md:mb-12">
+          <p className="text-gray-800 text-base md:text-lg leading-relaxed text-center">
+            <span className="font-semibold text-[#009999]">Reeca Travel</span> is launching in{" "}
+            <span className="font-bold text-[#febf00]">45 days</span>. 
+            Book your tickets between Botswana and South Africa with our reliable daily services.
+          </p>
+        </div>
+
+        {/* Schedule Cards */}
+        <div className="grid md:grid-cols-2 gap-4 md:gap-6 mb-10 md:mb-14">
+          <div className="border-l-4 border-l-green-500 bg-white border border-gray-200 rounded-xl p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <h3 className="font-bold text-gray-900 text-lg">Gaborone → Johannesburg</h3>
+            </div>
+            <div className="space-y-2">
+              <p className="text-gray-700 flex items-center gap-2">
+                <span className="text-sm text-gray-500">•</span>
+                Morning: <span className="font-semibold">7:00 AM</span>
+              </p>
+              <p className="text-gray-700 flex items-center gap-2">
+                <span className="text-sm text-gray-500">•</span>
+                Afternoon: <span className="font-semibold">3:00 PM</span>
+              </p>
             </div>
           </div>
 
-          {/* Content Section */}
-          <div className="space-y-6">
-            {/* Header with Modern Badge */}
-            <div className="space-y-4">
-              <div className="inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-[#febf00] to-[#ffd54a] rounded-full shadow-lg border border-[#febf00]/20">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 bg-[#847B4B] rounded-full animate-pulse"></span>
-                  <span className="text-gray-900 font-semibold text-sm tracking-wide">NEW ROUTE ALERT</span>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <h1 className="text-4xl font-light text-white tracking-tight">
-                  Reeca Travel
-                </h1>
-                <div className="w-16 h-0.5 bg-[#febf00] rounded-full"></div>
-              </div>
+          <div className="border-l-4 border-l-blue-500 bg-white border border-gray-200 rounded-xl p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <h3 className="font-bold text-gray-900 text-lg">OR Tambo → Gaborone</h3>
             </div>
-
-            {/* Modern Card with Message */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20">
-              <p className="text-gray-700 text-[15px] leading-relaxed mb-4 font-light">
-                Get ready to travel with ease! Reeca Travel's new bus booking system is launching in 45 days. 
-                Book your tickets from Gaborone to Johannesburg and back with us soon.
+            <div className="space-y-2">
+              <p className="text-gray-700 flex items-center gap-2">
+                <span className="text-sm text-gray-500">•</span>
+                Morning: <span className="font-semibold">8:00 AM</span>
               </p>
-
-              {/* Clear Schedule Layout */}
-              <div className="space-y-3 mt-4">
-                <div className="flex items-center justify-between p-3 bg-[#febf00]/10 rounded-lg border border-[#febf00]/20">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2 h-8 bg-[#009999] rounded-full"></div>
-                    <div>
-                      <div className="text-gray-900 font-medium text-sm">From Gaborone</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[#009999] font-semibold text-sm">7:00 AM & 3:00 PM</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-[#847B4B]/10 rounded-lg border border-[#847B4B]/20">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2 h-8 bg-[#847B4B] rounded-full"></div>
-                    <div>
-                      <div className="text-gray-900 font-medium text-sm">From OR Tambo</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[#847B4B] font-semibold text-sm">8:00 AM & 5:00 PM</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modern Countdown & Contact */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Countdown */}
-              <div className="bg-gradient-to-br from-[#847B4B] to-[#6b6440] rounded-xl p-4 text-center shadow-lg border border-[#847B4B]/30">
-                <div className="text-white/80 text-xs font-medium mb-1 tracking-wide">LAUNCHING IN</div>
-                <div className="text-lg font-bold text-white">
-                  45 <span className="text-[#febf00] text-sm">days</span>
-                </div>
-              </div>
-
-              {/* Contact */}
-              <div className="bg-gradient-to-br from-[#febf00] to-[#ffd54a] rounded-xl p-4 text-center shadow-lg border border-[#febf00]/30">
-                <div className="text-gray-900/80 text-xs font-medium mb-1 tracking-wide">CONTACT US</div>
-                <div className="text-gray-900 font-semibold text-sm">tickets@reecatravel.co.bw</div>
-              </div>
-            </div>
-
-            {/* Stay Tuned */}
-            <div className="text-center pt-2">
-              <div className="text-white/60 text-xs font-light tracking-wide">Stay tuned for updates</div>
+              <p className="text-gray-700 flex items-center gap-2">
+                <span className="text-sm text-gray-500">•</span>
+                Evening: <span className="font-semibold">5:00 PM</span>
+              </p>
             </div>
           </div>
         </div>
+
+        {/* Countdown */}
+        <div className="text-center mb-12 md:mb-16">
+          <h3 className="text-gray-700 font-medium mb-6 text-lg">Launching In</h3>
+          <div className="flex justify-center gap-2 md:gap-4 max-w-md mx-auto">
+            {[
+              { label: "Days", value: timeLeft.days },
+              { label: "Hours", value: timeLeft.hours },
+              { label: "Minutes", value: timeLeft.minutes },
+              { label: "Seconds", value: timeLeft.seconds },
+            ].map((item) => (
+              <div key={item.label} className="flex-1 min-w-[60px] md:min-w-[80px]">
+                <div className="bg-gray-900 text-white rounded-lg py-3 md:py-4 mb-2">
+                  <span className="text-xl md:text-2xl font-mono font-bold">
+                    {item.value.toString().padStart(2, "0")}
+                  </span>
+                </div>
+                <span className="text-xs text-gray-600 font-medium uppercase tracking-wide">
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Contact Section */}
+        <div className="border-t border-gray-200 pt-8 md:pt-12">
+          <h3 className="text-center font-bold text-gray-900 mb-6 md:mb-8 text-lg">
+            Contact For Bookings & Inquiries
+          </h3>
+          
+          <div className="grid md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
+            <div className="text-center p-4 border border-gray-200 rounded-xl bg-white shadow-sm">
+              <div className="text-[#009999] font-bold text-sm mb-2">Orange</div>
+              <div className="text-gray-800 font-semibold text-base">+267 76 506 348</div>
+            </div>
+            <div className="text-center p-4 border border-gray-200 rounded-xl bg-white shadow-sm">
+              <div className="text-[#847B4B] font-bold text-sm mb-2">Be Mobile</div>
+              <div className="text-gray-800 font-semibold text-base">+267 73 061 124</div>
+            </div>
+            <div className="text-center p-4 border border-gray-200 rounded-xl bg-white shadow-sm">
+              <div className="text-[#febf00] font-bold text-sm mb-2">Mascom</div>
+              <div className="text-gray-800 font-semibold text-base">+267 77 655 348</div>
+            </div>
+          </div>
+
+          <div className="text-center p-4 md:p-5 bg-gray-50 rounded-xl border border-gray-200 max-w-md mx-auto">
+            <div className="font-bold text-gray-900 mb-2 text-lg">Email Us</div>
+            <div className="text-[#009999] font-semibold text-base">tickets@reecatravel.co.bw</div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-10 md:mt-12 pt-6 border-t border-gray-200">
+          <p className="text-gray-600 text-sm">
+            © 2024 Reeca Travel. Making your journey better.
+          </p>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
