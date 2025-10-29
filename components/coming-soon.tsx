@@ -12,18 +12,27 @@ export default function ComingSoon() {
   });
 
   useEffect(() => {
-    const launchDate = new Date();
-    launchDate.setDate(launchDate.getDate() + 45);
+    // Set the fixed launch date to December 12, 2025
+    const launchDate = new Date("2025-12-12T00:00:00"); // Midnight on December 12, 2025
 
     const updateCountdown = () => {
       const now = new Date();
       const diff = launchDate.getTime() - now.getTime();
+      
       if (diff > 0) {
         setTimeLeft({
           days: Math.floor(diff / (1000 * 60 * 60 * 24)),
           hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
           minutes: Math.floor((diff / (1000 * 60)) % 60),
           seconds: Math.floor((diff / 1000) % 60),
+        });
+      } else {
+        // Countdown finished
+        setTimeLeft({
+          days: 0,
+          hours: 0,
+          minutes: 0,
+          seconds: 0,
         });
       }
     };
@@ -60,8 +69,8 @@ export default function ComingSoon() {
         <div className="text-center mb-8">
           <p className="text-gray-700 text-base leading-relaxed">
             Get ready to travel with ease!{" "}
-            <span className="text-[#009999] font-medium">Reeca Travel's</span> new bus booking system is launching in{" "}
-            <span className="text-[#febf00] font-semibold">45 days</span>. Book your tickets from Gaborone to Johannesburg and back with us soon.
+            <span className="text-[#009999] font-medium">Reeca Travel's</span> new bus booking system is launching on{" "}
+            <span className="text-[#febf00] font-semibold">December 12, 2025</span>. Book your tickets from Gaborone to Johannesburg and back with us soon.
           </p>
         </div>
 
