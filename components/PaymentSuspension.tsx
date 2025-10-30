@@ -60,9 +60,6 @@ export default function PaymentSuspension() {
           <div className="text-4xl font-light text-gray-300 mb-4">
             Techni-kali IT
           </div>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            This website is currently undergoing maintenance and improvements by our Support team.
-          </p>
         </div>
 
         {/* Powered By Section */}
