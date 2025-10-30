@@ -12,19 +12,19 @@ export default function PaymentSuspension() {
   const partners = [
     { 
       name: 'AnalyticaSecurity', 
-      url: 'https://analytica-security.vercel.app/' 
+      url: '#' 
     },
     { 
       name: 'BlastoTech', 
-      url: 'https://blastotech.vercel.app/' 
+      url: '#' 
     },
     { 
       name: 'CodeX', 
-      url: 'https://codex-sage.vercel.app/' 
+      url: '#' 
     },
     { 
       name: 'Toporapula.dev', 
-      url: 'https://toporapula.dev/' 
+      url: '#' 
     },
     { 
       name: 'Techni-kali IT', 
@@ -32,15 +32,15 @@ export default function PaymentSuspension() {
     },
     { 
       name: 'CrunchyDevs', 
-      url: 'https://crunchy-devs.vercel.app/' 
+      url: '#' 
     },
     { 
       name: 'MofenyiApps', 
-      url: 'https://mofenyiapps.vercel.app/' 
+      url: '#' 
     },
     { 
       name: 'R.I.S', 
-      url: 'https://ris-solutions.vercel.app/' 
+      url: '#' 
     }
   ]
 
