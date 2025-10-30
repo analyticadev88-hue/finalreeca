@@ -1,11 +1,16 @@
+// app/layout.tsx
 import type { Metadata } from 'next'
 import './globals.css'
+import PaymentSuspension from '@/components/PaymentSuspension'
 
 export const metadata: Metadata = {
   title: 'Recca Travel',
   description: 'Going Places',
   generator: 'toporapula.dev',
 }
+
+// Control this with environment variable
+const isSuspended = process.env.NEXT_PUBLIC_SITE_SUSPENDED === 'true'
 
 export default function RootLayout({
   children,
@@ -14,7 +19,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {isSuspended ? <PaymentSuspension /> : children}
+      </body>
     </html>
   )
 }
