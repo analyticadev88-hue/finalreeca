@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 }
 
 // Control this with environment variable
-const isSuspended = process.env.NEXT_PUBLIC_SITE_SUSPENDED === 'true'
+const isSuspended = process.env.NEXT_PUBLIC_SITE_SUSPENDED === 'false'
 
 export default function RootLayout({
   children,
