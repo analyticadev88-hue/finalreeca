@@ -2,7 +2,7 @@
 import CreateCharterQuickAction from "./CreateCharterQuickAction";
 import MaintenanceQuickAction from "./MaintenanceQuickAction";
 import { useState, useEffect } from "react";
-import { Users, DollarSign, AlertTriangle, Bus, TrendingUp, BarChart3, QrCode, FileText, Clock, ArrowUpRight } from "lucide-react";
+import { Users, DollarSign, AlertTriangle, Bus, TrendingUp, BarChart3, QrCode, FileText, Clock, ArrowUpRight, Wrench } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { PolicyModal } from "@/components/PolicyModal";
@@ -287,111 +287,124 @@ export default function DashboardOverview() {
 
       {/* Quick Actions & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Actions */}
-        <div className="lg:col-span-1">
-          <div className="border border-[#e5e7eb] rounded-lg shadow-sm bg-white">
-            <div className="p-6 border-b border-[#e5e7eb]">
-              <h2 className="text-lg font-semibold text-[#111827]">Quick Actions</h2>
-              <p className="text-sm text-[#6b7280]">
-                Common tasks at your fingertips
-              </p>
+      {/* Quick Actions */}
+<div className="lg:col-span-1">
+  <div className="border border-[#e5e7eb] rounded-lg shadow-sm bg-white">
+    <div className="p-6 border-b border-[#e5e7eb]">
+      <h2 className="text-lg font-semibold text-[#111827]">Quick Actions</h2>
+      <p className="text-sm text-[#6b7280]">
+        Common tasks at your fingertips
+      </p>
+    </div>
+    <div className="p-6">
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/admin/validate-ticket">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#99f6e4] hover:bg-[#f0fdfa] transition-colors">
+            <div className="rounded-full bg-[#ccfbf1] p-3">
+              <QrCode className="h-5 w-5 text-[#0d9488]" />
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-2 gap-3">
-                <Link href="/admin/validate-ticket">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#99f6e4] hover:bg-[#f0fdfa] transition-colors">
-                    <div className="rounded-full bg-[#ccfbf1] p-3">
-                      <QrCode className="h-5 w-5 text-[#0d9488]" />
-                    </div>
-                    <span className="text-sm font-medium">Validate Tickets</span>
-                  </button>
-                </Link>
-                
-                <Link href="/admin/agents">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#bfdbfe] hover:bg-[#eff6ff] transition-colors">
-                    <div className="rounded-full bg-[#bfdbfe] p-3">
-                      <Users className="h-5 w-5 text-[#2563eb]" />
-                    </div>
-                    <span className="text-sm font-medium">Agents</span>
-                  </button>
-                </Link>
-                
-                <Link href="/admin/consultants">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#fcd34d] hover:bg-[#fef9c3] transition-colors">
-                    <div className="rounded-full bg-[#fcd34d]/30 p-3">
-                      <Users className="h-5 w-5 text-[#b45309]" />
-                    </div>
-                    <span className="text-sm font-medium">Consultants</span>
-                  </button>
-                </Link>
-                
-                <Link href="/admin/charters">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#e0f2fe] hover:bg-[#eff6ff] transition-colors">
-                    <div className="rounded-full bg-[#e0f2fe] p-3">
-                      <Bus className="h-5 w-5 text-[#0284c7]" />
-                    </div>
-                    <span className="text-sm font-medium">Charters</span>
-                  </button>
-                </Link>
-                
-                <Link href="/admin/fleet">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#c7d2fe] hover:bg-[#eef2ff] transition-colors">
-                    <div className="rounded-full bg-[#c7d2fe] p-3">
-                      <Bus className="h-5 w-5 text-[#4f46e5]" />
-                    </div>
-                    <span className="text-sm font-medium">Fleet</span>
-                  </button>
-                </Link>
-                <Link href="/admin/reservations">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#99f6e4] hover:bg-[#f0fdfa] transition-colors">
-                    <div className="rounded-full bg-[#ccfbf1] p-3">
-                      <Users className="h-5 w-5 text-[#0d9488]" />
-                    </div>
-                    <span className="text-sm font-medium" style={{ color: '#009393' }}>Reservations</span>
-                  </button>
-                </Link>
-                
-                <Link href="/admin/busschedule">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#e9d5ff] hover:bg-[#f5f3ff] transition-colors">
-                    <div className="rounded-full bg-[#e9d5ff] p-3">
-                      <FileText className="h-5 w-5 text-[#7e22ce]" />
-                    </div>
-                    <span className="text-sm font-medium">Schedule</span>
-                  </button>
-                </Link>
-                
-                {/* --- NEW: Edit Policy Button --- */}
-                <button
-                  className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#fbbf24] hover:bg-[#fef3c7] transition-colors"
-                  onClick={() => setShowPolicyEditor(true)}
-                >
-                  <div className="rounded-full bg-[#fbbf24]/30 p-3">
-                    <FileText className="h-5 w-5 text-[#f59e42]" />
-                  </div>
-                  <span className="text-sm font-medium">Edit Policy</span>
-                </button>
-                {/* --- NEW: Set Fare Prices Button --- */}
-                <button
-                  className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#a7f3d0] hover:bg-[#f0fdfa] transition-colors"
-                  onClick={() => setShowFareEditor(true)}
-                >
-                  <div className="rounded-full bg-[#a7f3d0]/30 p-3">
-                    <DollarSign className="h-5 w-5 text-[#059669]" />
-                  </div>
-                  <span className="text-sm font-medium">Set Fare Prices</span>
-                </button>
-                <Link href="/admin/promotions">
-                  <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#fbbf24] hover:bg-[#fef3c7] transition-colors">
-                    <div className="rounded-full bg-[#fbbf24]/30 p-3">
-                      <BarChart3 className="h-5 w-5 text-[#f59e42]" />
-                    </div>
-                    <span className="text-sm font-medium">Promotions</span>
-                  </button>
-                </Link>
-              </div>
+            <span className="text-sm font-medium">Validate Tickets</span>
+          </button>
+        </Link>
+        
+        <Link href="/admin/agents">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#bfdbfe] hover:bg-[#eff6ff] transition-colors">
+            <div className="rounded-full bg-[#bfdbfe] p-3">
+              <Users className="h-5 w-5 text-[#2563eb]" />
             </div>
+            <span className="text-sm font-medium">Agents</span>
+          </button>
+        </Link>
+        
+        <Link href="/admin/consultants">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#fcd34d] hover:bg-[#fef9c3] transition-colors">
+            <div className="rounded-full bg-[#fcd34d]/30 p-3">
+              <Users className="h-5 w-5 text-[#b45309]" />
+            </div>
+            <span className="text-sm font-medium">Consultants</span>
+          </button>
+        </Link>
+        
+        <Link href="/admin/charters">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#e0f2fe] hover:bg-[#eff6ff] transition-colors">
+            <div className="rounded-full bg-[#e0f2fe] p-3">
+              <Bus className="h-5 w-5 text-[#0284c7]" />
+            </div>
+            <span className="text-sm font-medium">Charters</span>
+          </button>
+        </Link>
+        
+        <Link href="/admin/fleet">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#c7d2fe] hover:bg-[#eef2ff] transition-colors">
+            <div className="rounded-full bg-[#c7d2fe] p-3">
+              <Bus className="h-5 w-5 text-[#4f46e5]" />
+            </div>
+            <span className="text-sm font-medium">Fleet</span>
+          </button>
+        </Link>
+        
+        <Link href="/admin/reservations">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#99f6e4] hover:bg-[#f0fdfa] transition-colors">
+            <div className="rounded-full bg-[#ccfbf1] p-3">
+              <Users className="h-5 w-5 text-[#0d9488]" />
+            </div>
+            <span className="text-sm font-medium" style={{ color: '#009393' }}>Reservations</span>
+          </button>
+        </Link>
+        
+        <Link href="/admin/busschedule">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#e9d5ff] hover:bg-[#f5f3ff] transition-colors">
+            <div className="rounded-full bg-[#e9d5ff] p-3">
+              <FileText className="h-5 w-5 text-[#7e22ce]" />
+            </div>
+            <span className="text-sm font-medium">Schedule</span>
+          </button>
+        </Link>
+
+        {/* --- NEW: Maintenance Button --- */}
+        <Link href="/admin/maintenance">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#fecaca] hover:bg-[#fef2f2] transition-colors">
+            <div className="rounded-full bg-[#fecaca] p-3">
+              <Wrench className="h-5 w-5 text-[#dc2626]" />
+            </div>
+            <span className="text-sm font-medium">Maintenance</span>
+          </button>
+        </Link>
+        
+        {/* --- NEW: Edit Policy Button --- */}
+        <button
+          className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#fbbf24] hover:bg-[#fef3c7] transition-colors"
+          onClick={() => setShowPolicyEditor(true)}
+        >
+          <div className="rounded-full bg-[#fbbf24]/30 p-3">
+            <FileText className="h-5 w-5 text-[#f59e42]" />
           </div>
-        </div>
+          <span className="text-sm font-medium">Edit Policy</span>
+        </button>
+        
+        {/* --- NEW: Set Fare Prices Button --- */}
+        <button
+          className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#a7f3d0] hover:bg-[#f0fdfa] transition-colors"
+          onClick={() => setShowFareEditor(true)}
+        >
+          <div className="rounded-full bg-[#a7f3d0]/30 p-3">
+            <DollarSign className="h-5 w-5 text-[#059669]" />
+          </div>
+          <span className="text-sm font-medium">Set Fare Prices</span>
+        </button>
+        
+        <Link href="/admin/promotions">
+          <button className="w-full h-24 flex flex-col items-center justify-center gap-3 border border-[#e5e7eb] rounded-lg hover:border-[#fbbf24] hover:bg-[#fef3c7] transition-colors">
+            <div className="rounded-full bg-[#fbbf24]/30 p-3">
+              <BarChart3 className="h-5 w-5 text-[#f59e42]" />
+            </div>
+            <span className="text-sm font-medium">Promotions</span>
+          </button>
+        </Link>
+      </div>
+    </div>
+  </div>
+</div>
 
         {/* Recent Bookings */}
         <div className="lg:col-span-2">
