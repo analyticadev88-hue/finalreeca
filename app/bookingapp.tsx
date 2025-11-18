@@ -607,12 +607,12 @@ export default function BookingApp() {
     </div>
     <div className="mt-8 text-center">
       <a
-        href="https://toporapuladev.vercel.app/"
+        href="https://toporapula.vercel.app/"
         target="_blank"
         rel="noopener noreferrer"
         className="text-gray-500 hover:text-gray-400"
       >
-        Developed by TLR
+        Developed by Topo Rapula
       </a>
     </div>
     <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-500">
