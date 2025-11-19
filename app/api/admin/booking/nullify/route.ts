@@ -16,9 +16,8 @@ export async function POST(req: NextRequest) {
     if (!booking) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
-    if (booking.paymentStatus !== 'pending') {
-      return NextResponse.json({ error: 'Only pending payment bookings can be nullified' }, { status: 400 });
-    }
+    // Allow nullification for any payment status (pending or confirmed)
+    // This enables handling cancellations without refunds
 
     // Free up seats on both trips
     const updateTripSeats = async (tripId: string, seatNumbers: string) => {
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
       const newOccupied = occupied.filter((seat: string) => !toFree.includes(seat));
       await prisma.trip.update({
         where: { id: tripId },
-        data: { 
+        data: {
           occupiedSeats: newOccupied.join(','),
           availableSeats: trip.availableSeats + toFree.length
         }

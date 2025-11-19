@@ -1,7 +1,7 @@
 // app/admin/maintenance/calendar/page.tsx
 "use client";
 import React, { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isAfter, isBefore } from 'date-fns';
 import Link from 'next/link';
 
 interface MaintenanceBlock {
@@ -25,7 +25,9 @@ function parseISO(dateString: string): Date {
 export default function MaintenanceCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set()); // Multi-select dates
+  const [lastSelectedDate, setLastSelectedDate] = useState<string | null>(null); // For range selection
+  const [viewingDate, setViewingDate] = useState<Date | null>(null); // For detail modal
   const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
@@ -49,9 +51,66 @@ export default function MaintenanceCalendarPage() {
     }
   };
 
+  const getDateRange = (startDateStr: string, endDateStr: string): string[] => {
+    const startDate = parseISO(startDateStr);
+    const endDate = parseISO(endDateStr);
+
+    // Determine which date is earlier
+    const earlier = isBefore(startDate, endDate) ? startDate : endDate;
+    const later = isAfter(startDate, endDate) ? startDate : endDate;
+
+    // Get all dates in the range
+    const datesInRange = eachDayOfInterval({ start: earlier, end: later });
+    return datesInRange.map(date => format(date, 'yyyy-MM-dd'));
+  };
+
+  const toggleDateSelection = (date: Date, e: React.MouseEvent) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+
+    if (e.shiftKey) {
+      // Shift+Click: Select range from last selected to current
+      e.stopPropagation();
+
+      if (lastSelectedDate) {
+        // We have an anchor, select the range
+        const rangeDates = getDateRange(lastSelectedDate, dateStr);
+        setSelectedDates(prev => {
+          const newSet = new Set(prev);
+          rangeDates.forEach(d => newSet.add(d));
+          return newSet;
+        });
+      } else {
+        // No anchor yet, just select this date and set it as anchor
+        setSelectedDates(prev => {
+          const newSet = new Set(prev);
+          newSet.add(dateStr);
+          return newSet;
+        });
+        setLastSelectedDate(dateStr);
+      }
+      // Don't update lastSelectedDate on shift-click to allow extending the range
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd+Click: Toggle individual date
+      e.stopPropagation();
+      setSelectedDates(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(dateStr)) {
+          newSet.delete(dateStr);
+        } else {
+          newSet.add(dateStr);
+        }
+        return newSet;
+      });
+      setLastSelectedDate(dateStr); // Update anchor for range selection
+    } else {
+      // Single click without modifier - open detail modal
+      setViewingDate(date);
+    }
+  };
+
   const handleUnblockDate = async (date: string, blockId?: string) => {
     const dateStr = format(parseISO(date), 'MMM dd, yyyy');
-    
+
     if (blockId) {
       // Unblock specific block on this date
       if (!confirm(`Unblock this maintenance block on ${dateStr}?`)) return;
@@ -69,7 +128,7 @@ export default function MaintenanceCalendarPage() {
 
       if (res.ok) {
         await fetchBlockedDays();
-        setSelectedDate(null);
+        setViewingDate(null);
         setSelectedBlocks(new Set());
         alert('Successfully unblocked date');
       } else {
@@ -81,17 +140,45 @@ export default function MaintenanceCalendarPage() {
     }
   };
 
+  const handleBulkUnblockSelectedDates = async () => {
+    if (selectedDates.size === 0) {
+      alert('Please select dates to unblock');
+      return;
+    }
+
+    if (!confirm(`Unblock ALL maintenance on ${selectedDates.size} selected date(s)?`)) return;
+
+    try {
+      // Unblock all maintenance for each selected date
+      const promises = Array.from(selectedDates).map(dateStr =>
+        fetch('/api/maintenance/unblock-date', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: dateStr })
+        })
+      );
+
+      await Promise.all(promises);
+      await fetchBlockedDays();
+      setSelectedDates(new Set());
+      setLastSelectedDate(null);
+      alert(`Successfully unblocked ${selectedDates.size} date(s)`);
+    } catch (error) {
+      alert('Failed to unblock selected dates');
+    }
+  };
+
   const handleBulkUnblock = async () => {
     if (selectedBlocks.size === 0) {
       alert('Please select blocks to unblock');
       return;
     }
 
-    const selectedDateObj = selectedDate;
-    if (!selectedDateObj) return;
+    const viewingDateObj = viewingDate;
+    if (!viewingDateObj) return;
 
-    const dateStr = format(selectedDateObj, 'yyyy-MM-dd');
-    const displayDate = format(selectedDateObj, 'MMM dd, yyyy');
+    const dateStr = format(viewingDateObj, 'yyyy-MM-dd');
+    const displayDate = format(viewingDateObj, 'MMM dd, yyyy');
 
     if (!confirm(`Unblock ${selectedBlocks.size} selected block(s) on ${displayDate}?`)) return;
 
@@ -107,7 +194,7 @@ export default function MaintenanceCalendarPage() {
 
       await Promise.all(promises);
       await fetchBlockedDays();
-      setSelectedDate(null);
+      setViewingDate(null);
       setSelectedBlocks(new Set());
       alert(`Successfully unblocked ${selectedBlocks.size} block(s)`);
     } catch (error) {
@@ -135,19 +222,35 @@ export default function MaintenanceCalendarPage() {
     }
   };
 
+  const selectAllBlockedDates = () => {
+    const blockedDateStrs = blockedDays.map(day => day.date);
+    if (selectedDates.size === blockedDateStrs.length) {
+      setSelectedDates(new Set());
+      setLastSelectedDate(null);
+    } else {
+      setSelectedDates(new Set(blockedDateStrs));
+      setLastSelectedDate(blockedDateStrs[blockedDateStrs.length - 1] || null);
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedDates(new Set());
+    setLastSelectedDate(null);
+  };
+
   const monthDays = eachDayOfInterval({
     start: startOfMonth(currentMonth),
     end: endOfMonth(currentMonth)
   });
 
   const getBlockedDay = (date: Date) => {
-    return blockedDays.find(day => 
+    return blockedDays.find(day =>
       isSameDay(parseISO(day.date), date)
     );
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
-    setCurrentMonth(current => 
+    setCurrentMonth(current =>
       direction === 'prev' ? subMonths(current, 1) : addMonths(current, 1)
     );
   };
@@ -166,6 +269,9 @@ export default function MaintenanceCalendarPage() {
         <div>
           <h1 className="text-2xl font-bold">📅 Maintenance Calendar</h1>
           <p className="text-gray-600">View and manage maintenance blocks by date</p>
+          <p className="text-sm text-gray-500 mt-1">
+            💡 <strong>Ctrl/Cmd+Click</strong> to select multiple dates • <strong>Shift+Click</strong> to select range
+          </p>
         </div>
         <div className="flex gap-2">
           <Link
@@ -192,6 +298,37 @@ export default function MaintenanceCalendarPage() {
         </div>
       </div>
 
+      {/* Bulk Actions Panel */}
+      {selectedDates.size > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
+          <div>
+            <span className="font-medium text-blue-900">
+              {selectedDates.size} date(s) selected
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={selectAllBlockedDates}
+              className="px-3 py-1 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-100"
+            >
+              {selectedDates.size === blockedDays.length ? 'Deselect All' : 'Select All Blocked'}
+            </button>
+            <button
+              onClick={clearSelection}
+              className="px-3 py-1 text-sm border border-gray-400 text-gray-700 rounded hover:bg-gray-100"
+            >
+              Clear Selection
+            </button>
+            <button
+              onClick={handleBulkUnblockSelectedDates}
+              className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Unblock Selected Dates
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-7 gap-2 mb-2">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="text-center font-medium text-gray-600 py-2">
@@ -205,30 +342,38 @@ export default function MaintenanceCalendarPage() {
           const blockedDay = getBlockedDay(day);
           const isBlocked = !!blockedDay;
           const isToday = isSameDay(day, new Date());
-          
+          const dateStr = format(day, 'yyyy-MM-dd');
+          const isSelected = selectedDates.has(dateStr);
+
           return (
             <div
               key={day.toISOString()}
-              className={`min-h-24 p-2 border rounded cursor-pointer transition-all ${
-                isBlocked 
-                  ? 'bg-red-50 border-red-200 hover:bg-red-100' 
+              className={`min-h-24 p-2 border rounded cursor-pointer transition-all ${isBlocked
+                  ? 'bg-red-50 border-red-200 hover:bg-red-100'
                   : 'bg-white hover:bg-gray-50'
-              } ${isToday ? 'ring-2 ring-blue-500' : ''}`}
-              onClick={() => setSelectedDate(day)}
+                } ${isToday ? 'ring-2 ring-blue-500' : ''} ${isSelected ? 'ring-4 ring-green-400 bg-green-50' : ''
+                }`}
+              onClick={(e) => toggleDateSelection(day, e)}
             >
               <div className="flex justify-between items-start">
-                <span className={`text-sm font-medium ${
-                  isBlocked ? 'text-red-700' : 'text-gray-700'
-                }`}>
+                <span className={`text-sm font-medium ${isBlocked ? 'text-red-700' : 'text-gray-700'
+                  }`}>
                   {format(day, 'd')}
                 </span>
-                {isBlocked && (
-                  <span className="text-xs bg-red-500 text-white px-1 rounded">
-                    {blockedDay.blocks.length}
-                  </span>
-                )}
+                <div className="flex gap-1">
+                  {isSelected && (
+                    <span className="text-xs bg-green-500 text-white px-1 rounded">
+                      ✓
+                    </span>
+                  )}
+                  {isBlocked && (
+                    <span className="text-xs bg-red-500 text-white px-1 rounded">
+                      {blockedDay.blocks.length}
+                    </span>
+                  )}
+                </div>
               </div>
-              
+
               {isBlocked && (
                 <div className="mt-1 space-y-1">
                   {blockedDay.blocks.slice(0, 2).map(block => (
@@ -250,30 +395,30 @@ export default function MaintenanceCalendarPage() {
       </div>
 
       {/* Date Detail Modal */}
-      {selectedDate && (
+      {viewingDate && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
               <h3 className="text-lg font-semibold">
-                {format(selectedDate, 'MMMM dd, yyyy')}
+                {format(viewingDate, 'MMMM dd, yyyy')}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
                 Maintenance blocks for this date
               </p>
             </div>
-            
-            {getBlockedDay(selectedDate) ? (
+
+            {getBlockedDay(viewingDate) ? (
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                   <h4 className="font-medium text-red-700">
-                    Blocked Buses ({getBlockedDay(selectedDate)!.blocks.length})
+                    Blocked Buses ({getBlockedDay(viewingDate)!.blocks.length})
                   </h4>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => selectAllBlocks(getBlockedDay(selectedDate)!.blocks)}
+                      onClick={() => selectAllBlocks(getBlockedDay(viewingDate)!.blocks)}
                       className="px-3 py-1 text-sm border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
                     >
-                      {selectedBlocks.size === getBlockedDay(selectedDate)!.blocks.length ? 'Deselect All' : 'Select All'}
+                      {selectedBlocks.size === getBlockedDay(viewingDate)!.blocks.length ? 'Deselect All' : 'Select All'}
                     </button>
                     {selectedBlocks.size > 0 && (
                       <button
@@ -284,7 +429,7 @@ export default function MaintenanceCalendarPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => handleUnblockDate(format(selectedDate, 'yyyy-MM-dd'))}
+                      onClick={() => handleUnblockDate(format(viewingDate, 'yyyy-MM-dd'))}
                       className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
                     >
                       Unblock All
@@ -293,7 +438,7 @@ export default function MaintenanceCalendarPage() {
                 </div>
 
                 <div className="space-y-3">
-                  {getBlockedDay(selectedDate)!.blocks.map(block => (
+                  {getBlockedDay(viewingDate)!.blocks.map(block => (
                     <div key={block.id} className="border rounded p-4">
                       <div className="flex items-start gap-3">
                         <input
@@ -311,7 +456,7 @@ export default function MaintenanceCalendarPage() {
                               </p>
                             </div>
                             <button
-                              onClick={() => handleUnblockDate(format(selectedDate, 'yyyy-MM-dd'), block.id)}
+                              onClick={() => handleUnblockDate(format(viewingDate, 'yyyy-MM-dd'), block.id)}
                               className="px-2 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
                             >
                               Unblock
@@ -336,11 +481,11 @@ export default function MaintenanceCalendarPage() {
                 No maintenance blocks for this date
               </div>
             )}
-            
+
             <div className="flex justify-end p-6 border-t">
               <button
                 onClick={() => {
-                  setSelectedDate(null);
+                  setViewingDate(null);
                   setSelectedBlocks(new Set());
                 }}
                 className="px-4 py-2 border rounded hover:bg-gray-50"

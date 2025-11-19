@@ -99,14 +99,14 @@ export default function BookingsManagement() {
     if (!date) return "N/A";
     const dateObj = typeof date === "string" ? new Date(date) : date;
     if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return "N/A";
-    
+
     const options: Intl.DateTimeFormatOptions = {};
     if (formatStr.includes("EEEE")) options.weekday = "long";
     if (formatStr.includes("MMMM")) options.month = "long";
     else if (formatStr.includes("MMM")) options.month = "short";
     if (formatStr.includes("dd")) options.day = "2-digit";
     if (formatStr.includes("yyyy")) options.year = "numeric";
-    
+
     return dateObj.toLocaleDateString("en-US", options);
   };
 
@@ -131,9 +131,9 @@ export default function BookingsManagement() {
       booking.passengerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.bookingRef.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || 
-      (statusFilter === "pending" ? 
-        booking.paymentStatus?.toLowerCase() === "pending" : 
+    const matchesStatus = statusFilter === "all" ||
+      (statusFilter === "pending" ?
+        booking.paymentStatus?.toLowerCase() === "pending" :
         booking.bookingStatus.toLowerCase() === statusFilter);
     return matchesSearch && matchesStatus;
   });
@@ -285,7 +285,7 @@ export default function BookingsManagement() {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Bookings');
-    XLSX.writeFile(wb, `bookings_export_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `bookings_export_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   // --- Send Ticket handler ---
@@ -359,8 +359,8 @@ export default function BookingsManagement() {
                   <SelectItem value="cancelled" className="text-xs sm:text-sm">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
-              <Select 
-                value={itemsPerPage.toString()} 
+              <Select
+                value={itemsPerPage.toString()}
                 onValueChange={(value) => {
                   setItemsPerPage(Number(value));
                   setCurrentPage(1);
@@ -445,7 +445,7 @@ export default function BookingsManagement() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {currentItems.map((booking) => (
-                      <tr key={booking.id} className={`hover:bg-gray-50 ${booking.paymentStatus && booking.paymentStatus.toLowerCase() === 'pending' ? 'bg-yellow-100' : ''}`}> 
+                      <tr key={booking.id} className={`hover:bg-gray-50 ${booking.paymentStatus && booking.paymentStatus.toLowerCase() === 'pending' ? 'bg-yellow-100' : ''}`}>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-xs sm:text-sm font-medium" style={{ color: colors.primary }}>{booking.bookingRef}</div>
                         </td>
@@ -517,7 +517,7 @@ export default function BookingsManagement() {
                     {Math.min(indexOfLastItem, filteredBookings.length)} of{" "}
                     {filteredBookings.length} bookings
                   </div>
-                  
+
                   <div className="flex items-center gap-1">
                     <Button
                       variant="outline"
@@ -530,7 +530,7 @@ export default function BookingsManagement() {
                       <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                       <span className="sr-only sm:not-sr-only">Prev</span>
                     </Button>
-                    
+
                     {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
                       let pageNum;
                       if (totalPages <= 3) {
@@ -560,11 +560,11 @@ export default function BookingsManagement() {
                         </Button>
                       );
                     })}
-                    
+
                     {totalPages > 3 && currentPage < totalPages - 1 && (
                       <span className="px-1 text-xs sm:text-sm" style={{ color: colors.accent }}>...</span>
                     )}
-                    
+
                     {totalPages > 3 && currentPage < totalPages - 1 && (
                       <Button
                         variant="outline"
@@ -576,7 +576,7 @@ export default function BookingsManagement() {
                         {totalPages}
                       </Button>
                     )}
-                    
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -617,7 +617,7 @@ export default function BookingsManagement() {
                   <div><span style={{ color: colors.accent }}>Status:</span> <Badge>{selectedBooking.bookingStatus}</Badge></div>
                 </div>
               </section>
-              
+
               {/* Passenger List */}
               {selectedBooking.passengerList && (
                 <section>
@@ -659,7 +659,7 @@ export default function BookingsManagement() {
                   </div>
                 </section>
               )}
-              
+
               {/* Journey Info */}
               <section>
                 <h4 className="font-semibold mb-2 text-xs sm:text-sm" style={{ color: colors.primary }}>Journey Information</h4>
@@ -684,7 +684,7 @@ export default function BookingsManagement() {
                   </div>
                 </div>
               </section>
-              
+
               {/* Payment Info & Update Payment Status */}
               <section>
                 <h4 className="font-semibold mb-2 text-xs sm:text-sm" style={{ color: colors.secondary }}>Payment Information</h4>
@@ -712,7 +712,7 @@ export default function BookingsManagement() {
                   </div>
                 </div>
               </section>
-              
+
               {/* Actions */}
               <section>
                 <h4 className="font-semibold mb-2 text-xs sm:text-sm" style={{ color: colors.dark }}>Actions</h4>
@@ -741,15 +741,15 @@ export default function BookingsManagement() {
                     <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     Send Ticket
                   </Button>
-                  {selectedBooking.paymentStatus?.toLowerCase() === 'pending' && (
+                  {(selectedBooking.paymentStatus?.toLowerCase() === 'pending' || selectedBooking.bookingStatus?.toLowerCase() === 'confirmed') && (
                     <Button
                       variant="outline"
-                      className="flex-1 text-xs sm:text-sm h-9 border-yellow-400 text-yellow-800 bg-yellow-100 hover:bg-yellow-200"
-                      style={{ borderColor: colors.secondary, color: '#b45309', backgroundColor: '#fef3c7' }}
+                      className="flex-1 text-xs sm:text-sm h-9 border-red-400 text-red-800 bg-red-50 hover:bg-red-100"
+                      style={{ borderColor: colors.destructive, color: '#991b1b', backgroundColor: '#fee2e2' }}
                       onClick={() => handleNullifyBooking(selectedBooking)}
                       disabled={nullifyLoading}
                     >
-                      {nullifyLoading ? <span className="h-3 w-3 border-2 border-yellow-800 border-t-transparent rounded-full animate-spin inline-block"></span> : "Nullify Booking"}
+                      {nullifyLoading ? <span className="h-3 w-3 border-2 border-red-800 border-t-transparent rounded-full animate-spin inline-block"></span> : "Nullify Booking"}
                     </Button>
                   )}
                 </div>
@@ -778,10 +778,10 @@ export default function BookingsManagement() {
               <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
                 New Departure Date
               </label>
-              <Input 
-                type="date" 
-                value={newDepartureDate} 
-                onChange={(e) => setNewDepartureDate(e.target.value)} 
+              <Input
+                type="date"
+                value={newDepartureDate}
+                onChange={(e) => setNewDepartureDate(e.target.value)}
                 className="text-xs sm:text-sm h-9"
                 style={{ borderColor: colors.accent }}
                 min={formatDate(new Date(), 'yyyy-MM-dd')} // Can't reschedule to past dates
@@ -791,10 +791,10 @@ export default function BookingsManagement() {
               <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
                 New Departure Time
               </label>
-              <Input 
-                type="time" 
-                value={newDepartureTime} 
-                onChange={(e) => setNewDepartureTime(e.target.value)} 
+              <Input
+                type="time"
+                value={newDepartureTime}
+                onChange={(e) => setNewDepartureTime(e.target.value)}
                 className="text-xs sm:text-sm h-9"
                 style={{ borderColor: colors.accent }}
               />
@@ -812,10 +812,10 @@ export default function BookingsManagement() {
                       <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
                         New Return Date
                       </label>
-                      <Input 
-                        type="date" 
-                        value={newReturnDate} 
-                        onChange={(e) => setNewReturnDate(e.target.value)} 
+                      <Input
+                        type="date"
+                        value={newReturnDate}
+                        onChange={(e) => setNewReturnDate(e.target.value)}
                         className="text-xs sm:text-sm h-9"
                         style={{ borderColor: colors.accent }}
                         min={newDepartureDate || formatDate(new Date(), 'yyyy-MM-dd')} // Return can't be before departure
@@ -825,17 +825,17 @@ export default function BookingsManagement() {
                       <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
                         New Return Time
                       </label>
-                      <Input 
-                        type="time" 
-                        value={newReturnTime} 
-                        onChange={(e) => setNewReturnTime(e.target.value)} 
+                      <Input
+                        type="time"
+                        value={newReturnTime}
+                        onChange={(e) => setNewReturnTime(e.target.value)}
                         className="text-xs sm:text-sm h-9"
                         style={{ borderColor: colors.accent }}
                       />
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Validation message if dates are invalid */}
                 {newDepartureDate && newReturnDate && newDepartureDate > newReturnDate && (
                   <div className="text-xs sm:text-sm p-2 rounded-md" style={{ backgroundColor: colors.destructive + '10', color: colors.destructive }}>
@@ -846,15 +846,15 @@ export default function BookingsManagement() {
             )}
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowRescheduleModal(false)}
               className="text-xs sm:text-sm h-9"
               style={{ borderColor: colors.primary, color: colors.primary }}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleRescheduleBooking}
               className="text-xs sm:text-sm h-9 flex items-center justify-center"
               style={{ backgroundColor: colors.primary }}
@@ -889,25 +889,25 @@ export default function BookingsManagement() {
           <div className="space-y-3">
             <div>
               <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Recipient Email</label>
-              <Input 
-                type="email" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="text-xs sm:text-sm h-9"
                 style={{ borderColor: colors.accent }}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowSendTicketModal(false)}
               className="text-xs sm:text-sm h-9"
               style={{ borderColor: colors.primary, color: colors.primary }}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleSendTicket}
               className="text-xs sm:text-sm h-9 flex items-center justify-center"
               style={{ backgroundColor: colors.primary }}
@@ -918,26 +918,26 @@ export default function BookingsManagement() {
               ) : null}
               Send Ticket
             </Button>
-      {/* Success/Error Modal */}
-      {modalMessage && (
-        <Dialog open={!!modalMessage} onOpenChange={() => setModalMessage(null)}>
-          <DialogContent className="max-w-xs mx-auto text-center">
-            <DialogHeader>
-              <DialogTitle className={modalType === 'success' ? 'text-green-700' : 'text-red-700'}>
-                {modalType === 'success' ? 'Success' : 'Error'}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="py-4 text-sm">
-              {modalMessage}
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setModalMessage(null)} className="w-full" style={{ backgroundColor: colors.primary, color: colors.light }}>
-                OK
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+            {/* Success/Error Modal */}
+            {modalMessage && (
+              <Dialog open={!!modalMessage} onOpenChange={() => setModalMessage(null)}>
+                <DialogContent className="max-w-xs mx-auto text-center">
+                  <DialogHeader>
+                    <DialogTitle className={modalType === 'success' ? 'text-green-700' : 'text-red-700'}>
+                      {modalType === 'success' ? 'Success' : 'Error'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="py-4 text-sm">
+                    {modalMessage}
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={() => setModalMessage(null)} className="w-full" style={{ backgroundColor: colors.primary, color: colors.light }}>
+                      OK
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -955,15 +955,15 @@ export default function BookingsManagement() {
             <div className="space-y-3">
               <PrintableTicket bookingData={selectedBookingData} />
               <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => window.print()}
                   className="text-xs sm:text-sm h-9"
                   style={{ borderColor: colors.primary, color: colors.primary }}
                 >
                   Print Ticket
                 </Button>
-                <Button 
+                <Button
                   onClick={() => {
                     setShowSendTicketModal(true);
                     setShowPrintTicket(false);
