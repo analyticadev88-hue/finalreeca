@@ -5,7 +5,7 @@ import ComingSoon from "@/components/coming-soon";
 
 
 // ⚡ SIMPLE TOGGLE - Change this to false when ready to launch
-const SHOW_COMING_SOON = false;
+const SHOW_COMING_SOON = true;
 
 export default function App() {
   return (

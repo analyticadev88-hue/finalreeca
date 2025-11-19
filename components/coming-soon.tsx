@@ -13,7 +13,7 @@ export default function ComingSoon() {
 
   useEffect(() => {
     // Set the fixed launch date to December 12, 2025
-    const launchDate = new Date("2025-12-12T00:00:00"); // Midnight on December 12, 2025
+    const launchDate = new Date("2025-12-01T00:00:00"); // Midnight on December 12, 2025
 
     const updateCountdown = () => {
       const now = new Date();
