@@ -70,7 +70,7 @@ export default function ComingSoon() {
           <p className="text-gray-700 text-base leading-relaxed">
             Get ready to travel with ease!{" "}
             <span className="text-[#009999] font-medium">Reeca Travel's</span> new bus booking system is launching on{" "}
-            <span className="text-[#febf00] font-semibold">December 12, 2025</span>. Book your tickets from Gaborone to Johannesburg and back with us soon.
+            <span className="text-[#febf00] font-semibold">December 01, 2025</span>. Book your tickets from Gaborone to Johannesburg and back with us soon.
           </p>
         </div>
 
