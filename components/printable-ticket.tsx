@@ -327,6 +327,16 @@ export const PrintableTicket: React.FC<PrintableTicketProps> = ({ bookingData })
             </p>
           </div>
         </div>
+        {/* Banking Details Added Here */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="font-bold text-blue-800 mb-2 text-sm">Banking Details</h4>
+          <div className="text-xs text-blue-700 space-y-1">
+            <p><strong>Bank:</strong> Stanbic Bank</p>
+            <p><strong>Account Name:</strong> AFRICAN TASTES (pty)ltd T/a REECA TRAVEL</p>
+            <p><strong>Account Number:</strong> 9060004001996</p>
+            <p><strong>Branch:</strong> Airport Junction</p>
+          </div>
+        </div>
       </div>
       <div className="mb-6 md:mb-8">
         <div className="bg-gray-100 p-2 mb-2">

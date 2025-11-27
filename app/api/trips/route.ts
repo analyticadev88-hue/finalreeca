@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuth } from '@/lib/adminAuth';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +18,7 @@ function toISODateString(date: Date | string | null | undefined): string {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get('from');
@@ -29,15 +30,15 @@ export async function GET(request: Request) {
 
     // Build filter conditions - Fixed logic
     let whereConditions: any = {};
-    
+
     // If we have specific search criteria, use them
     if (from && to && departureDate) {
       // Create date range for the entire day in UTC
       const startDate = new Date(departureDate + 'T00:00:00.000Z');
       const endDate = new Date(departureDate + 'T23:59:59.999Z');
-      
+
       console.log('Outbound date range:', { startDate, endDate });
-      
+
       // Use AND conditions for main search - this was the key issue
       whereConditions = {
         AND: [
@@ -47,14 +48,14 @@ export async function GET(request: Request) {
           { departureDate: { lte: endDate } }
         ]
       };
-      
+
       // If we also have return date, we need OR logic for both directions
       if (returnDate) {
         const returnStartDate = new Date(returnDate + 'T00:00:00.000Z');
         const returnEndDate = new Date(returnDate + 'T23:59:59.999Z');
-        
+
         console.log('Return date range:', { returnStartDate, returnEndDate });
-        
+
         whereConditions = {
           OR: [
             // Outbound trip
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
       // If only date is provided, filter by date only
       const startDate = new Date(departureDate + 'T00:00:00.000Z');
       const endDate = new Date(departureDate + 'T23:59:59.999Z');
-      
+
       whereConditions = {
         AND: [
           { departureDate: { gte: startDate } },
@@ -152,9 +153,9 @@ export async function GET(request: Request) {
       // Collect reserved seats from seatReservationMap
       const reservedSeatsFromMap = seatReservationMap.get(trip.id) || [];
 
-  // Combine and deduplicate (include reserved seats)
-  const unavailableSeats = Array.from(new Set([...occupiedSeats, ...bookedSeats, ...reservedSeatsFromMap]));
-  const availableSeats = Math.max(0, trip.totalSeats - unavailableSeats.length);
+      // Combine and deduplicate (include reserved seats)
+      const unavailableSeats = Array.from(new Set([...occupiedSeats, ...bookedSeats, ...reservedSeatsFromMap]));
+      const availableSeats = Math.max(0, trip.totalSeats - unavailableSeats.length);
 
       // Calculate hasDeparted
       let hasDeparted = false;
@@ -211,10 +212,13 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Admin authentication required
+    await requireAdminAuth(request);
+
     const data = await request.json();
-    
+
     const tripData = {
       ...data,
       // Ensure totalSeats matches availableSeats for new trips
@@ -226,10 +230,13 @@ export async function POST(request: Request) {
     const newTrip = await prisma.trip.create({
       data: tripData
     });
-    
+
     return NextResponse.json(newTrip, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating trip:', error);
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json(
       { message: 'Failed to create trip', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -237,8 +244,11 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
+    // Admin authentication required
+    await requireAdminAuth(request);
+
     const data = await request.json();
 
     // Ensure numeric fields are numbers
@@ -256,8 +266,11 @@ export async function PUT(request: Request) {
       data: data,
     });
     return NextResponse.json(updatedTrip);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating trip:', error);
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json(
       { message: 'Failed to update trip', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -265,15 +278,21 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
+    // Admin authentication required
+    await requireAdminAuth(request);
+
     const { id } = await request.json();
     await prisma.trip.delete({
       where: { id },
     });
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting trip:', error);
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json(
       { message: 'Failed to delete trip', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

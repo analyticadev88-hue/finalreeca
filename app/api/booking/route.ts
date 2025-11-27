@@ -1,9 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createBookingWithRetry } from '@/lib/retrybookingservice';
+import { bookingProtection, handleArcjetDecision, logArcjetDecision } from '@/lib/arcjet';
 
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
+
+    // Arcjet protection: bot detection + rate limiting + email validation
+    const decision = await bookingProtection.protect(req, {
+      email: data.userEmail, // Validate user email
+      requested: 1, // Consume 1 token
+    });
+    logArcjetDecision(decision, "/api/booking");
+
+    const arcjetResult = handleArcjetDecision(decision);
+    if (arcjetResult.denied) {
+      return NextResponse.json(
+        { success: false, error: arcjetResult.message },
+        { status: arcjetResult.status }
+      );
+    }
+
     // If paymentStatus is not set, default to 'pending' (for bank deposit)
     if (!data.paymentStatus) {
       data.paymentStatus = 'pending';

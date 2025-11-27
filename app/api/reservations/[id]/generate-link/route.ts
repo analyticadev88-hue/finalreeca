@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
+import { requireAdminAuth } from '@/lib/adminAuth';
 
 // Send email optionally using Resend if configured
 async function trySendEmail(to: string, subject: string, html: string) {
@@ -51,8 +52,11 @@ async function trySendEmail(to: string, subject: string, html: string) {
   return { ok: false, error: 'No email provider configured' };
 }
 
-export async function POST(request: Request, context: any) {
+export async function POST(request: NextRequest, context: any) {
   try {
+    // Admin authentication required
+    await requireAdminAuth(request);
+
     const body = await request.json();
     const { contactEmail, paid, createdBy } = body;
     const params = await context.params;
@@ -60,7 +64,7 @@ export async function POST(request: Request, context: any) {
 
     if (!id) return NextResponse.json({ message: 'Missing reservation id' }, { status: 400 });
 
-  const reservation = await prisma.tripReservation.findUnique({ where: { id }, include: { trip: true, seatReservations: true } });
+    const reservation = await prisma.tripReservation.findUnique({ where: { id }, include: { trip: true, seatReservations: true } });
     if (!reservation) return NextResponse.json({ message: 'Reservation not found' }, { status: 404 });
 
     // Idempotency guard: if a link was created very recently, return it instead of creating duplicates
@@ -94,8 +98,8 @@ export async function POST(request: Request, context: any) {
       });
     }
     // Optionally send email with link if contactEmail and RESEND configured
-  let emailSent = false;
-  let emailError: string | null = null;
+    let emailSent = false;
+    let emailError: string | null = null;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
     let providerMessage: string | undefined = undefined;
     if (contactEmail) {
@@ -108,7 +112,7 @@ export async function POST(request: Request, context: any) {
         const html = ReactDOMServer.renderToStaticMarkup(
           ReservationLinkEmail({
             customerName: reservation.reservedClientName || '',
-            seats: (reservation.seatReservations || []).map((s:any) => s.seatNumber).join(', '),
+            seats: (reservation.seatReservations || []).map((s: any) => s.seatNumber).join(', '),
             link: bookingUrl,
             expiresAt: new Date(link.expiresAt).toLocaleString(),
             tripOrigin: trip.routeOrigin,
@@ -123,7 +127,7 @@ export async function POST(request: Request, context: any) {
         } else {
           providerMessage = res.id ? `provider_id:${res.id}` : undefined;
         }
-      } catch (err:any) {
+      } catch (err: any) {
         console.error('Failed to render/send reservation email', err?.message || err);
         // Fallback to simple link body
         const simpleHtml = `<p>Hello,</p><p>Please complete your booking for reserved seats by visiting <a href="${bookingUrl}">${bookingUrl}</a>. This link expires on ${new Date(link.expiresAt).toLocaleString()}.</p>`;

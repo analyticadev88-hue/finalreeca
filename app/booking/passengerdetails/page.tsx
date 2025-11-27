@@ -1461,7 +1461,7 @@ export default function PassengerDetailsForm({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email (Ticket wil be sent to this email)</label>
                     <Input
                       type="email"
                       value={contactDetails.email}

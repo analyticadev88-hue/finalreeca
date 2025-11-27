@@ -1,14 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma, executeWithRetry } from '@/lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
 import { getRouteDescriptors } from '@/lib/busRoutes';
+import { requireAdminAuth } from '@/lib/adminAuth';
 
 function generateToken() {
   return uuidv4().replace(/-/g, '').slice(0, 24);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Admin authentication required
+    await requireAdminAuth(request);
+
     const body = await request.json();
     const {
       buses,
@@ -104,7 +108,7 @@ export async function POST(request: Request) {
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const dateCopy = new Date(d);
           const startOfDay = new Date(dateCopy);
-          startOfDay.setHours(0,0,0,0);
+          startOfDay.setHours(0, 0, 0, 0);
           const nextDay = new Date(startOfDay);
           nextDay.setDate(nextDay.getDate() + 1);
 
@@ -140,16 +144,16 @@ export async function POST(request: Request) {
             };
             if (time) where.departureTime = time;
 
-            const updated = await tx.trip.updateMany({ 
-              where, 
-              data: { 
-                isChartered: true, 
+            const updated = await tx.trip.updateMany({
+              where,
+              data: {
+                isChartered: true,
                 charterCompany: company,
                 charterDates: `${startDate} to ${endDate}`,
                 charterTripId: charterTrip.id,
                 charterStartDate: charterStartDate,
                 charterEndDate: charterEndDate,
-              } 
+              }
             });
             totalMarked += updated.count;
 
@@ -162,14 +166,14 @@ export async function POST(request: Request) {
 
             const fareToUse = QUANTUM_FARE;
             const durationToUse = QUANTUM_DURATION;
-            
+
             // Calculate total seats for all replacement vehicles
-            const totalReplacementSeats = replacementVehicles.reduce((sum, vehicle) => {
+            const totalReplacementSeats = replacementVehicles.reduce((sum: number, vehicle: any) => {
               return sum + (Number(vehicle.count) || 0) * (Number(vehicle.seats) || 0);
             }, 0);
 
             // ✅ FIXED: Create vehicles array for JSON storage
-            const vehiclesArray = replacementVehicles.flatMap((vehicle, vehicleTypeIndex) => 
+            const vehiclesArray = replacementVehicles.flatMap((vehicle: any, vehicleTypeIndex: any) =>
               Array.from({ length: Number(vehicle.count) || 0 }, (_, vehicleInstanceIndex) => ({
                 id: vehicleInstanceIndex + 1, // Vehicle instance ID (1, 2, 3...)
                 name: vehicle.name || 'Toyota Hiace',
@@ -206,12 +210,12 @@ export async function POST(request: Request) {
             });
           }
         }
-        
+
         // Create replacement trips
         if (replacementTrips.length > 0) {
-          await tx.trip.createMany({ 
+          await tx.trip.createMany({
             data: replacementTrips,
-            skipDuplicates: true 
+            skipDuplicates: true
           });
         }
       }
@@ -234,36 +238,42 @@ export async function POST(request: Request) {
         totalMarked,
         replacementTripsCreated: replacementTrips.length,
       };
-  }, { maxWait: 15000, timeout: 45000 }), 3, 500);
+    }, { maxWait: 15000, timeout: 45000 }), 3, 500);
 
-  return NextResponse.json({ 
-    ok: true, 
-    reservationId: txResult.reservationId, 
-    link: { token: txResult.linkToken }, 
-    conflictReport: txResult.conflictReport, 
-    totalMarked: txResult.totalMarked,
-    replacementTripsCreated: txResult.replacementTripsCreated,
-  });
-  } catch (error) {
+    return NextResponse.json({
+      ok: true,
+      reservationId: txResult.reservationId,
+      link: { token: txResult.linkToken },
+      conflictReport: txResult.conflictReport,
+      totalMarked: txResult.totalMarked,
+      replacementTripsCreated: txResult.replacementTripsCreated,
+    });
+  } catch (error: any) {
     console.error('Create charter error', error);
-    return NextResponse.json({ 
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return NextResponse.json({
       message: 'Failed to create charter',
       error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    // Admin authentication required
+    await requireAdminAuth(request);
+
     const reservations = await prisma.tripReservation.findMany({
-      where: { 
-        trip: { serviceType: 'Corporate Charter' }, 
-        status: { not: 'cancelled' } 
+      where: {
+        trip: { serviceType: 'Corporate Charter' },
+        status: { not: 'cancelled' }
       },
-      include: { 
-        trip: true, 
-        seatReservations: true, 
-        reservationLinks: true 
+      include: {
+        trip: true,
+        seatReservations: true,
+        reservationLinks: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -277,18 +287,21 @@ export async function GET(request: Request) {
       status: r.status,
       trip: r.trip,
       reservedSeatNumbers: r.seatReservations.map(s => s.seatNumber),
-      links: r.reservationLinks.map(l => ({ 
-        id: l.id, 
-        token: l.token, 
-        expiresAt: l.expiresAt, 
-        used: l.used 
+      links: r.reservationLinks.map(l => ({
+        id: l.id,
+        token: l.token,
+        expiresAt: l.expiresAt,
+        used: l.used
       }))
     }));
 
     return NextResponse.json(payload);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Fetch charters error', error);
-    return NextResponse.json({ 
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return NextResponse.json({
       message: 'Failed to fetch charters',
       error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });

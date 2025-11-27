@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
+import { requireAdminAuth } from '@/lib/adminAuth';
 
 // Email sending function (same as reservations)
 async function trySendEmail(to: string, subject: string, html: string) {
@@ -49,8 +50,11 @@ async function trySendEmail(to: string, subject: string, html: string) {
   return { ok: false, error: 'No email provider configured' };
 }
 
-export async function POST(request: Request, context: any) {
+export async function POST(request: NextRequest, context: any) {
   try {
+    // Admin authentication required
+    await requireAdminAuth(request);
+
     const body = await request.json();
     const { contactEmail, paid, createdBy } = body;
     const params = await context.params;
@@ -58,14 +62,14 @@ export async function POST(request: Request, context: any) {
 
     if (!id) return NextResponse.json({ message: 'Missing charter id' }, { status: 400 });
 
-    const charter = await prisma.tripReservation.findUnique({ 
-      where: { id }, 
-      include: { 
-        trip: true, 
-        seatReservations: true 
-      } 
+    const charter = await prisma.tripReservation.findUnique({
+      where: { id },
+      include: {
+        trip: true,
+        seatReservations: true
+      }
     });
-    
+
     if (!charter) return NextResponse.json({ message: 'Charter not found' }, { status: 404 });
 
     // Idempotency guard
@@ -103,11 +107,11 @@ export async function POST(request: Request, context: any) {
     let emailSent = false;
     let emailError: string | null = null;
     let providerMessage: string | undefined = undefined;
-    
+
     if (contactEmail) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
       const bookingUrl = `${appUrl.replace(/\/$/, '')}/reservation/${link.token}`;
-      
+
       try {
         const ReactDOMServer = await import('react-dom/server');
         const { ReservationLinkEmail } = await import('@/email-templates/ReservationLinkEmail');
@@ -139,16 +143,19 @@ export async function POST(request: Request, context: any) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      token: link.token, 
-      expiresAt: link.expiresAt, 
-      emailSent, 
-      emailError, 
-      providerMessage 
+    return NextResponse.json({
+      success: true,
+      token: link.token,
+      expiresAt: link.expiresAt,
+      emailSent,
+      emailError,
+      providerMessage
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Generate charter link error', error);
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ message: 'Failed to generate charter link' }, { status: 500 });
   }
 }

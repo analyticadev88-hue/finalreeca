@@ -5,10 +5,27 @@ import jwt from "jsonwebtoken";
 import { Resend } from "resend";
 import PasswordResetEmail from "@/email-templates/PasswordResetEmail";
 import React from "react";
+import { authProtection, handleArcjetDecision, logArcjetDecision } from "@/lib/arcjet";
 
 const JWT_SECRET = process.env.JWT_SECRET || "topo123";
 
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "topo123") {
+  throw new Error("CRITICAL SECURITY RISK: Change JWT_SECRET in production!");
+}
+
 export async function POST(req: NextRequest) {
+  // Arcjet protection: bot detection + rate limiting
+  const decision = await authProtection.protect(req, { requested: 1 });
+  logArcjetDecision(decision, "/api/auth/forgot-password");
+
+  const arcjetResult = handleArcjetDecision(decision);
+  if (arcjetResult.denied) {
+    return NextResponse.json(
+      { error: arcjetResult.message },
+      { status: arcjetResult.status }
+    );
+  }
+
   const { email } = await req.json();
   if (!email) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });

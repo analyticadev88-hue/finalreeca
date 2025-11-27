@@ -10,10 +10,33 @@ import jwt from 'jsonwebtoken';
 const AGENT_JWT_SECRET = process.env.JWT_SECRET || "topo123";
 const CONSULTANT_JWT_SECRET = process.env.JWT_SECRET || "changeme-in-production";
 
+if (process.env.NODE_ENV === "production") {
+  if (AGENT_JWT_SECRET === "topo123" || CONSULTANT_JWT_SECRET === "changeme-in-production") {
+    throw new Error("CRITICAL SECURITY RISK: Change JWT_SECRET in production!");
+  }
+}
+
+import { bookingProtection, handleArcjetDecision, logArcjetDecision } from '@/lib/arcjet';
+
 export async function POST(request: NextRequest) {
   try {
     const body: any = await request.json();
     const { totalPrice, userName, userEmail, selectedSeats, tripId } = body;
+
+    // Arcjet protection: bot detection + rate limiting + email validation
+    const decision = await bookingProtection.protect(request, {
+      email: userEmail, // Validate user email
+      requested: 1, // Consume 1 token
+    });
+    logArcjetDecision(decision, "/api/create-dpo-session");
+
+    const arcjetResult = handleArcjetDecision(decision);
+    if (arcjetResult.denied) {
+      return NextResponse.json(
+        { error: arcjetResult.message },
+        { status: arcjetResult.status }
+      );
+    }
 
     if (!tripId || !totalPrice || !userName || !userEmail || !selectedSeats?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });

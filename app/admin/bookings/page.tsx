@@ -113,7 +113,7 @@ export default function BookingsManagement() {
   // Helper to refetch bookings
   const fetchBookings = async () => {
     try {
-      const response = await fetch("/api/admin/booking");
+      const response = await fetch("/api/admin/booking", { credentials: 'include' });
       if (!response.ok) throw new Error("Failed to fetch bookings");
       const data = await response.json();
       setBookings(data);
@@ -246,7 +246,7 @@ export default function BookingsManagement() {
       const response = await fetch("/api/admin/booking/nullify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: booking.id }),
+        body: JSON.stringify({ bookingId: booking.id }), credentials: 'include'
       });
       if (!response.ok) throw new Error("Failed to nullify booking");
       // Refetch bookings to ensure UI is in sync
@@ -982,3 +982,4 @@ export default function BookingsManagement() {
     </div>
   );
 }
+
