@@ -8,24 +8,10 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // ============================================================================
-  // 1. ADMIN API AUTHENTICATION CHECK (Cookie-based)
+  // 1. ADMIN API AUTHENTICATION CHECK
   // ============================================================================
-
-  if (pathname.startsWith("/api/admin")) {
-    // Check for Supabase auth cookie (simplified check)
-    const authCookie = request.cookies.get('sb-access-token') ||
-      request.cookies.get('sb-refresh-token');
-
-    if (!authCookie) {
-      console.warn(`[Auth] Unauthorized admin API access: ${pathname}`, {
-        ip: request.headers.get("x-forwarded-for") ?? "unknown",
-      });
-      return NextResponse.json(
-        { error: "Unauthorized. Admin authentication required." },
-        { status: 401 }
-      );
-    }
-  }
+  // Authentication is now handled by verifyAdminAuth() in each API route
+  // to ensure proper cookie parsing and reduce middleware size.
 
   // ============================================================================
   // 2. RATE LIMITING FOR DPO
