@@ -195,9 +195,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   bankingSection: {
-    backgroundColor: '#e0f2fe',
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#bae6fd',
+    borderColor: '#e5e7eb',
     borderRadius: 6,
     padding: 12,
     marginTop: 8,
@@ -205,12 +205,12 @@ const styles = StyleSheet.create({
   bankingTitle: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#0369a1',
+    color: '#1f2937',
     marginBottom: 6,
   },
   bankingDetails: {
     fontSize: 8,
-    color: '#0c4a6e',
+    color: '#374151',
     lineHeight: 1.4,
   },
 });
@@ -405,7 +405,7 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
           </View>
         </View>
         
-        {/* Banking Details Section - Added Here */}
+        {/* Banking Details Section - Updated to match styling */}
         <View style={styles.bankingSection}>
           <Text style={styles.bankingTitle}>Banking Details</Text>
           <Text style={styles.bankingDetails}>
