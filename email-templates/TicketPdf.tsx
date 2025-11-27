@@ -194,6 +194,25 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
+  bankingSection: {
+    backgroundColor: '#e0f2fe',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    borderRadius: 6,
+    padding: 12,
+    marginTop: 8,
+  },
+  bankingTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#0369a1',
+    marginBottom: 6,
+  },
+  bankingDetails: {
+    fontSize: 8,
+    color: '#0c4a6e',
+    lineHeight: 1.4,
+  },
 });
 
 const formatDate = (dateInput: Date | string | undefined, formatStr: string) => {
@@ -384,6 +403,17 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
               <Text style={[styles.summaryValue, { color: '#059669' }]}>{booking.bookingStatus}</Text>
             </View>
           </View>
+        </View>
+        
+        {/* Banking Details Section - Added Here */}
+        <View style={styles.bankingSection}>
+          <Text style={styles.bankingTitle}>Banking Details</Text>
+          <Text style={styles.bankingDetails}>
+            <Text style={{ fontWeight: 'bold' }}>Bank:</Text> Stanbic Bank{'\n'}
+            <Text style={{ fontWeight: 'bold' }}>Account Name:</Text> AFRICAN TASTES (pty)ltd T/a REECA TRAVEL{'\n'}
+            <Text style={{ fontWeight: 'bold' }}>Account Number:</Text> 9060004001996{'\n'}
+            <Text style={{ fontWeight: 'bold' }}>Branch:</Text> Airport Junction
+          </Text>
         </View>
       </View>
       <View style={styles.section}>
