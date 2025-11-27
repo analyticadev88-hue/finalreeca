@@ -1,10 +1,17 @@
 // app/admin/booking/route.ts
 import { PrismaClient } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { verifyAdminAuth } from '@/lib/adminAuth';
 
 const prisma = new PrismaClient();
 
 export async function GET() {
+  // Verify admin authentication
+  const auth = await verifyAdminAuth();
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const bookings = await prisma.booking.findMany({
       include: {

@@ -1,13 +1,9 @@
-// lib/adminAuth.ts - Supabase authentication for admin API routes
+// lib/adminAuth.ts - Server-side admin authentication helper
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
-/**
- * Verify admin authentication using Supabase session
- * Throws error if not authenticated
- */
-export async function requireAdminAuth(req: NextRequest) {
+export async function verifyAdminAuth() {
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
@@ -18,6 +14,12 @@ export async function requireAdminAuth(req: NextRequest) {
                 get(name: string) {
                     return cookieStore.get(name)?.value;
                 },
+                set(name: string, value: string, options: any) {
+                    cookieStore.set({ name, value, ...options });
+                },
+                remove(name: string, options: any) {
+                    cookieStore.set({ name, value: '', ...options });
+                },
             },
         }
     );
@@ -25,24 +27,18 @@ export async function requireAdminAuth(req: NextRequest) {
     const { data: { session }, error } = await supabase.auth.getSession();
 
     if (error || !session) {
-        throw new Error('UNAUTHORIZED');
+        return {
+            authorized: false,
+            response: NextResponse.json(
+                { error: 'Unauthorized. Admin authentication required.' },
+                { status: 401 }
+            ),
+        };
     }
 
     return {
+        authorized: true,
         session,
         supabase,
-        user: session.user
     };
-}
-
-/**
- * Check if user is authenticated (returns boolean, doesn't throw)
- */
-export async function isAdminAuthenticated(req: NextRequest): Promise<boolean> {
-    try {
-        await requireAdminAuth(req);
-        return true;
-    } catch {
-        return false;
-    }
 }

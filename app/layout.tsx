@@ -2,6 +2,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import PaymentSuspension from '@/components/PaymentSuspension'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: 'Recca Travel',
@@ -21,6 +23,8 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {isSuspended ? <PaymentSuspension /> : children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

@@ -1,80 +1,23 @@
-// middleware.ts
+// middleware.ts - Lightweight version for Vercel Edge
 import { NextRequest, NextResponse } from "next/server";
-import arcjet, { detectBot, shield } from "@arcjet/next";
-import { createServerClient } from '@supabase/ssr';
 
-// Global Arcjet instance for bot protection
-const aj = arcjet({
-  key: process.env.ARCJET_KEY!,
-  rules: [
-    // Bot protection for all routes
-    detectBot({
-      mode: "LIVE",
-      allow: ["CATEGORY:SEARCH_ENGINE"], // Allow Google, Bing, etc.
-    }),
-    // Shield against common attacks
-    shield({
-      mode: "LIVE",
-    }),
-  ],
-});
-
-// Legacy rate limiting map for DPO (will be replaced by Arcjet gradually)
+// Simple rate limiting map
 const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
 
 export async function middleware(request: NextRequest) {
-  // ============================================================================
-  // 1. GLOBAL BOT PROTECTION (All routes)
-  // ============================================================================
-
-  const decision = await aj.protect(request);
-
-  if (decision.isDenied()) {
-    if (decision.reason.isBot()) {
-      console.warn(`[Arcjet] Bot detected: ${request.nextUrl.pathname}`, {
-        ip: decision.ip,
-        userAgent: request.headers.get("user-agent"),
-      });
-      return new NextResponse("Bot detected", { status: 403 });
-    }
-
-    if (decision.reason.isShield()) {
-      console.warn(`[Arcjet] Attack detected: ${request.nextUrl.pathname}`, {
-        ip: decision.ip,
-      });
-      return new NextResponse("Request blocked for security reasons", { status: 403 });
-    }
-  }
+  const pathname = request.nextUrl.pathname;
 
   // ============================================================================
-  // 2. ADMIN API AUTHENTICATION (Supabase session verification)
+  // 1. ADMIN API AUTHENTICATION CHECK (Cookie-based)
   // ============================================================================
 
-  if (request.nextUrl.pathname.startsWith("/api/admin")) {
-    const response = NextResponse.next();
+  if (pathname.startsWith("/api/admin")) {
+    // Check for Supabase auth cookie (simplified check)
+    const authCookie = request.cookies.get('sb-access-token') ||
+      request.cookies.get('sb-refresh-token');
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            response.cookies.set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            response.cookies.set({ name, value: '', ...options });
-          },
-        },
-      }
-    );
-
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
-      console.warn(`[Auth] Unauthorized admin API access: ${request.nextUrl.pathname}`, {
+    if (!authCookie) {
+      console.warn(`[Auth] Unauthorized admin API access: ${pathname}`, {
         ip: request.headers.get("x-forwarded-for") ?? "unknown",
       });
       return NextResponse.json(
@@ -82,16 +25,13 @@ export async function middleware(request: NextRequest) {
         { status: 401 }
       );
     }
-
-    // Session valid, allow request
-    return response;
   }
 
   // ============================================================================
-  // 3. LEGACY DPO RATE LIMITING (Will be migrated to Arcjet)
+  // 2. RATE LIMITING FOR DPO
   // ============================================================================
 
-  if (request.nextUrl.pathname.startsWith("/api/create-dpo-session")) {
+  if (pathname.startsWith("/api/create-dpo-session")) {
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
     const limit = 5;
     const windowMs = 60 * 1000;
@@ -115,9 +55,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Apply to all API routes
+    // Only apply to API routes to reduce bundle size
     '/api/:path*',
-    // Exclude static files and Next.js internals
-    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

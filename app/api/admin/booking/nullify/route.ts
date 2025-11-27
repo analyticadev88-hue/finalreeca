@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyAdminAuth } from '@/lib/adminAuth';
 
 export async function POST(req: NextRequest) {
+  // Verify admin authentication
+  const auth = await verifyAdminAuth();
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   try {
     const { bookingId } = await req.json();
     if (!bookingId) {
