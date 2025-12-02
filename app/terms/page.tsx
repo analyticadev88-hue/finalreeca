@@ -141,7 +141,7 @@ export default function TermsAndConditions() {
               General Terms and Conditions of Service
             </h1>
             <p className="text-xl " style={{ color: 'rgb(148,138,84)' }}>
-              Reeca Bus - Daily Route: Gaborone - OR Tambo International Airport
+              Reeca Travel - Daily Route: Gaborone - OR Tambo International Airport
             </p>
           </div>
 
