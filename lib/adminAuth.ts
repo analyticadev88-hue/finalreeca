@@ -42,3 +42,11 @@ export async function verifyAdminAuth() {
         supabase,
     };
 }
+
+export async function requireAdminAuth(req: any) {
+    const auth = await verifyAdminAuth();
+    if (!auth.authorized) {
+        throw new Error('UNAUTHORIZED');
+    }
+    return auth;
+}

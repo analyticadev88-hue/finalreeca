@@ -240,8 +240,6 @@ const CountryCodeDisplay = ({ value }: { value: string }) => {
   );
 };
 
-import { deduplicateRequest, generateRequestKey } from "@/utils/requestDeduplication";
-
 export default function PassengerDetailsForm({
   departureBus,
   returnBus,
@@ -287,7 +285,6 @@ export default function PassengerDetailsForm({
       infantBirthdate: "",
       infantName: "",
       infantPassportNumber: "",
-      // Primary seats collect passenger details. Companion seats are marked separately.
       isNeighbourFreeSeat: false,
     }));
     const depComp: Passenger[] = depNF.companion.map((seat) => ({
@@ -390,7 +387,7 @@ export default function PassengerDetailsForm({
   const [isProcessing, setIsProcessing] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [voucherToken, setVoucherToken] = useState<string | null>(null);
-  const [voucherStatus, setVoucherStatus] = useState<string | null>(null); // pending | approved | expired | not_found
+  const [voucherStatus, setVoucherStatus] = useState<string | null>(null);
   const [isWaitingForApproval, setIsWaitingForApproval] = useState(false);
   const [showReservationConflict, setShowReservationConflict] = useState(false);
   const [reservationMessage, setReservationMessage] = useState<string | null>(null);
@@ -398,7 +395,6 @@ export default function PassengerDetailsForm({
   const { toast: makeToast } = useToast();
   const [showVoucherExpiredDialog, setShowVoucherExpiredDialog] = useState(false);
 
-  // Helper to (re)request voucher authorization for current booking payload
   const requestVoucherAuth = async () => {
     try {
       setIsProcessing(true);
@@ -423,17 +419,14 @@ export default function PassengerDetailsForm({
     }
   };
 
-  // Centralized addon price resolver (keeps UI and calculations consistent)
   const getAddonPrice = (key: string, departureOrigin?: string) => {
     const origin = (departureOrigin || "").toLowerCase().trim();
     switch (key) {
       case "extraBaggage":
         return 300;
       case "wimpyMeal":
-        // Wimpy meal is 67, but you may vary by origin in future
         return 67;
       case "travelInsurance":
-        // Use the actual insurance rate used in UI (450)
         return 450;
       default:
         return 0;
@@ -442,7 +435,6 @@ export default function PassengerDetailsForm({
 
   const getAddonsTotal = () => {
     let total = 0;
-    // Count only paying passengers (exclude neighbour-free companion seats)
     const departurePayingPassengers = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat);
     const returnPayingPassengers = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat);
 
@@ -489,8 +481,10 @@ export default function PassengerDetailsForm({
             infantBirthdate: departurePassenger.infantBirthdate,
             infantPassportNumber: departurePassenger.infantPassportNumber,
             phone: departurePassenger.phone,
+            phoneCountryCode: departurePassenger.phoneCountryCode,
             nextOfKinName: departurePassenger.nextOfKinName,
             nextOfKinPhone: departurePassenger.nextOfKinPhone,
+            nextOfKinPhoneCountryCode: departurePassenger.nextOfKinPhoneCountryCode,
           };
         }
       }
@@ -506,11 +500,8 @@ export default function PassengerDetailsForm({
     return departurePricePerSeat;
   };
 
-  // Infants attached to a passenger that is the PRIMARY in a neighbour-free pair are free.
-  // passengerGroups contains pairs as { primarySeat, companionSeat } so check that.
   const infantCount = passengers.filter((p) => {
     if (!p.hasInfant) return false;
-    // if this passenger's seat is a primary seat with a companion, infant is free -> do not count
     const isPrimaryWithCompanion = passengerGroups.some(
       (g) => g.primarySeat === p.seatNumber && !!g.companionSeat
     );
@@ -541,43 +532,47 @@ export default function PassengerDetailsForm({
 
   const baseTotal = departureTotal + returnTotal + infantTotal + getAddonsTotal();
 
+  // FIXED: Improved syncCompanionPassenger function
   const syncCompanionPassenger = (primaryPassenger: Passenger) => {
     const isDepNF = !primaryPassenger.isReturn && departureNeighbourFree;
     const isRetNF = primaryPassenger.isReturn && returnNeighbourFree;
 
-    if (isDepNF || isRetNF) {
-      const primaryIndex = isDepNF
-        ? depNF.primary.indexOf(primaryPassenger.seatNumber)
-        : retNF.primary.indexOf(primaryPassenger.seatNumber);
+    if ((isDepNF || isRetNF) && !primaryPassenger.isNeighbourFreeSeat) {
+      const primarySeats = isDepNF ? depNF.primary : retNF.primary;
+      const companionSeats = isDepNF ? depNF.companion : retNF.companion;
+      
+      const primaryIndex = primarySeats.indexOf(primaryPassenger.seatNumber);
 
-      if (primaryIndex !== -1) {
-        const companionSeat = isDepNF ? depNF.companion[primaryIndex] : retNF.companion[primaryIndex];
-        if (companionSeat) {
-          const companionId = `${primaryPassenger.isReturn ? "return" : "departure"}-${companionSeat}`;
-          setPassengers((prev) =>
-            prev.map((p) => {
-              if (p.id === companionId) {
-                return {
-                  ...p,
-                  type: primaryPassenger.type,
-                  title: primaryPassenger.title,
-                  firstName: primaryPassenger.firstName,
-                  lastName: primaryPassenger.lastName,
-                  passportNumber: primaryPassenger.passportNumber,
-                  birthdate: primaryPassenger.birthdate,
-                  phone: primaryPassenger.phone,
-                  nextOfKinName: primaryPassenger.nextOfKinName,
-                  nextOfKinPhone: primaryPassenger.nextOfKinPhone,
-                  hasInfant: false,
-                  infantName: "",
-                  infantBirthdate: "",
-                  infantPassportNumber: "",
-                };
-              }
-              return p;
-            })
-          );
-        }
+      if (primaryIndex !== -1 && companionSeats[primaryIndex]) {
+        const companionSeat = companionSeats[primaryIndex];
+        const companionId = `${primaryPassenger.isReturn ? "return" : "departure"}-${companionSeat}`;
+        
+        setPassengers((prev) =>
+          prev.map((p) => {
+            if (p.id === companionId) {
+              return {
+                ...p,
+                type: primaryPassenger.type,
+                title: primaryPassenger.title,
+                firstName: primaryPassenger.firstName,
+                lastName: primaryPassenger.lastName,
+                passportNumber: primaryPassenger.passportNumber,
+                birthdate: primaryPassenger.birthdate,
+                phone: primaryPassenger.phone,
+                phoneCountryCode: primaryPassenger.phoneCountryCode,
+                nextOfKinName: primaryPassenger.nextOfKinName,
+                nextOfKinPhone: primaryPassenger.nextOfKinPhone,
+                nextOfKinPhoneCountryCode: primaryPassenger.nextOfKinPhoneCountryCode,
+                hasInfant: primaryPassenger.hasInfant,
+                infantName: primaryPassenger.infantName,
+                infantBirthdate: primaryPassenger.infantBirthdate,
+                infantPassportNumber: primaryPassenger.infantPassportNumber,
+                isNeighbourFreeSeat: true,
+              };
+            }
+            return p;
+          })
+        );
       }
     }
   };
@@ -717,55 +712,77 @@ export default function PassengerDetailsForm({
     }));
   };
 
+  // FIXED: createBookingPayload - Sends ALL passengers including isNeighbourFreeSeat flag
   const createBookingPayload = () => {
     const passengersForPayload = passengers.map((p) => ({
-      firstName: p.firstName,
-      lastName: p.lastName,
+      firstName: p.firstName.trim() || (p.isNeighbourFreeSeat ? "Passenger" : ""),
+      lastName: p.lastName.trim() || (p.isNeighbourFreeSeat ? "Guest" : ""),
       seatNumber: p.seatNumber,
-      title: p.title,
+      title: p.title || "Mr",
       isReturn: p.isReturn,
       hasInfant: !!p.hasInfant,
       infantBirthdate: p.infantBirthdate || null,
-      type: p.type,
+      type: p.type || "adult",
       birthdate: p.birthdate || null,
-      passportNumber: p.passportNumber || null,
+      passportNumber: p.passportNumber || (p.isNeighbourFreeSeat ? "TBD" : ""),
       infantName: p.infantName || null,
       infantPassportNumber: p.infantPassportNumber || null,
-      phone: p.phone || null,
-      nextOfKinName: p.nextOfKinName || null,
-      nextOfKinPhone: p.nextOfKinPhone || null,
+      phone: p.phone || contactDetails.mobile,
+      phoneCountryCode: p.phoneCountryCode || contactDetails.mobileCountryCode || "+267",
+      nextOfKinName: p.nextOfKinName || emergencyContact.name,
+      nextOfKinPhone: p.nextOfKinPhone || emergencyContact.phone,
+      nextOfKinPhoneCountryCode: p.nextOfKinPhoneCountryCode || emergencyContact.phoneCountryCode || "+267",
+      // CRITICAL: Send isNeighbourFreeSeat flag to backend
+      isNeighbourFreeSeat: p.isNeighbourFreeSeat || false,
     }));
 
-    return {
-      orderId: generateOrderId(),
-      tripId: departureBus?.id,
-      totalPrice: finalTotal,
-      discountAmount: agentDiscount + consultantDiscount,
-      consultantDiscountType,
-      selectedSeats: [...departureSeats, ...returnSeats],
-      departureSeats,
-      returnSeats,
-      addons: selectedAddons,
-      passengers: passengersForPayload,
-      userName: contactDetails.name,
-      userEmail: contactDetails.email,
-      userPhone: contactDetails.mobile,
-      boardingPoint: departureBoardingPoint,
-      droppingPoint: departureDroppingPoint,
-      contactDetails,
-      emergencyContact: {
-        name: emergencyContact.name,
-        phone: emergencyContact.phone,
-      },
-      paymentMode,
-      returnTripId: returnBus?.id,
-      returnBoardingPoint,
-      returnDroppingPoint,
-      agentId: agent?.id,
-      consultantId: consultant?.id,
-      reservationToken: reservationToken || undefined,
-      status: "pending",
-    };
+    // Debug logging
+    console.log("DEBUG Booking Payload:", {
+      seats: { departure: departureSeats.length, return: returnSeats.length },
+      passengers: passengersForPayload.length,
+      passengerDetails: passengersForPayload.map(p => ({
+        seat: p.seatNumber,
+        isReturn: p.isReturn,
+        isNeighbourFree: p.isNeighbourFreeSeat,
+        name: `${p.firstName} ${p.lastName}`,
+      })),
+    });
+
+  return {
+  orderId: generateOrderId(),
+  tripId: departureBus?.id,
+  totalPrice: finalTotal,
+  discountAmount: agentDiscount + consultantDiscount,
+  consultantDiscountType,
+  selectedSeats: [...departureSeats, ...returnSeats],
+  departureSeats: departureSeats,
+  returnSeats: returnSeats,
+  addons: selectedAddons,
+  passengers: passengersForPayload,
+  userName: contactDetails.name.trim(),
+  userEmail: contactDetails.email.trim(),
+  userPhone: contactDetails.mobile,
+  boardingPoint: departureBoardingPoint,
+  droppingPoint: departureDroppingPoint,
+  contactDetails: {
+    ...contactDetails,
+    mobileCountryCode: contactDetails.mobileCountryCode || "+267",
+  },
+  emergencyContact: {
+    name: emergencyContact.name.trim(),
+    phone: emergencyContact.phone,
+    phoneCountryCode: emergencyContact.phoneCountryCode || "+267",
+  },
+  paymentMode,
+  returnTripId: returnBus?.id || undefined,              // ✅
+  returnBoardingPoint: returnBoardingPoint || undefined, // ✅
+  returnDroppingPoint: returnDroppingPoint || undefined, // ✅
+  agentId: agent?.id || undefined,                       // ✅
+  consultantId: consultant?.id || undefined,             // ✅
+  reservationToken: reservationToken || undefined,
+  paymentStatus: paymentMode === 'Bank Deposit' ? 'pending' : 
+                paymentMode === 'Reservation Paid' ? 'paid' : 'pending',
+};
   };
 
   const handleSubmit = async () => {
@@ -778,6 +795,7 @@ export default function PassengerDetailsForm({
       return;
     }
 
+    // Check primary passengers (non-companion seats)
     const primaryPassengers = passengers.filter((p) => !p.isNeighbourFreeSeat);
     if (primaryPassengers.some((p) => !p.firstName.trim() || !p.lastName.trim())) {
       alert("Please provide first and last names for all passengers");
@@ -852,26 +870,6 @@ export default function PassengerDetailsForm({
   }
 
   useEffect(() => {
-    if (showPayment && departureBus) {
-      const bookingData = createBookingPayload();
-    }
-  }, [showPayment]);
-
-  const fetchAvailability = async () => {
-    try {
-      const res = await fetch(`/api/trips/${departureBus.id}/availability`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      const unavailable = Array.from(new Set([...(data.occupiedSeats || []), ...(data.bookedSeats || []), ...((data.reservations || []).map((r:any) => r.seatNumber))]));
-      setCurrentUnavailable(unavailable);
-      return data;
-    } catch (err) {
-      console.warn('Failed to fetch availability', err);
-      return null;
-    }
-  };
-
-  useEffect(() => {
     if (paymentMode === "Bank Deposit") {
       setShowBankDepositNotice(true);
     } else {
@@ -879,11 +877,9 @@ export default function PassengerDetailsForm({
     }
   }, [paymentMode]);
 
-  // Ensure the selected paymentMode is allowed when allowedPaymentModes is provided
   useEffect(() => {
     if (!allowedPaymentModes || allowedPaymentModes.length === 0) return;
     if (!allowedPaymentModes.includes(paymentMode)) {
-      // prefer initialPaymentMode if it's allowed
       if (initialPaymentMode && allowedPaymentModes.includes(initialPaymentMode)) {
         setPaymentMode(initialPaymentMode);
       } else {
@@ -896,7 +892,6 @@ export default function PassengerDetailsForm({
     return <div className="text-center py-8 text-gray-600">Loading form data...</div>;
   }
 
-  // Poll voucher status when a voucher token is present
   useEffect(() => {
     if (!voucherToken || !isWaitingForApproval) return;
     let cancelled = false;
@@ -911,13 +906,11 @@ export default function PassengerDetailsForm({
         if (body.status === "approved") {
           setIsWaitingForApproval(false);
           setIsProcessing(false);
-          // redirect to ticket page (use orderId if returned by API)
           const orderId = body.orderId || body.bookingRef || '';
           window.location.href = `/ticket/${orderId}`;
         } else if (body.status === "expired") {
           setIsWaitingForApproval(false);
           setIsProcessing(false);
-          // show toast and open retry dialog
           makeToast({
             title: "Voucher expired",
             description: "Voucher request expired. You can retry or contact admin.",
@@ -938,7 +931,6 @@ export default function PassengerDetailsForm({
       }
     };
 
-    // initial check then interval
     check();
     const id = setInterval(check, 3000);
     return () => {
@@ -947,7 +939,8 @@ export default function PassengerDetailsForm({
     };
   }, [voucherToken, isWaitingForApproval]);
 
-  const displayPassengers = passengers.filter((p) => !p.isNeighbourFreeSeat);
+  // FIXED: Show ALL passengers, not just non-neighbour-free
+  const displayPassengers = passengers;
 
   return (
     <div className="max-w-7xl mx-auto my-4 sm:my-8 px-3 sm:px-4 font-sans">
@@ -961,7 +954,7 @@ export default function PassengerDetailsForm({
           </p>
         </div>
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-          {/* Fare Summary */}
+          {/* Fare Summary - Same as before */}
           <div className="bg-gray-50 rounded-lg p-4 sm:p-5 border border-gray-200 shadow-sm">
             <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center">
               <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-sm">
@@ -1068,12 +1061,12 @@ export default function PassengerDetailsForm({
                       consultantDiscountType === "student"
                         ? "5% Student"
                         : consultantDiscountType === "senior"
-                        ? "15% Senior"
-                        : consultantDiscountType === "family"
-                        ? "Family Bundle"
-                        : consultantDiscountType === "group"
-                        ? "Group Discount"
-                        : ""
+                          ? "15% Senior"
+                          : consultantDiscountType === "family"
+                            ? "Family Bundle"
+                            : consultantDiscountType === "group"
+                              ? "Group Discount"
+                              : ""
                     }):
                   </p>
                   <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
@@ -1085,88 +1078,84 @@ export default function PassengerDetailsForm({
                 <p className="font-bold text-base sm:text-lg text-gray-800">Grand Total:</p>
                 <p className="font-bold text-[rgb(0,153,153)] text-lg sm:text-xl">P {useFreeVoucher ? '0.00' : finalTotal.toFixed(2)}</p>
               </div>
-          {/* Consultant Discount Tab (Consultant Only) */}
-          {consultant && (
-            <div className="border border-gray-200 rounded-lg overflow-hidden mt-6">
-              <button
-                type="button"
-                className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex justify-between items-center transition-colors"
-                style={{ borderBottom: "1px solid #e5e7eb" }}
-                tabIndex={-1}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7" /></svg>
-                  </span>
-                  <h3 className="font-bold text-lg text-gray-800">Consultant Discount</h3>
+              
+              {consultant && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden mt-6">
+                  <button
+                    type="button"
+                    className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex justify-between items-center transition-colors"
+                    style={{ borderBottom: "1px solid #e5e7eb" }}
+                    tabIndex={-1}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7" /></svg>
+                      </span>
+                      <h3 className="font-bold text-lg text-gray-800">Consultant Discount</h3>
+                    </div>
+                  </button>
+                  <div className="p-4 flex flex-col sm:flex-row gap-3 sm:gap-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Discount</label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "none" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                        onClick={() => setConsultantDiscountType("none")}
+                      >
+                        No Discount
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${useFreeVoucher ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                        onClick={() => {
+                          if (!useFreeVoucher) {
+                            setPaymentMode("Free Voucher");
+                            setUseFreeVoucher(true);
+                            setConsultantDiscountType("none");
+                          } else {
+                            setPaymentMode("Credit Card");
+                            setUseFreeVoucher(false);
+                          }
+                        }}
+                      >
+                        Free Voucher
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "student" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                        onClick={() => setConsultantDiscountType("student")}
+                      >
+                        5% Student Discount <span className="ml-1 text-xs">(Present student ID)</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "senior" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                        onClick={() => setConsultantDiscountType("senior")}
+                      >
+                        15% Senior Discount <span className="ml-1 text-xs">(60yrs+)</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "family" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                        onClick={() => setConsultantDiscountType("family")}
+                      >
+                        Family Bundle <span className="ml-1 text-xs">(20% off 5th person)</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "group" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
+                        onClick={() => setConsultantDiscountType("group")}
+                      >
+                        Group Discount <span className="ml-1 text-xs">(10% for 10+)</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </button>
-              <div className="p-4 flex flex-col sm:flex-row gap-3 sm:gap-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select Discount</label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "none" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
-                    onClick={() => setConsultantDiscountType("none")}
-                  >
-                    No Discount
-                  </button>
-                  {/* Free Voucher quick action for consultants */}
-                  <button
-                    type="button"
-                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${useFreeVoucher ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
-                    onClick={() => {
-                      // toggle free voucher
-                      if (!useFreeVoucher) {
-                        setPaymentMode("Free Voucher");
-                        setUseFreeVoucher(true);
-                        // clear consultant discount selection visually
-                        setConsultantDiscountType("none");
-                      } else {
-                        // restore default
-                        setPaymentMode("Credit Card");
-                        setUseFreeVoucher(false);
-                      }
-                    }}
-                  >
-                    Free Voucher
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "student" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
-                    onClick={() => setConsultantDiscountType("student")}
-                  >
-                    5% Student Discount <span className="ml-1 text-xs">(Present student ID)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "senior" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
-                    onClick={() => setConsultantDiscountType("senior")}
-                  >
-                    15% Senior Discount <span className="ml-1 text-xs">(60yrs+)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "family" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
-                    onClick={() => setConsultantDiscountType("family")}
-                  >
-                    Family Bundle <span className="ml-1 text-xs">(20% off 5th person)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-4 py-2 rounded border text-sm font-semibold transition-colors ${consultantDiscountType === "group" ? "bg-[rgb(255,199,33)] text-white border-[rgb(255,199,33)]" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"}`}
-                    onClick={() => setConsultantDiscountType("group")}
-                  >
-                    Group Discount <span className="ml-1 text-xs">(10% for 10+)</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              )}
             </div>
           </div>
 
-          {/* Passenger Details Section */}
+          {/* Passenger Details Section - FIXED: Shows ALL passengers */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <button
               onClick={() => openOnlySection("passengers")}
@@ -1213,13 +1202,14 @@ export default function PassengerDetailsForm({
                 {displayPassengers.length > 0 ? (
                   displayPassengers.map((passenger: Passenger, idx: number) => {
                     const isChild = passenger.type === "child";
+                    const isCompanion = passenger.isNeighbourFreeSeat;
                     let companionSeat = null;
-                    if (!passenger.isReturn && departureNeighbourFree) {
+                    if (!passenger.isReturn && departureNeighbourFree && !isCompanion) {
                       const primaryIndex = depNF.primary.indexOf(passenger.seatNumber);
                       if (primaryIndex !== -1) {
                         companionSeat = depNF.companion[primaryIndex];
                       }
-                    } else if (passenger.isReturn && returnNeighbourFree) {
+                    } else if (passenger.isReturn && returnNeighbourFree && !isCompanion) {
                       const primaryIndex = retNF.primary.indexOf(passenger.seatNumber);
                       if (primaryIndex !== -1) {
                         companionSeat = retNF.companion[primaryIndex];
@@ -1229,22 +1219,27 @@ export default function PassengerDetailsForm({
                       <div key={passenger.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3">
                           <span
-                            className={`font-medium text-white px-3 py-1 rounded-full text-sm w-fit ${
-                              passenger.isReturn ? "bg-[rgb(148,138,84)]" : "bg-[rgb(255,199,33)]"
-                            }`}
+                            className={`font-medium text-white px-3 py-1 rounded-full text-sm w-fit ${passenger.isReturn ? "bg-[rgb(148,138,84)]" : "bg-[rgb(255,199,33)]"
+                              }`}
                           >
                             {passenger.seatNumber}
                             {companionSeat && ` + ${companionSeat}`}
                             {((departureNeighbourFree && !passenger.isReturn) ||
-                              (returnNeighbourFree && passenger.isReturn)) && (
-                              <span className="ml-2  text-white-800 text-xs px-2 py-1 rounded"style={{ backgroundColor: "rgb(255,199,33)" }}  >
-                                Neighbour-Free
+                              (returnNeighbourFree && passenger.isReturn)) && !isCompanion && (
+                                <span className="ml-2 text-white-800 text-xs px-2 py-1 rounded" style={{ backgroundColor: "rgb(255,199,33)" }}>
+                                  Neighbour-Free
+                                </span>
+                              )}
+                            {isCompanion && (
+                              <span className="ml-2 text-white-800 text-xs px-2 py-1 rounded" style={{ backgroundColor: "#888" }}>
+                                Companion Seat
                               </span>
                             )}
                           </span>
                           <Select
                             value={passenger.type || "adult"}
                             onValueChange={(value) => updatePassenger(passenger.id, "type", value)}
+                            disabled={isCompanion}
                           >
                             <SelectTrigger className="w-full sm:w-[180px] border-gray-300 focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)]">
                               <SelectValue placeholder="Passenger Type" />
@@ -1261,6 +1256,7 @@ export default function PassengerDetailsForm({
                             <Select
                               value={passenger.title}
                               onValueChange={(value) => updatePassenger(passenger.id, "title", value)}
+                              disabled={isCompanion}
                             >
                               <SelectTrigger className="w-full border-gray-300 focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)]">
                                 <SelectValue placeholder="Title" />
@@ -1280,9 +1276,13 @@ export default function PassengerDetailsForm({
                               value={passenger.firstName}
                               onChange={(e) => updatePassenger(passenger.id, "firstName", e.target.value)}
                               placeholder="First name"
-                              required
+                              required={!isCompanion}
+                              disabled={isCompanion}
                               className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
                             />
+                            {isCompanion && (
+                              <p className="text-xs text-gray-500 mt-1">Auto-filled from primary seat</p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
@@ -1290,7 +1290,8 @@ export default function PassengerDetailsForm({
                               value={passenger.lastName}
                               onChange={(e) => updatePassenger(passenger.id, "lastName", e.target.value)}
                               placeholder="Last name"
-                              required
+                              required={!isCompanion}
+                              disabled={isCompanion}
                               className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
                             />
                           </div>
@@ -1304,7 +1305,8 @@ export default function PassengerDetailsForm({
                                 value={passenger.birthdate || ""}
                                 onChange={(e) => updatePassenger(passenger.id, "birthdate", e.target.value)}
                                 placeholder="Birthdate"
-                                required={isChild}
+                                required={isChild && !isCompanion}
+                                disabled={isCompanion}
                                 className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
                                 min={getDateYearsAgo(11)}
                                 max={getDateYearsAgo(2)}
@@ -1317,7 +1319,8 @@ export default function PassengerDetailsForm({
                               value={passenger.passportNumber || ""}
                               onChange={(e) => updatePassenger(passenger.id, "passportNumber", e.target.value)}
                               placeholder="Passport Number"
-                              required
+                              required={!isCompanion}
+                              disabled={isCompanion}
                               className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
                             />
                           </div>
@@ -1332,6 +1335,7 @@ export default function PassengerDetailsForm({
                                 value={passenger.phone || ""}
                                 onChange={(e) => updatePassenger(passenger.id, "phone", e.target.value)}
                                 placeholder="Phone Number"
+                                disabled={isCompanion}
                                 className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
                               />
                             </div>
@@ -1342,6 +1346,7 @@ export default function PassengerDetailsForm({
                               value={passenger.nextOfKinName || ""}
                               onChange={(e) => updatePassenger(passenger.id, "nextOfKinName", e.target.value)}
                               placeholder="Next of Kin Name"
+                              disabled={isCompanion}
                               className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
                             />
                           </div>
@@ -1356,69 +1361,71 @@ export default function PassengerDetailsForm({
                                 value={passenger.nextOfKinPhone || ""}
                                 onChange={(e) => updatePassenger(passenger.id, "nextOfKinPhone", e.target.value)}
                                 placeholder="Next of Kin Phone"
+                                disabled={isCompanion}
                                 className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
                               />
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-4">
-                          <Checkbox
-                            id={`infant-${passenger.id}`}
-                            checked={!!passenger.hasInfant}
-                            onCheckedChange={(checked) => updatePassenger(passenger.id, "hasInfant", checked)}
-                            className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
-                            // Disable infant only for companion/neighbour-free seats (they are auto-filled)
-                            disabled={!!passenger.isNeighbourFreeSeat}
-                            title={passenger.isNeighbourFreeSeat ? "Infant addition is disabled for companion Neighbour-Free seats." : ""}
-                          />
-                          <label htmlFor={`infant-${passenger.id}`} className="text-sm text-gray-600">
-                            Bringing an infant (0-2 yrs, sits on lap)
-                            {(departureNeighbourFree && !passenger.isReturn) ||
-                            (returnNeighbourFree && passenger.isReturn) ? (
-                              <span className="ml-2 text-xs font-medium" style={{ color: "rgb(148,138,84)" }}>
-                                No Charge for infant in Neighbour-Free
-                              </span>
-                            ) : null}
-                          </label>
-                        </div>
-                        {passenger.hasInfant && (
-                          <div className="mt-4 p-3 sm:p-4 rounded bg-gray-50 border border-gray-200">
-                            <h4 className="font-medium text-[rgb(0,153,153)] mb-3">Infant Details</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Infant's Name</label>
-                                <Input
-                                  value={passenger.infantName || ""}
-                                  onChange={(e) => updatePassenger(passenger.id, "infantName", e.target.value)}
-                                  placeholder="Infant's Name"
-                                  required
-                                  className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Infant's Birthdate</label>
-                                <Input
-                                  type="date"
-                                  value={passenger.infantBirthdate || ""}
-                                  onChange={(e) => updatePassenger(passenger.id, "infantBirthdate", e.target.value)}
-                                  placeholder="Infant's Birthdate"
-                                  required
-                                  className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
-                                  max={new Date().toISOString().split("T")[0]}
-                                />
-                              </div>
-                            </div>
-                            <div className="mt-4">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
-                              <Input
-                                value={passenger.infantPassportNumber || ""}
-                                onChange={(e) => updatePassenger(passenger.id, "infantPassportNumber", e.target.value)}
-                                placeholder="Passport Number"
-                                required
-                                className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                        {!isCompanion && (
+                          <>
+                            <div className="flex items-center gap-2 mt-4">
+                              <Checkbox
+                                id={`infant-${passenger.id}`}
+                                checked={!!passenger.hasInfant}
+                                onCheckedChange={(checked) => updatePassenger(passenger.id, "hasInfant", checked)}
+                                className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
                               />
+                              <label htmlFor={`infant-${passenger.id}`} className="text-sm text-gray-600">
+                                Bringing an infant (0-2 yrs, sits on lap)
+                                {(departureNeighbourFree && !passenger.isReturn) ||
+                                  (returnNeighbourFree && passenger.isReturn) ? (
+                                  <span className="ml-2 text-xs font-medium" style={{ color: "rgb(148,138,84)" }}>
+                                    No Charge for infant in Neighbour-Free
+                                  </span>
+                                ) : null}
+                              </label>
                             </div>
-                          </div>
+                            {passenger.hasInfant && (
+                              <div className="mt-4 p-3 sm:p-4 rounded bg-gray-50 border border-gray-200">
+                                <h4 className="font-medium text-[rgb(0,153,153)] mb-3">Infant Details</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Infant's Name</label>
+                                    <Input
+                                      value={passenger.infantName || ""}
+                                      onChange={(e) => updatePassenger(passenger.id, "infantName", e.target.value)}
+                                      placeholder="Infant's Name"
+                                      required
+                                      className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Infant's Birthdate</label>
+                                    <Input
+                                      type="date"
+                                      value={passenger.infantBirthdate || ""}
+                                      onChange={(e) => updatePassenger(passenger.id, "infantBirthdate", e.target.value)}
+                                      placeholder="Infant's Birthdate"
+                                      required
+                                      className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                                      max={new Date().toISOString().split("T")[0]}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="mt-4">
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
+                                  <Input
+                                    value={passenger.infantPassportNumber || ""}
+                                    onChange={(e) => updatePassenger(passenger.id, "infantPassportNumber", e.target.value)}
+                                    placeholder="Passport Number"
+                                    required
+                                    className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     );
@@ -1430,7 +1437,7 @@ export default function PassengerDetailsForm({
             )}
           </div>
 
-          {/* Contact Details Section */}
+          {/* Contact Details Section - Same as before */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <button
               onClick={() => openOnlySection("contact")}
@@ -1461,7 +1468,7 @@ export default function PassengerDetailsForm({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email (Ticket wil be sent to this email)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email (Ticket will be sent to this email)</label>
                     <Input
                       type="email"
                       value={contactDetails.email}
@@ -1519,7 +1526,7 @@ export default function PassengerDetailsForm({
             )}
           </div>
 
-          {/* Emergency Contact Section */}
+          {/* Emergency Contact Section - Same as before */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <button
               onClick={() => openOnlySection("emergency")}
@@ -1568,7 +1575,7 @@ export default function PassengerDetailsForm({
             )}
           </div>
 
-          {/* Trip Points Section */}
+          {/* Trip Points Section - Same as before */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <button
               onClick={() => openOnlySection("points")}
@@ -1665,7 +1672,7 @@ export default function PassengerDetailsForm({
             )}
           </div>
 
-          {/* Add-ons Section */}
+          {/* Add-ons Section - Same as before */}
           <div className="border-2 border-[rgb(255,199,33)] rounded-xl overflow-hidden mt-6 bg-gray-50">
             <button
               onClick={() => openOnlySection("addons")}
@@ -1851,7 +1858,7 @@ export default function PassengerDetailsForm({
             )}
           </div>
 
-          {/* Payment Mode Section */}
+          {/* Payment Mode Section - Same as before */}
           <div className="border border-gray-200 rounded-lg p-4 sm:p-5 bg-gray-50">
             <h3 className="font-bold text-gray-800 mb-3 flex items-center text-base sm:text-lg">
               <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-sm">
@@ -1860,15 +1867,11 @@ export default function PassengerDetailsForm({
               Payment Mode
             </h3>
             <div>
-                <Select value={paymentMode} onValueChange={(v) => { setPaymentMode(v); setUseFreeVoucher(false); }} required>
+              <Select value={paymentMode} onValueChange={(v) => { setPaymentMode(v); setUseFreeVoucher(false); }} required>
                 <SelectTrigger className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300">
                   <SelectValue placeholder="Select payment mode" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* Build a canonical list of options in desired order.
-                      - Free Voucher remains consultant-only via conditional.
-                      - Reservation Paid is hidden by default unless explicitly included in allowedPaymentModes.
-                      - If allowedPaymentModes is provided, only options in that list are shown. */}
                   {(() => {
                     const canonical = [
                       { value: 'Credit Card', label: 'Credit Card | Debit Card' },
@@ -1879,17 +1882,11 @@ export default function PassengerDetailsForm({
                     ] as { value: string; label: string; conditional?: boolean }[];
 
                     const filtered = canonical.filter((opt) => {
-                      // enforce consultant-only options
                       if (opt.value === 'Free Voucher' && !consultant) return false;
-
-                      // if allowedPaymentModes is provided, only allow options explicitly listed
                       if (allowedPaymentModes && allowedPaymentModes.length > 0) {
                         return allowedPaymentModes.includes(opt.value);
                       }
-
-                      // default: hide Reservation Paid unless explicitly allowed
                       if (opt.value === 'Reservation Paid') return false;
-
                       return true;
                     });
 
@@ -1938,12 +1935,8 @@ export default function PassengerDetailsForm({
                 return;
               }
 
-              // Prevent double submissions
               setIsProcessing(true);
               if (paymentMode === "Bank Deposit") {
-                // Bank Deposit requires the user to make the payment externally and then confirm.
-                // Do not mark the booking as paid automatically here. We'll create a pending booking
-                // (status pending) and show bank deposit instructions. The admin can later mark it paid.
                 try {
                   setShowBankDepositLoading(true);
                   const bookingPayload = createBookingPayload();
@@ -1957,7 +1950,6 @@ export default function PassengerDetailsForm({
                     throw new Error(errBody?.error || "Failed to create booking");
                   }
                   const data = await res.json();
-                  // Booking created but not marked paid. Redirect to a page with bank deposit instructions or ticket page showing pending payment.
                   setTimeout(() => {
                     setShowBankDepositLoading(false);
                     setIsProcessing(false);
@@ -1970,8 +1962,6 @@ export default function PassengerDetailsForm({
                   alert(err?.message || "Error creating booking. Please try again.");
                 }
               } else if (paymentMode === "Reservation Paid") {
-                // Client already paid prior to filling passenger details (reservation link prepaid).
-                // Create the booking and mark it paid immediately (skip DPO).
                 try {
                   setIsProcessing(true);
                   const bookingPayload = createBookingPayload();
@@ -1992,7 +1982,6 @@ export default function PassengerDetailsForm({
                   alert(err?.message || 'Error creating booking. Please try again.');
                 }
               } else if (paymentMode === "Free Voucher") {
-                // Initiate voucher auth request flow and start polling for approval
                 try {
                   const bookingPayload = createBookingPayload();
                   const res = await fetch("/api/request-voucher-auth", {
@@ -2005,11 +1994,9 @@ export default function PassengerDetailsForm({
                     throw new Error(err?.error || "Failed to request voucher authorization");
                   }
                   const body = await res.json();
-                  // body should contain token and bookingRef
                   setVoucherToken(body.token);
                   setVoucherStatus("pending");
                   setIsWaitingForApproval(true);
-                  // keep isProcessing true so button shows disabled/loading
                 } catch (err: any) {
                   makeToast({ title: "Request failed", description: err?.message || "Failed to request voucher authorization" });
                   setIsProcessing(false);
@@ -2018,7 +2005,6 @@ export default function PassengerDetailsForm({
                 try {
                   await onProceedToPayment();
                 } finally {
-                  // onProceedToPayment may navigate away; guard clearing
                   setIsProcessing(false);
                 }
               }
@@ -2029,12 +2015,12 @@ export default function PassengerDetailsForm({
                 ? "Waiting for approval..."
                 : "Request Auth"
               : paymentMode === "Bank Deposit"
-              ? "Proceed"
-              : paymentMode === "Cash"
-              ? "Mark as Paid"
-              : paymentMode === "Reservation Paid"
-              ? "Submit"
-              : `Pay (P ${finalTotal.toFixed(2)})`}
+                ? "Proceed"
+                : paymentMode === "Cash"
+                  ? "Mark as Paid"
+                  : paymentMode === "Reservation Paid"
+                    ? "Submit"
+                    : `Pay (P ${finalTotal.toFixed(2)})`}
           </Button>
 
           {showBankDepositLoading && (
@@ -2092,8 +2078,6 @@ export default function PassengerDetailsForm({
               onReservationConflict={(msg) => {
                 setReservationMessage(msg || 'One or more seats are no longer available');
                 setShowReservationConflict(true);
-                // refresh availability to show current unavailable seats
-                fetchAvailability();
               }}
             />
           )}
@@ -2121,7 +2105,6 @@ export default function PassengerDetailsForm({
                 className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
                 onClick={async () => {
                   // Refresh availability and keep payment open
-                  await fetchAvailability();
                 }}
               >
                 Refresh availability
@@ -2129,7 +2112,6 @@ export default function PassengerDetailsForm({
               <button
                 className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
                 onClick={() => {
-                  // Close payment dialog so user can reselect seats
                   setShowReservationConflict(false);
                   setShowPayment(false);
                 }}

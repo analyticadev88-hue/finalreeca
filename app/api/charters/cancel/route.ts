@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       report.deletedReplacementsCount = delRes.count;
 
       // 3. Clean up reservation data
+      // First delete dependent records (SeatReservation, ReservationLink)
       await tx.seatReservation.deleteMany({
         where: { tripReservationId: reservation.id }
       });
@@ -80,9 +81,9 @@ export async function POST(request: NextRequest) {
         where: { tripReservationId: reservation.id }
       }).catch(() => { }); // Ignore errors if no links exist
 
-      await tx.tripReservation.update({
-        where: { id: reservation.id },
-        data: { status: 'cancelled' }
+      // Delete the TripReservation itself to free up the Trip
+      await tx.tripReservation.delete({
+        where: { id: reservation.id }
       });
       report.reservationCancelled = true;
 

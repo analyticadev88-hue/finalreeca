@@ -152,7 +152,7 @@ const generateVehicleSeatLayout = (
   const layout = [
     [{ position: 'A', side: 'driver' }, { position: 'B', side: 'front' }],
     [
-      { position: 'A', side: 'left' }, 
+      { position: 'A', side: 'left' },
       { position: 'B', side: 'left' },
       { position: 'C', side: 'right' },
       { position: 'D', side: 'right' }
@@ -175,7 +175,7 @@ const generateVehicleSeatLayout = (
     rowSeats.forEach((seatConfig) => {
       const seatId = `V${vehicleId}-${rowIndex + 1}${seatConfig.position}`;
       const isAvailable = !unavailableSeats.has(seatId);
-      
+
       seats.push({
         id: seatId,
         number: `${rowIndex + 1}${seatConfig.position}`,
@@ -188,7 +188,7 @@ const generateVehicleSeatLayout = (
         seatIndex: globalSeatNumber - 1,
         vehicleId
       });
-      
+
       globalSeatNumber++;
     });
   });
@@ -230,19 +230,19 @@ export default function SeatSelection({
 
   const findAllAdjacentSeatPairs = useCallback(() => {
     const pairs: string[][] = [];
-    
+
     if (isPrivateTour) {
       replacementVehicles.forEach(vehicle => {
         for (let row = 2; row <= 4; row++) {
           const leftPair = [`V${vehicle.id}-${row}A`, `V${vehicle.id}-${row}B`];
           const rightPair = [`V${vehicle.id}-${row}C`, `V${vehicle.id}-${row}D`];
-          
+
           const checkPair = (pair: string[]) =>
             pair.every(seatId => {
               const seat = seatLayout.find(s => s.id === seatId);
               return seat && seat.isAvailable;
             });
-          
+
           if (checkPair(leftPair)) pairs.push(leftPair);
           if (checkPair(rightPair)) pairs.push(rightPair);
         }
@@ -261,24 +261,24 @@ export default function SeatSelection({
         if (checkPair(rightPair)) pairs.push(rightPair);
       }
     }
-    
+
     return pairs;
   }, [seatLayout, replacementVehicles, isPrivateTour, selectedBus.totalSeats]);
 
   const isAdjacent = (seat1: string | undefined, seat2: string | undefined) => {
     if (!seat1 || !seat2) return false;
-    
+
     if (isPrivateTour) {
       const seat1Parts = seat1.split('-');
       const seat2Parts = seat2.split('-');
-      
+
       if (seat1Parts[0] !== seat2Parts[0]) return false;
-      
+
       const row1 = seat1Parts[1].charAt(0);
       const row2 = seat2Parts[1].charAt(0);
       const pos1 = seat1Parts[1].charAt(1);
       const pos2 = seat2Parts[1].charAt(1);
-      
+
       return (
         row1 === row2 &&
         ((pos1 === "A" && pos2 === "B") || (pos1 === "C" && pos2 === "D"))
@@ -298,18 +298,21 @@ export default function SeatSelection({
   const loadSeatData = useCallback(async () => {
     setIsLoadingSeats(true);
     setHasError(false);
-    
+
     try {
       const { bookings, reservedSeatNumbers = [] } = await fetchTripBookings(selectedBus.id);
       const bookedSeats: string[] = bookings
-        .filter((booking: any) => booking.bookingStatus === 'confirmed' && booking.paymentStatus === 'paid')
+        .filter((booking: any) => {
+          return booking.bookingStatus === 'confirmed' &&
+            (booking.paymentStatus === 'paid' || booking.paymentStatus === 'pending');
+        })
         .flatMap((booking: any) =>
           booking.passengers
             .filter((p: any) => p.isReturn === isReturnTrip)
             .map((p: any) => p.seatNumber)
         );
       const mergedBookedSeats = Array.from(new Set([...bookedSeats, ...reservedSeatNumbers.filter((s: string) => !!s)]));
-      
+
       let occupiedSeats: string[] = [];
       if (selectedBus.occupiedSeats) {
         try {
@@ -385,11 +388,11 @@ export default function SeatSelection({
   useEffect(() => {
     const groups: PassengerGroup[] = [];
     const selectedSeatsCopy = [...selectedSeats];
-    
+
     for (let i = 0; i < selectedSeatsCopy.length; i++) {
       const currentSeat = selectedSeatsCopy[i];
       const nextSeat = selectedSeatsCopy[i + 1];
-      
+
       if (isAdjacent(currentSeat, nextSeat)) {
         groups.push({
           primarySeat: currentSeat,
@@ -404,14 +407,14 @@ export default function SeatSelection({
         });
       }
     }
-    
+
     setPassengerGroups(groups);
   }, [selectedSeats]);
 
   const handleSeatClick = (seatId: string, vehicleId?: number) => {
     const isSelected = selectedSeats.includes(seatId);
     const max = getMaxSelectable();
-    
+
     if (!isSelected && selectedSeats.length >= max) return;
 
     if (isPrivateTour && seatId.includes('-1A')) return;
@@ -420,7 +423,7 @@ export default function SeatSelection({
       const seat = seatLayout.find(s => s.id === seatId);
       if (seat && (isPrivateTour ? seat.row > 1 : true)) {
         let adjSeatId: string | null = null;
-        
+
         if (isPrivateTour) {
           if (seat.position === 'A') adjSeatId = `V${vehicleId}-${seat.row}B`;
           else if (seat.position === 'B') adjSeatId = `V${vehicleId}-${seat.row}A`;
@@ -471,7 +474,7 @@ export default function SeatSelection({
 
   const renderRegularBusSeats = () => {
     const numberOfRows = 14;
-    
+
     return (
       <div className="border-2 rounded-xl p-4 md:p-6 bg-white shadow-sm" style={{ borderColor: colors.secondary }}>
         <div className="flex justify-end mb-4 md:mb-8">
@@ -624,11 +627,11 @@ export default function SeatSelection({
   const renderVehicleSeats = (vehicleId: number) => {
     const vehicleSeats = seatLayout.filter(seat => seat.vehicleId === vehicleId);
     const vehicle = replacementVehicles.find(v => v.id === vehicleId);
-    
+
     if (!vehicle) return null;
 
     const rows = [1, 2, 3, 4];
-    
+
     return (
       <div key={vehicleId} className="border-2 border-gray-200 rounded-xl p-4 md:p-6 bg-white shadow-sm">
         <div className="flex items-center justify-between mb-4 md:mb-6 pb-3 md:pb-4 border-b border-gray-100">
@@ -653,12 +656,12 @@ export default function SeatSelection({
                 <div className="w-6 md:w-8 text-center text-xs md:text-sm font-medium text-gray-500">
                   {row === 1 ? '' : row}
                 </div>
-                
+
                 <div className="flex gap-1 md:gap-2 flex-1">
                   {rowSeats.map(seat => {
                     const isHighlighted = highlightedPairs.includes(seat.id);
                     const isSelected = selectedSeats.includes(seat.id);
-                    
+
                     if (row === 1) {
                       return (
                         <div key={seat.id} className="flex items-center gap-1 md:gap-2">
@@ -680,7 +683,7 @@ export default function SeatSelection({
                                       ? "bg-gray-100 border-gray-300 hover:bg-gray-200 hover:border-gray-400 hover:shadow-sm"
                                       : "bg-gray-100 border-gray-300 hover:bg-gray-200 hover:border-gray-400 hover:shadow-sm"
                                     : "text-gray-400 cursor-not-allowed border-gray-300 opacity-60"
-                              }`}
+                                }`}
                               style={isSelected ? {
                                 backgroundColor: colors.primary,
                                 borderColor: colors.primary
@@ -713,7 +716,7 @@ export default function SeatSelection({
                                 ? "bg-gray-100 border-gray-300 hover:bg-gray-200 hover:border-gray-400 hover:shadow-sm"
                                 : "bg-gray-100 border-gray-300 hover:bg-gray-200 hover:border-gray-400 hover:shadow-sm"
                               : "text-gray-400 cursor-not-allowed border-gray-300 opacity-60"
-                        }`}
+                          }`}
                         style={isSelected ? {
                           backgroundColor: colors.primary,
                           borderColor: colors.primary
@@ -814,7 +817,7 @@ export default function SeatSelection({
           </div>
         </div>
       )}
-      
+
       <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200">
         {/* Header Section */}
         <div className="p-4 md:p-6 border-b" style={{ backgroundColor: colors.primary }}>
@@ -938,7 +941,7 @@ export default function SeatSelection({
                     </div>
                   </div>
                   <div className="absolute -bottom-2 left-0 right-0 h-1 bg-gray-200 rounded-full">
-                    <div 
+                    <div
                       className="h-full rounded-full bg-gradient-to-r from-blue-500 to-green-500"
                       style={{ width: '100%' }}
                     ></div>
@@ -970,7 +973,7 @@ export default function SeatSelection({
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 p-4 md:p-6">
           <div className="lg:col-span-3">
             <h3 className="text-lg md:text-xl font-bold mb-4" style={{ color: colors.dark }}>Select Your Seats</h3>
-            
+
             {/* Modern Legend */}
             <div className="flex flex-wrap gap-3 md:gap-4 mb-6 md:mb-8 p-4 bg-white rounded-xl border border-gray-200 shadow-xs">
               <div className="flex items-center gap-2">
@@ -1021,7 +1024,7 @@ export default function SeatSelection({
           <div className="lg:col-span-1 space-y-4 md:space-y-6">
             <div className="bg-white rounded-xl p-4 md:p-6 border border-gray-200 shadow-sm">
               <h3 className="text-lg font-bold mb-4 text-gray-800">Booking Summary</h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <div className="text-gray-700 text-sm mb-2 font-medium">Selected Seats:</div>

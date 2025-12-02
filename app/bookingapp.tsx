@@ -356,7 +356,7 @@ export default function BookingApp() {
     <>
       <a
         href="/aboutus"
-      
+
         className="text-teal-800 hover:text-amber-600 font-medium"
       >
         About Us
@@ -522,104 +522,104 @@ export default function BookingApp() {
           </div>
         </div>
         <footer className="bg-gray-900 text-white py-12">
-  <div className="container mx-auto px-4">
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-      <div>
-        <h3 className="text-lg font-bold mb-4">REECA TRAVEL</h3>
-        <p className="text-gray-400">
-          Premium bus services between Botswana and South Africa.
-        </p>
-        <div className="flex space-x-4 mt-4">
-          <a
-            href="https://www.facebook.com/ReecaTravel/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-gray-400 hover:text-white"
-          >
-            <Facebook className="h-5 w-5" />
-          </a>
-          <a
-            href="https://www.instagram.com/ReecaTravel/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-gray-400 hover:text-white"
-          >
-            <Instagram className="h-5 w-5" />
-          </a>
-        </div>
-      </div>
-      <div>
-        <h4 className="font-bold mb-4">Quick Links</h4>
-        <ul className="space-y-2">
-          <li>
-            <a href="/" className="text-gray-400 hover:text-white">
-              Home
-            </a>
-          </li>
-          <li>
-            <a href="/schedulebuspage" className="text-gray-400 hover:text-white">
-              Bus Schedule
-            </a>
-          </li>
-          <li>
-            <a href="/lostnfound" className="text-gray-400 hover:text-white">
-              Lost & Found
-            </a>
-          </li>
-        </ul>
-      </div>
-      <div>
-        <h4 className="font-bold mb-4">Information</h4>
-        <ul className="space-y-2">
-          <li>
-            <a href="/terms" className="text-gray-400 hover:text-white">
-              Terms & Conditions
-            </a>
-          </li>
-          <li>
-            <a href="/privacypolicy" className="text-gray-400 hover:text-white">
-              Privacy Policy
-            </a>
-          </li>
-          <li>
-            <a href="/traveldocs" className="text-gray-400 hover:text-white">
-              Travel Documents
-            </a>
-          </li>
-          <li>
-            <a href="/faq" className="text-gray-400 hover:text-white">
-              FAQ
-            </a>
-          </li>
-        </ul>
-      </div>
-      <div>
-        <h4 className="font-bold mb-4">Sales Office</h4>
-        <address className="not-italic text-gray-400">
-          <p>Mogobe Plaza, Gaborone CBD, 4th Floor</p>
-          <p>Emergency Phone: +267 77655348</p>
-          <p>Office Line: +267 73061124</p>
-          <p>WhatsApp: +267 76506348</p>
-          <p>Bus Tickets: tickets@reecatravel.co.bw</p>
-          <p>Travel Services: traveltalk@reecatravel.co.bw</p>
-        </address>
-      </div>
-    </div>
-    <div className="mt-8 text-center">
-      <a
-        href="https://toporapula.vercel.app/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-gray-500 hover:text-gray-400"
-      >
-        Developed by Topo Rapula
-      </a>
-    </div>
-    <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-500">
-      <p>© {new Date().getFullYear()} REECA Travel. All rights reserved.</p>
-    </div>
-  </div>
-</footer>
+          <div className="container mx-auto px-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+              <div>
+                <h3 className="text-lg font-bold mb-4">REECA TRAVEL</h3>
+                <p className="text-gray-400">
+                  Premium bus services between Botswana and South Africa.
+                </p>
+                <div className="flex space-x-4 mt-4">
+                  <a
+                    href="https://www.facebook.com/ReecaTravel/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-400 hover:text-white"
+                  >
+                    <Facebook className="h-5 w-5" />
+                  </a>
+                  <a
+                    href="https://www.instagram.com/ReecaTravel/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-400 hover:text-white"
+                  >
+                    <Instagram className="h-5 w-5" />
+                  </a>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-bold mb-4">Quick Links</h4>
+                <ul className="space-y-2">
+                  <li>
+                    <a href="/" className="text-gray-400 hover:text-white">
+                      Home
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/schedulebuspage" className="text-gray-400 hover:text-white">
+                      Bus Schedule
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/lostnfound" className="text-gray-400 hover:text-white">
+                      Lost & Found
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-bold mb-4">Information</h4>
+                <ul className="space-y-2">
+                  <li>
+                    <a href="/terms" className="text-gray-400 hover:text-white">
+                      Terms & Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/privacypolicy" className="text-gray-400 hover:text-white">
+                      Privacy Policy
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/traveldocs" className="text-gray-400 hover:text-white">
+                      Travel Documents
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/faq" className="text-gray-400 hover:text-white">
+                      FAQ
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-bold mb-4">Sales Office</h4>
+                <address className="not-italic text-gray-400">
+                  <p>Mogobe Plaza, Gaborone CBD, 4th Floor</p>
+                  <p>Emergency Phone: +267 77655348</p>
+                  <p>Office Line: +267 73061124</p>
+                  <p>WhatsApp: +267 76506348</p>
+                  <p>Bus Tickets: tickets@reecatravel.co.bw</p>
+                  <p>Travel Services: traveltalk@reecatravel.co.bw</p>
+                </address>
+              </div>
+            </div>
+            <div className="mt-8 text-center">
+              <a
+                href="https://toporapula.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-gray-400"
+              >
+                Developed by Topo Rapula
+              </a>
+            </div>
+            <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-500">
+              <p>© {new Date().getFullYear()} REECA Travel. All rights reserved.</p>
+            </div>
+          </div>
+        </footer>
 
         {showHireModal && (
           <HireBusModal

@@ -207,11 +207,34 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 6,
+    textTransform: 'uppercase',
   },
   bankingDetails: {
     fontSize: 8,
     color: '#374151',
     lineHeight: 1.4,
+  },
+  bankingRow: {
+    flexDirection: 'row',
+    marginBottom: 3,
+  },
+  bankingLabel: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    width: 100,
+    textTransform: 'uppercase',
+  },
+  bankingValue: {
+    fontSize: 8,
+    color: '#374151',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  bankingValueNormal: {
+    fontSize: 8,
+    color: '#374151',
+    textTransform: 'uppercase',
   },
 });
 
@@ -355,12 +378,12 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Image style={styles.logo} src="https://reecabus.netlify.app/images/reeca-travel-logo.png" />
           <View style={{ marginLeft: 12 }}>
-            <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#1f2937' }}>REECA TRAVEL</Text>
+            <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#1f2937', textTransform: 'uppercase' }}>REECA TRAVEL</Text>
             <Text style={styles.companyInfo}>
-              GABORONE CBD{'\n'}
-              MOGOBE PLAZA{'\n'}
-              GABORONE South-East{'\n'}
-              Botswana{'\n'}
+              <Text style={{ textTransform: 'uppercase' }}>GABORONE CBD</Text>{'\n'}
+              <Text style={{ textTransform: 'uppercase' }}>MOGOBE PLAZA</Text>{'\n'}
+              <Text style={{ textTransform: 'uppercase' }}>GABORONE SOUTH-EAST</Text>{'\n'}
+              <Text style={{ textTransform: 'uppercase' }}>BOTSWANA</Text>{'\n'}
               +26773061124{'\n'}
               tickets@reecatravel.co.bw{'\n'}
               www.reecabus.co.bw
@@ -370,7 +393,7 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
         <View style={styles.ticketInfo}>
           <Text style={styles.ticketTitle}>BUS TICKET</Text>
           <Text style={styles.ticketRef}>#{booking.orderId}</Text>
-          <Text style={styles.tripType}>{returnTrip ? 'ROUNDTRIP' : 'DEPARTURE TRIP'}</Text>
+          <Text style={[styles.tripType, { textTransform: 'uppercase' }]}>{returnTrip ? 'ROUNDTRIP' : 'DEPARTURE TRIP'}</Text>
         </View>
       </View>
       <View style={{ flexDirection: 'row' }}>
@@ -388,11 +411,11 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
           <View style={{ flex: 1 }}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Payment Method:</Text>
-              <Text style={styles.summaryValue}>{booking.paymentMode}</Text>
+              <Text style={[styles.summaryValue, { textTransform: 'uppercase' }]}>{booking.paymentMode}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Payment Status:</Text>
-              <Text style={[styles.summaryValue, { color: booking.paymentStatus === 'paid' ? '#059669' : '#dc2626' }]}>
+              <Text style={[styles.summaryValue, { color: booking.paymentStatus === 'paid' ? '#059669' : '#dc2626', textTransform: 'uppercase' }]}>
                 {booking.paymentStatus}
               </Text>
             </View>
@@ -400,20 +423,32 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
           <View style={{ flex: 1 }}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Booking Status:</Text>
-              <Text style={[styles.summaryValue, { color: '#059669' }]}>{booking.bookingStatus}</Text>
+              <Text style={[styles.summaryValue, { color: '#059669', textTransform: 'uppercase' }]}>{booking.bookingStatus}</Text>
             </View>
           </View>
         </View>
         
-        {/* Banking Details Section - Updated to match styling */}
+        {/* Banking Details Section - Updated with capitalized text */}
         <View style={styles.bankingSection}>
           <Text style={styles.bankingTitle}>Banking Details</Text>
-          <Text style={styles.bankingDetails}>
-            <Text style={{ fontWeight: 'bold' }}>Bank:</Text> Stanbic Bank{'\n'}
-            <Text style={{ fontWeight: 'bold' }}>Account Name:</Text> AFRICAN TASTES (pty)ltd T/a REECA TRAVEL{'\n'}
-            <Text style={{ fontWeight: 'bold' }}>Account Number:</Text> 9060004001996{'\n'}
-            <Text style={{ fontWeight: 'bold' }}>Branch:</Text> Airport Junction
-          </Text>
+          <View style={styles.bankingDetails}>
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>BANK:</Text>
+              <Text style={styles.bankingValue}>STANBIC BANK</Text>
+            </View>
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>ACCOUNT NAME:</Text>
+              <Text style={styles.bankingValueNormal}>AFRICAN TASTES (PTY)LTD T/A REECA TRAVEL</Text>
+            </View>
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>ACCOUNT NUMBER:</Text>
+              <Text style={styles.bankingValue}>9060004001996</Text>
+            </View>
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>BRANCH:</Text>
+              <Text style={styles.bankingValue}>AIRPORT JUNCTION</Text>
+            </View>
+          </View>
         </View>
       </View>
       <View style={styles.section}>
@@ -436,7 +471,7 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>ID Type:</Text>
-              <Text style={styles.summaryValue}>Passport</Text>
+              <Text style={styles.summaryValue}>PASSPORT</Text>
             </View>
           </View>
           <View style={{ flex: 1 }}>
