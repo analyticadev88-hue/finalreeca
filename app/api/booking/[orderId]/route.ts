@@ -92,7 +92,7 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
       extraBaggage: "Extra Baggage (P300)",
       wimpyMeal1: "Wimpy Meal for 1 (P67)",
       wimpyMeal2: "Wimpy Meal for 2 (P137)",
-      travelInsurance: "Travel Insurance (P150)",
+      travelInsurance: "Travel Insurance (P450)",
     };
 
     const addonsArr: any[] = [];

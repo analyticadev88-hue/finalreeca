@@ -137,7 +137,7 @@ const ADDONS = [
     key: "travelInsurance",
     label: "Add Travel Insurance",
     description: "Comprehensive travel insurance coverage.",
-    price: 150,
+    price: 450,
     icon: <Shield className="h-5 w-5 text-[#ffc721]" />,
     showOnReturn: true,
   },
@@ -440,7 +440,7 @@ export default function PassengerDetailsForm({
       case "wimpyMeal2":
         return 137;
       case "travelInsurance":
-        return 150;
+        return 450;
       default:
         return 0;
     }
@@ -1859,8 +1859,8 @@ export default function PassengerDetailsForm({
                               </div>
                             </div>
                             
-                            {/* Preference Select for Wimpy */}
-                            {isWimpy && (selectedAddons[addon.key]?.departure || selectedAddons[addon.key]?.return) && (
+                            {/* Preference Select for Wimpy Meal 2 only */}
+                            {addon.key === "wimpyMeal2" && (selectedAddons[addon.key]?.departure || selectedAddons[addon.key]?.return) && (
                               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {selectedAddons[addon.key]?.departure && (
                                   <div className="space-y-1">
