@@ -39,7 +39,8 @@ export const createToken = async (requestData: CreateTokenRequest): Promise<Crea
     const lastName = nameParts.slice(1).join(' ') || 'User';
 
     // Always use production URLs for redirect and back in production
-    const PROD_DOMAIN = 'https://reecabus.netlify.app';
+    // Get base URL from environment and remove trailing slash if present
+    const PROD_DOMAIN = (process.env.NEXT_PUBLIC_APP_URL || 'https://reecabus.co.bw').replace(/\/$/, '');
     let redirectUrl = requestData.redirectUrl;
     let backUrl = requestData.backUrl;
     // Always include order_id in redirect/back URLs for payment verification
@@ -64,6 +65,7 @@ export const createToken = async (requestData: CreateTokenRequest): Promise<Crea
     <CompanyRef>${requestData.orderId}</CompanyRef>
     <RedirectURL>${redirectUrl}</RedirectURL>
     <BackURL>${backUrl}</BackURL>
+    <PushURL>${PROD_DOMAIN}/api/dpo-webhook</PushURL>
     <CompanyRefUnique>0</CompanyRefUnique>
     <PTL>15</PTL>
     <customerFirstName>${firstName}</customerFirstName>

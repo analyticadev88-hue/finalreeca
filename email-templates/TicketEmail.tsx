@@ -18,7 +18,7 @@ export const TicketEmail = ({ userName, orderId, route, date, time, seats, total
     <Body style={{ backgroundColor: '#f9fafb', fontFamily: 'Arial, sans-serif', color: '#374151' }}>
       <Container style={{ maxWidth: 600, margin: '0 auto', background: '#fff', padding: 32, borderRadius: 12, border: '1px solid #e5e7eb' }}>
         <Section style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Img src="https://reecabus.netlify.app/images/reeca-travel-logo.png" width="120" height="64" alt="REECA TRAVEL Logo" style={{ objectFit: 'contain', marginBottom: 8 }} />
+          <Img src="https://reecabus.co.bw/images/reeca-travel-logo.png" width="120" height="64" alt="REECA TRAVEL Logo" style={{ objectFit: 'contain', marginBottom: 8 }} />
           <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1f2937', margin: 0 }}>REECA TRAVEL</Text>
         </Section>
         <Section>

@@ -82,9 +82,9 @@ export default function PaymentGateway({
         console.warn('Reservation call failed, proceeding without reservation', err);
       }
 
-      // If payment mode is Reservation Paid (client already paid), skip DPO and mark as paid.
+      // If payment mode is Reservation Paid (client already paid) or Cash (agent collected), skip DPO and mark as paid.
       // Bank Deposit should NOT be treated as paid — it requires confirmation and possibly manual reconciliation.
-      if (paymentData.paymentMode === "Reservation Paid") {
+      if (paymentData.paymentMode === "Reservation Paid" || paymentData.paymentMode === "Cash") {
         const response = await fetch('/api/create-dpo-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

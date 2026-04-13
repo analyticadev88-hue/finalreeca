@@ -116,11 +116,21 @@ const ADDONS = [
     showOnReturn: true,
   },
   {
-    key: "wimpyMeal",
-    label: "Wimpy Meal",
-    description: "Delicious Wimpy meal for your journey available from Gaborone only.",
+    key: "wimpyMeal1",
+    label: "Wimpy Meal for 1",
+    description: "Enjoy a Wimpy meal for 1 person.",
     price: 67,
     icon: <ShoppingBag className="h-5 w-5 text-[#ffc721]" />,
+    image: "/images/mealfor1.jpeg",
+    showOnReturn: false,
+  },
+  {
+    key: "wimpyMeal2",
+    label: "Wimpy Meal for 2",
+    description: "Enjoy a combo Wimpy meal for 2 people.",
+    price: 137,
+    icon: <ShoppingBag className="h-5 w-5 text-[#ffc721]" />,
+    images: ["/images/mealfor2burger.jpeg", "/images/mealfor2doubleup.jpeg"],
     showOnReturn: false,
   },
   {
@@ -260,8 +270,9 @@ export default function PassengerDetailsForm({
 }: PassengerDetailsFormProps) {
   const isRoundTrip = !!returnBus;
   const [selectedAddons, setSelectedAddons] = useState<{
-    [key: string]: { departure: boolean; return: boolean };
+    [key: string]: { departure: boolean; return: boolean; departurePref?: string; returnPref?: string };
   }>({});
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const depNF = departureNeighbourFree
     ? groupSeatsForNeighbourFree(departureSeats)
@@ -424,10 +435,12 @@ export default function PassengerDetailsForm({
     switch (key) {
       case "extraBaggage":
         return 300;
-      case "wimpyMeal":
+      case "wimpyMeal1":
         return 67;
+      case "wimpyMeal2":
+        return 137;
       case "travelInsurance":
-        return 450;
+        return 150;
       default:
         return 0;
     }
@@ -706,8 +719,18 @@ export default function PassengerDetailsForm({
     setSelectedAddons((prev) => ({
       ...prev,
       [addonKey]: {
-        ...prev[addonKey],
+        ...prev[addonKey] || { departure: false, return: false },
         [tripType]: checked,
+      },
+    }));
+  };
+
+  const handleAddonPreference = (addonKey: string, tripType: "departure" | "return", pref: string) => {
+    setSelectedAddons((prev) => ({
+      ...prev,
+      [addonKey]: {
+        ...prev[addonKey] || { departure: false, return: false },
+        [tripType === "departure" ? "departurePref" : "returnPref"]: pref,
       },
     }));
   };
@@ -780,8 +803,8 @@ export default function PassengerDetailsForm({
   agentId: agent?.id || undefined,                       // ✅
   consultantId: consultant?.id || undefined,             // ✅
   reservationToken: reservationToken || undefined,
-  paymentStatus: paymentMode === 'Bank Deposit' ? 'pending' : 
-                paymentMode === 'Reservation Paid' ? 'paid' : 'pending',
+  paymentStatus: (paymentMode === 'Bank Deposit' || paymentMode === 'Credit Card' || paymentMode === 'Swipe in Person') ? 'pending' : 
+                (paymentMode === 'Reservation Paid' || paymentMode === 'Cash') ? 'paid' : 'pending',
 };
   };
 
@@ -1693,11 +1716,11 @@ export default function PassengerDetailsForm({
                   Select extras for each passenger. Prices are per passenger, per trip.
                 </div>
 
-                {ADDONS.map((addon) => {
+                {ADDONS.map((addon: any) => {
                   const depOrigin = (departureBus?.routeOrigin || searchData.from || "")
                     .toLowerCase()
                     .trim();
-                  const isWimpy = addon.key === "wimpyMeal";
+                  const isWimpy = addon.key.startsWith("wimpyMeal");
                   const isInsurance = addon.key === "travelInsurance";
                   let wimpyDisabled = false;
                   let wimpyInfo = null;
@@ -1706,18 +1729,31 @@ export default function PassengerDetailsForm({
 
                   if (isWimpy) {
                     if (depOrigin !== "gaborone") return null;
-                    price = 67;
                     const depDate = departureBus?.departureDate
                       ? new Date(departureBus.departureDate)
                       : null;
                     const now = new Date();
                     wimpyDisabled = !!depDate && (depDate.getTime() - now.getTime()) < 24 * 60 * 60 * 1000;
-                    wimpyInfo = (
-                      <span className="ml-2 inline-flex items-center text-xs text-gray-500">
-                        <Info className="h-4 w-4 mr-1 text-yellow-600" />
-                        Order 24hrs before departure
-                      </span>
-                    );
+                    
+                    // Note only for Meal 2 as requested
+                    if (addon.key === "wimpyMeal2") {
+                      wimpyInfo = (
+                        <div className="mt-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-xs sm:text-sm text-gray-700">
+                          <div className="flex items-start gap-2">
+                            <Info className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-yellow-800">Wimpy Ordering Information</p>
+                              <p className="mt-1 italic">
+                                Note: You can opt for a Wimpy Cheese Burger or a Double Up Breakfast.
+                              </p>
+                              <p className="mt-1 text-gray-500 text-[10px] sm:text-xs">
+                                * Available from Gaborone only. Must be ordered at least 24 hours before departure.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
                   }
 
                   if (isInsurance) {
@@ -1736,71 +1772,138 @@ export default function PassengerDetailsForm({
                     );
                   }
 
+                  const addonImages = addon.images || (addon.image ? [addon.image] : []);
+
                   return (
                     <div
                       key={addon.key}
-                      className="flex flex-col border border-gray-200 rounded-lg p-3 sm:p-4 bg-white hover:bg-gray-50 transition-all mb-2"
+                      className="flex flex-col border border-gray-200 rounded-xl p-3 sm:p-4 bg-white hover:bg-gray-50 transition-all mb-4 shadow-sm"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="p-2 bg-gray-100 rounded-full border border-gray-200">
-                            {addon.icon}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-[rgb(0,153,153)] text-sm sm:text-base flex items-center gap-1">
-                              {addon.label}
-                              {isWimpy && wimpyInfo}
-                              {isInsurance && (
-                                <button
-                                  type="button"
-                                  aria-label="More info"
-                                  onClick={() => setShowInsuranceInfo(!showInsuranceInfo)}
-                                  className="ml-1 p-1 rounded-full hover:bg-gray-200 transition-colors border border-gray-200"
-                                  style={{ lineHeight: 0, display: "inline-flex", alignItems: "center" }}
+                      <div className="flex flex-col gap-4 w-full">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          {addonImages.length > 0 && (
+                            <div className="flex gap-2 shrink-0">
+                              {addonImages.map((img: string, i: number) => (
+                                <div 
+                                  key={i}
+                                  className="relative w-24 h-24 shrink-0 overflow-hidden rounded-lg border-2 border-transparent hover:border-[rgb(0,153,153)] cursor-pointer transition-all shadow-sm"
+                                  onClick={() => setSelectedImage(img)}
                                 >
-                                  <Info className="h-4 w-4 text-gray-600" />
-                                </button>
-                              )}
+                                  <img 
+                                    src={img} 
+                                    alt={`${addon.label} ${i + 1}`} 
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/5 hover:bg-transparent transition-colors flex items-center justify-center group">
+                                    <ShoppingBag className="h-5 w-5 text-white opacity-0 group-hover:opacity-100" />
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <div className="text-xs sm:text-sm text-[rgb(148,138,84)] mt-1">
-                              {addon.description}
+                          )}
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-gray-100 rounded-full border border-gray-200">
+                                  {addon.icon}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-[rgb(0,153,153)] text-sm sm:text-base flex items-center gap-1">
+                                    {addon.label}
+                                    {isInsurance && (
+                                      <button
+                                        type="button"
+                                        aria-label="More info"
+                                        onClick={() => setShowInsuranceInfo(!showInsuranceInfo)}
+                                        className="ml-1 p-1 rounded-full hover:bg-gray-200 transition-colors border border-gray-200"
+                                      >
+                                        <Info className="h-4 w-4 text-gray-600" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-[rgb(148,138,84)]">
+                                    {addon.description}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-4 self-end sm:self-center">
+                                <div className="flex gap-4">
+                                  <label className="flex items-center gap-2 text-sm cursor-pointer group">
+                                    <Checkbox
+                                      checked={!!selectedAddons[addon.key]?.departure}
+                                      onCheckedChange={(checked) =>
+                                        handleAddonChange(addon.key, "departure", !!checked)
+                                      }
+                                      className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                                      disabled={isWimpy && wimpyDisabled}
+                                    />
+                                    <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Departure</span>
+                                  </label>
+                                  {isRoundTrip && addon.showOnReturn && (
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer group">
+                                      <Checkbox
+                                        checked={!!selectedAddons[addon.key]?.return}
+                                        onCheckedChange={(checked) =>
+                                          handleAddonChange(addon.key, "return", !!checked)
+                                        }
+                                        className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                                      />
+                                      <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Return</span>
+                                    </label>
+                                  )}
+                                </div>
+                                <span className="font-bold text-[rgb(255,199,33)] text-sm sm:text-base bg-gray-100 px-3 py-1 rounded-full border border-gray-200 min-w-[70px] text-center shadow-inner">
+                                  {price > 0 ? `P ${price}` : "FREE"}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-row items-center gap-4 ml-auto">
-                          <div className="flex gap-3">
-                            <label className="flex items-center gap-1 text-sm">
-                              <Checkbox
-                                checked={!!selectedAddons[addon.key]?.departure}
-                                onCheckedChange={(checked) =>
-                                  handleAddonChange(addon.key, "departure", !!checked)
-                                }
-                                className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
-                                disabled={isWimpy ? wimpyDisabled : false}
-                                title={isWimpy && wimpyDisabled ? "Order 24hrs before departure" : ""}
-                              />
-                              <span className="text-xs sm:text-sm">Departure</span>
-                            </label>
-                            {isRoundTrip && addon.showOnReturn && (
-                              <label className="flex items-center gap-1 text-sm">
-                                <Checkbox
-                                  checked={!!selectedAddons[addon.key]?.return}
-                                  onCheckedChange={(checked) =>
-                                    handleAddonChange(addon.key, "return", !!checked)
-                                  }
-                                  disabled={isWimpy}
-                                  className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
-                                />
-                                <span className="text-xs sm:text-sm">Return</span>
-                              </label>
+                            
+                            {/* Preference Select for Wimpy */}
+                            {isWimpy && (selectedAddons[addon.key]?.departure || selectedAddons[addon.key]?.return) && (
+                              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {selectedAddons[addon.key]?.departure && (
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase">Departure Preference</label>
+                                    <Select 
+                                      value={selectedAddons[addon.key]?.departurePref}
+                                      onValueChange={(val) => handleAddonPreference(addon.key, "departure", val)}
+                                    >
+                                      <SelectTrigger className="h-9 text-xs border-gray-200">
+                                        <SelectValue placeholder="Choose meal option" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Cheese Burger">Wimpy Cheese Burger</SelectItem>
+                                        <SelectItem value="Double Up">Double Up Breakfast</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                                {isRoundTrip && selectedAddons[addon.key]?.return && (
+                                   <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase">Return Preference</label>
+                                    <Select 
+                                      value={selectedAddons[addon.key]?.returnPref}
+                                      onValueChange={(val) => handleAddonPreference(addon.key, "return", val)}
+                                    >
+                                      <SelectTrigger className="h-9 text-xs border-gray-200">
+                                        <SelectValue placeholder="Choose meal option" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Cheese Burger">Wimpy Cheese Burger</SelectItem>
+                                        <SelectItem value="Double Up">Double Up Breakfast</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                              </div>
                             )}
+
+                            {isWimpy && wimpyInfo}
+                            {isInsurance && showInsuranceInfo && insuranceInfo}
                           </div>
-                          <span className="font-bold text-[rgb(255,199,33)] text-sm sm:text-base bg-gray-100 px-2 py-1 rounded-full border border-gray-200 min-w-[60px] text-center">
-                            {price > 0 ? `P ${price}` : "FREE"}
-                          </span>
                         </div>
                       </div>
-                      {showInsuranceInfo && insuranceInfo}
                     </div>
                   );
                 })}
@@ -1876,7 +1979,8 @@ export default function PassengerDetailsForm({
                     const canonical = [
                       { value: 'Credit Card', label: 'Credit Card | Debit Card' },
                       { value: 'Bank Deposit', label: 'Pay with Bank Deposit' },
-                      { value: 'Cash', label: 'Paid with Payment Link', conditional: !!consultant },
+                      { value: 'Swipe in Person', label: 'Swipe at Office / Bus' },
+                      { value: 'Cash', label: 'Paid Cash (In Person)', conditional: !!consultant },
                       { value: 'Free Voucher', label: 'Free Voucher (Request Auth)', conditional: !!consultant },
                       { value: 'Reservation Paid', label: 'Already Paid (Reservation)' },
                     ] as { value: string; label: string; conditional?: boolean }[];
@@ -1936,7 +2040,7 @@ export default function PassengerDetailsForm({
               }
 
               setIsProcessing(true);
-              if (paymentMode === "Bank Deposit") {
+              if (paymentMode === "Bank Deposit" || paymentMode === "Swipe in Person") {
                 try {
                   setShowBankDepositLoading(true);
                   const bookingPayload = createBookingPayload();
@@ -2051,11 +2155,20 @@ export default function PassengerDetailsForm({
                   <p className="text-gray-700 text-sm mt-1">
                     Please wait while we create your booking.
                     <br />
-                    <span className="font-semibold text-[rgb(0,153,153)]">IMPORTANT:</span> Share
-                    proof of deposit to{" "}
-                    <span className="font-semibold">tickets@reecatravel.co.bw</span> at least{" "}
-                    <span className="font-semibold">1 hours after booking</span>  or your booking
-                    will be <span className="font-semibold text-red-600">nullified</span>.
+                    {paymentMode === "Bank Deposit" ? (
+                      <>
+                        <span className="font-semibold text-[rgb(0,153,153)]">IMPORTANT:</span> Share
+                        proof of deposit to{" "}
+                        <span className="font-semibold">tickets@reecatravel.co.bw</span> at least{" "}
+                        <span className="font-semibold">1 hours after booking</span> or your booking
+                        will be <span className="font-semibold text-red-600">nullified</span>.
+                      </>
+                    ) : (
+                      <>
+                        You have chosen to <span className="font-semibold text-[rgb(0,153,153)]">Swipe at Office</span>. 
+                        Please ensure you arrive at the designated point to complete payment.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -2083,6 +2196,29 @@ export default function PassengerDetailsForm({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Image Preview Dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-2xl bg-black/90 border-none p-0 flex items-center justify-center overflow-hidden">
+          {selectedImage && (
+            <div className="relative w-full h-full flex items-center justify-center p-4">
+              <img 
+                src={selectedImage} 
+                className="max-w-full max-h-[80vh] object-contain rounded-lg" 
+                alt="Meal Preview" 
+              />
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-4 right-4 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition-colors"
+                aria-label="Close preview"
+              >
+                <ChevronDown className="h-6 w-6 rotate-180" />
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
 
       {/* Reservation Conflict Modal */}
       {showReservationConflict && (

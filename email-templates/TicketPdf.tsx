@@ -376,7 +376,7 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
     <Page size="A4" style={styles.page}>
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Image style={styles.logo} src="https://reecabus.netlify.app/images/reeca-travel-logo.png" />
+          <Image style={styles.logo} src="https://reecabus.co.bw/images/reeca-travel-logo.png" />
           <View style={{ marginLeft: 12 }}>
             <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#1f2937', textTransform: 'uppercase' }}>REECA TRAVEL</Text>
             <Text style={styles.companyInfo}>

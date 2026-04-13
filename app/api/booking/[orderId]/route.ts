@@ -88,14 +88,37 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
     } : undefined;
 
     // Format add-ons as array for ticket
-    const addonsArr = booking.addons
-      ? Array.isArray(booking.addons)
-        ? booking.addons
-        : Object.entries(booking.addons).map(([key, value]) => ({
-            name: key,
-            ...(typeof value === "object" && value !== null ? value : { value }),
-          }))
-      : [];
+    const ADDON_MAP: Record<string, string> = {
+      extraBaggage: "Extra Baggage (P300)",
+      wimpyMeal1: "Wimpy Meal for 1 (P67)",
+      wimpyMeal2: "Wimpy Meal for 2 (P137)",
+      travelInsurance: "Travel Insurance (P150)",
+    };
+
+    const addonsArr: any[] = [];
+    if (booking.addons && typeof booking.addons === 'object' && !Array.isArray(booking.addons)) {
+      Object.entries(booking.addons).forEach(([key, selection]: [string, any]) => {
+        if (selection.departure || selection.return) {
+          const name = ADDON_MAP[key] || key;
+          const detailsParts = [];
+          if (selection.departure) {
+            detailsParts.push(`Departure${selection.departurePref ? ` (${selection.departurePref})` : ""}`);
+          }
+          if (selection.return) {
+            detailsParts.push(`Return${selection.returnPref ? ` (${selection.returnPref})` : ""}`);
+          }
+          const details = detailsParts.join(" & ");
+          
+          addonsArr.push({
+            name,
+            details: `Trip: ${details}`,
+            price: "" // Price is already in the label for clarity
+          });
+        }
+      });
+    } else if (Array.isArray(booking.addons)) {
+      addonsArr.push(...booking.addons);
+    }
 
     // Build response
     const responseData = {
