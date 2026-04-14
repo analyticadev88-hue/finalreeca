@@ -127,7 +127,7 @@ const ADDONS = [
   {
     key: "wimpyMeal2",
     label: "Wimpy Meal for 2",
-    description: "Enjoy a combo Wimpy meal for 2 people.",
+    description: "Enjoy a combo Wimpy meal shared for 2 people.",
     price: 137,
     icon: <ShoppingBag className="h-5 w-5 text-[#ffc721]" />,
     images: ["/images/mealfor2burger.jpeg", "/images/mealfor2doubleup.jpeg"],
@@ -454,10 +454,21 @@ export default function PassengerDetailsForm({
     ADDONS.forEach((addon) => {
       const price = getAddonPrice(addon.key, departureBus?.routeOrigin);
       if (selectedAddons[addon.key]?.departure) {
-        total += price * departurePayingPassengers.length;
+        if (addon.key === "wimpyMeal2") {
+          // Scale by the number of pairs (e.g. 1 meal for 2 people, 2 meals for 4 people)
+          const pairs = Math.floor(departurePayingPassengers.length / 2);
+          total += price * Math.max(1, pairs); 
+        } else {
+          total += price * departurePayingPassengers.length;
+        }
       }
       if (isRoundTrip && selectedAddons[addon.key]?.return) {
-        total += price * returnPayingPassengers.length;
+        if (addon.key === "wimpyMeal2") {
+          const pairs = Math.floor(returnPayingPassengers.length / 2);
+          total += price * Math.max(1, pairs);
+        } else {
+          total += price * returnPayingPassengers.length;
+        }
       }
     });
     return total;
@@ -1729,6 +1740,10 @@ export default function PassengerDetailsForm({
 
                   if (isWimpy) {
                     if (depOrigin !== "gaborone") return null;
+                    
+                    const departurePayingPassengers = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat);
+                    if (addon.key === "wimpyMeal2" && departurePayingPassengers.length <= 1) return null;
+
                     const depDate = departureBus?.departureDate
                       ? new Date(departureBus.departureDate)
                       : null;
@@ -1829,7 +1844,18 @@ export default function PassengerDetailsForm({
                               
                               <div className="flex items-center gap-4 self-end sm:self-center">
                                 <div className="flex gap-4">
-                                  <label className="flex items-center gap-2 text-sm cursor-pointer group">
+                                  <label 
+                                    className="flex items-center gap-2 text-sm cursor-pointer group"
+                                    onClick={() => {
+                                      if (isWimpy && wimpyDisabled) {
+                                        makeToast({
+                                          title: "Selection Unavailable",
+                                          description: "Wimpy meals must be ordered at least 24 hours before departure.",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }}
+                                  >
                                     <Checkbox
                                       checked={!!selectedAddons[addon.key]?.departure}
                                       onCheckedChange={(checked) =>
@@ -1841,13 +1867,25 @@ export default function PassengerDetailsForm({
                                     <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Departure</span>
                                   </label>
                                   {isRoundTrip && addon.showOnReturn && (
-                                    <label className="flex items-center gap-2 text-sm cursor-pointer group">
+                                    <label 
+                                      className="flex items-center gap-2 text-sm cursor-pointer group"
+                                      onClick={() => {
+                                        if (isWimpy && wimpyDisabled) {
+                                          makeToast({
+                                            title: "Selection Unavailable",
+                                            description: "Wimpy meals must be ordered at least 24 hours before departure.",
+                                            variant: "destructive",
+                                          });
+                                        }
+                                      }}
+                                    >
                                       <Checkbox
                                         checked={!!selectedAddons[addon.key]?.return}
                                         onCheckedChange={(checked) =>
                                           handleAddonChange(addon.key, "return", !!checked)
                                         }
                                         className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
+                                        disabled={isWimpy && wimpyDisabled}
                                       />
                                       <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Return</span>
                                     </label>
