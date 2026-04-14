@@ -78,6 +78,7 @@ export default function BookingsManagement() {
   const [showPrintTicket, setShowPrintTicket] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -135,7 +136,9 @@ export default function BookingsManagement() {
       (statusFilter === "pending" ?
         booking.paymentStatus?.toLowerCase() === "pending" :
         booking.bookingStatus.toLowerCase() === statusFilter);
-    return matchesSearch && matchesStatus;
+    const matchesPaymentMethod = paymentMethodFilter === "all" ||
+      booking.paymentMethod === paymentMethodFilter;
+    return matchesSearch && matchesStatus && matchesPaymentMethod;
   });
 
   // Pagination calculations
@@ -347,16 +350,29 @@ export default function BookingsManagement() {
                 style={{ borderColor: colors.accent }}
               />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full text-xs sm:text-sm h-9">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent style={{ backgroundColor: colors.light }}>
-                  <SelectItem value="all" className="text-xs sm:text-sm">All</SelectItem>
+                  <SelectItem value="all" className="text-xs sm:text-sm">All Statuses</SelectItem>
                   <SelectItem value="confirmed" className="text-xs sm:text-sm">Confirmed</SelectItem>
-                  <SelectItem value="pending" className="text-xs sm:text-sm">Pending</SelectItem>
+                  <SelectItem value="pending" className="text-xs sm:text-sm">Pending Payment</SelectItem>
                   <SelectItem value="cancelled" className="text-xs sm:text-sm">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
+                <SelectTrigger className="w-full text-xs sm:text-sm h-9">
+                  <SelectValue placeholder="Method" />
+                </SelectTrigger>
+                <SelectContent style={{ backgroundColor: colors.light }}>
+                  <SelectItem value="all" className="text-xs sm:text-sm">All Methods</SelectItem>
+                  <SelectItem value="Credit Card" className="text-xs sm:text-sm">Credit Card</SelectItem>
+                  <SelectItem value="Bank Deposit" className="text-xs sm:text-sm">Bank Deposit</SelectItem>
+                  <SelectItem value="Swipe in Person" className="text-xs sm:text-sm">Swipe In Person</SelectItem>
+                  <SelectItem value="Cash" className="text-xs sm:text-sm">Paid Cash</SelectItem>
+                  <SelectItem value="Free Voucher" className="text-xs sm:text-sm">Free Voucher</SelectItem>
                 </SelectContent>
               </Select>
               <Select
@@ -406,6 +422,22 @@ export default function BookingsManagement() {
                 </div>
               )}
             </div>
+            
+            {/* Color Legend (Key) */}
+            <div className="flex flex-wrap gap-3 mt-2 pt-2 border-t border-gray-100">
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                <div className="w-3 h-3 rounded-sm bg-yellow-100 border border-yellow-400 shrink-0"></div>
+                <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 uppercase tracking-tight">Pending</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                <div className="w-3 h-3 rounded-sm bg-orange-100 border border-orange-400 shrink-0"></div>
+                <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 uppercase tracking-tight">Swipe</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                <div className="w-3 h-3 rounded-sm bg-[#efebe9] border border-[#8b4513] shrink-0"></div>
+                <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 uppercase tracking-tight">Cash</span>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -444,8 +476,22 @@ export default function BookingsManagement() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {currentItems.map((booking) => (
-                      <tr key={booking.id} className={`hover:bg-gray-50 ${booking.paymentStatus && booking.paymentStatus.toLowerCase() === 'pending' ? 'bg-yellow-100' : ''}`}>
+                    {currentItems.map((booking) => {
+                      const method = (booking.paymentMethod || "").toLowerCase();
+                      const status = (booking.paymentStatus || "").toLowerCase();
+                      
+                      let rowClass = "hover:bg-gray-50";
+                      
+                      if (method === 'cash') {
+                        rowClass = "bg-[#efebe9] hover:bg-[#e0d7d3] transition-colors border-l-4 border-[#8b4513]";
+                      } else if (method === 'swipe in person' || method.includes('swipe')) {
+                        rowClass = "bg-orange-50 hover:bg-orange-100 transition-colors border-l-4 border-orange-400";
+                      } else if (status === 'pending') {
+                        rowClass = "bg-yellow-50 hover:bg-yellow-100 transition-colors border-l-4 border-yellow-400";
+                      }
+
+                      return (
+                        <tr key={booking.id} className={rowClass}>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-xs sm:text-sm font-medium" style={{ color: colors.primary }}>{booking.bookingRef}</div>
                         </td>
@@ -505,7 +551,8 @@ export default function BookingsManagement() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
