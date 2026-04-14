@@ -39,7 +39,7 @@ export async function GET() {
       droppingPoint: booking.droppingPoint,
       seats: booking.seats.split(','), // Assuming seats are stored as comma-separated values
       totalAmount: booking.totalPrice,
-      paymentMethod: 'Credit Card', // Default payment method, adjust as needed
+      paymentMethod: booking.paymentMode, // Use actual payment mode from DB
       paymentStatus: booking.paymentStatus,
       bookingStatus: booking.bookingStatus,
       specialRequests: '', // Placeholder for special requests, adjust as needed
