@@ -1090,7 +1090,8 @@ export default function SeatSelection({
             <Button
               onClick={onProceed}
               disabled={selectedSeats.length === 0}
-              className="w-full h-12 md:h-14 text-white font-semibold rounded-xl text-base md:text-lg transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 border-0"
+              className="w-full h-12 md:h-14 text-white font-semibold rounded-xl text-base md:text-lg transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed border-0"
+              style={{ backgroundColor: colors.secondary }}
             >
               Continue to Passengers
             </Button>
