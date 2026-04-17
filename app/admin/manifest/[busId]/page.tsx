@@ -5,24 +5,47 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun } from "docx";
 import { saveAs } from "file-saver";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { PassengerManifest } from "@/components/passengermanifest";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QuickAddPassengerModal } from "@/components/admin/QuickAddPassengerModal";
+import { UserPlus } from "lucide-react";
+import { toast } from "sonner";
 
-export default function ManifestPage({ params, onBack }: { params: { busId: string }, onBack?: () => void }) {
+export default function ManifestPage({ params: paramsPromise, onBack }: { params: Promise<{ busId: string }>, onBack?: () => void }) {
+  const params = use(paramsPromise);
+  const busId = params.busId;
   const router = useRouter();
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [tripData, setTripData] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  useEffect(() => {
-    fetch(`/api/bus/${params.busId}/bookings`)
+  const fetchManifestData = () => {
+    setLoading(true);
+    fetch(`/api/bus/${busId}/bookings`)
       .then(res => res.json())
       .then(data => {
         setBookings(data.bookings || []);
+        if (data.trip) {
+            setTripData(data.trip);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching manifest:", err);
         setLoading(false);
       });
-  }, [params.busId]);
+  };
+
+  useEffect(() => {
+    setIsMounted(true);
+    fetchManifestData();
+  }, [busId]);
+
+  if (!isMounted) return <div className="p-8"><Skeleton className="h-12 w-full mb-4" /><Skeleton className="h-64 w-full" /></div>;
 
   // Get trip info from first booking
   const trip = bookings[0]?.trip || {};
@@ -103,9 +126,9 @@ export default function ManifestPage({ params, onBack }: { params: { busId: stri
     }))
   ];
 
-  // Only show passengers on the page who have confirmed booking AND payment marked as Paid
+  // Show all passengers who have a confirmed booking, regardless of payment status
+  // (e.g., Bank Deposits or 'Swipe in Person' will show up as pending until confirmed)
   const displayedPassengers = currentTripPassengers.filter(p =>
-    String(p.paymentStatus || '').toLowerCase() === 'paid' &&
     String(p.bookingStatus || '').toLowerCase() === 'confirmed'
   );
 
@@ -428,54 +451,60 @@ export default function ManifestPage({ params, onBack }: { params: { busId: stri
             Back to Bus Schedule
           </button>
           
-          <div className="flex justify-between items-end border-b border-slate-200 pb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">Passenger Manifest</h1>
-              <div className="flex gap-6 mt-2 text-sm text-slate-600">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-6 gap-6">
+            <div className="w-full">
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Passenger Manifest</h1>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 text-sm text-slate-600">
                 <span className="flex items-center gap-1">
-                  <span className="font-medium">Route:</span> {route}
+                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Route:</span> {route}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="font-medium">Date:</span> {date}
+                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Date:</span> {date}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="font-medium">Time:</span> {time}
+                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Time:</span> {time}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="font-medium">Passengers:</span> {currentTripPassengers.length}
+                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Passengers:</span> {currentTripPassengers.length}
                 </span>
               </div>
             </div>
             
-            <div className="flex gap-3">
-              
+            <div className="grid grid-cols-2 md:flex flex-wrap gap-2 w-full md:w-auto">
               <button
                 onClick={handlePdfDownload}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-lg shadow-sm hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 text-white rounded-lg shadow-sm hover:bg-slate-800 transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span className="text-sm font-medium">PDF</span>
+                <span className="text-xs font-medium">PDF</span>
               </button>
               <button
                 onClick={handleExcelDownload}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-sm hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-sm hover:bg-slate-50 transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span className="text-sm font-medium">Excel</span>
+                <span className="text-xs font-medium">Excel</span>
               </button>
               <button
                 onClick={handlePassengerListDownload}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#009393] text-white rounded-lg shadow-sm hover:bg-[#007575] transition-colors"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-[#009393] text-white rounded-lg shadow-sm hover:bg-[#007575] transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span className="text-sm font-medium">PL PDF</span>
+                <span className="text-xs font-medium">PL <span className="hidden md:inline">PDF</span></span>
               </button>
               <button
                 onClick={handlePassengerListDocx}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#958c55] text-white rounded-lg shadow-sm hover:bg-[#bfae7c] transition-colors"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-[#958c55] text-white rounded-lg shadow-sm hover:bg-[#bfae7c] transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span className="text-sm font-medium">PL DOCX</span>
+                <span className="text-xs font-medium">PL <span className="hidden md:inline">DOCX</span></span>
+              </button>
+              <button
+                onClick={() => setShowQuickAdd(true)}
+                className="col-span-2 md:col-span-1 flex items-center justify-center gap-2 px-4 py-3 md:py-2 bg-orange-600 text-white rounded-lg shadow-sm hover:bg-orange-700 transition-colors font-bold"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span className="text-sm">Board <span className="hidden md:inline">Walk-in</span></span>
               </button>
             </div>
           </div>
@@ -487,22 +516,23 @@ export default function ManifestPage({ params, onBack }: { params: { busId: stri
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Passenger</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Seat</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Title</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">NOK Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">NOK Number</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Booking Ref</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Agent</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Infant</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Boarded</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Passenger</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">Seat</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden lg:table-cell">Title</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">Phone</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden xl:table-cell">NOK Name</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden xl:table-cell">NOK Number</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden sm:table-cell">Ref</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden lg:table-cell">Agent</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Pay</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">Infant</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">Status</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
                 {displayedPassengers.map((passenger, index) => (
                   <tr key={index} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                           {passenger.name.charAt(0)}
@@ -512,30 +542,35 @@ export default function ManifestPage({ params, onBack }: { params: { busId: stri
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div className="text-sm text-slate-900 font-mono">{passenger.seat}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-800">
                         {passenger.title}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden md:table-cell">
                       {passenger.phone}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden xl:table-cell">
                       {passenger.nokName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden xl:table-cell">
                       {passenger.nokPhone}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono hidden sm:table-cell">
                       {passenger.bookingRef}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden lg:table-cell">
                       {passenger.agent}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                      <span className={`px-2 inline-flex text-[10px] leading-5 font-bold rounded-full ${String(passenger.paymentStatus || '').toLowerCase() === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {String(passenger.paymentStatus || '').toLowerCase() === 'paid' ? 'PAID' : 'DUE'}
+                      </span>
+                    </td>
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden md:table-cell">
                       {passenger.hasInfant ? (
                         <span className="text-green-700 font-semibold">
                           Yes
@@ -559,7 +594,7 @@ export default function ManifestPage({ params, onBack }: { params: { busId: stri
                         <span className="text-gray-400">No</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${passenger.boarded ? 'bg-green-100 text-green-800' : 'bg-rose-100 text-rose-800'}`}>
                         {passenger.boarded ? 'Boarded' : 'Pending'}
                       </span>
@@ -571,29 +606,37 @@ export default function ManifestPage({ params, onBack }: { params: { busId: stri
           </div>
         </div>
         
-        {/* Summary */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h3 className="text-lg font-medium text-slate-900 mb-4">Trip Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="border border-slate-200 rounded-lg p-4">
-              <div className="text-sm font-medium text-slate-500">Total Passengers</div>
-              <div className="mt-1 text-3xl font-semibold text-slate-900">{displayedPassengers.length}</div>
+        {/* Summary Cards */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
+          <h3 className="text-lg font-bold text-slate-900 mb-4">Trip Summary</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all hover:shadow-md">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Passengers</div>
+              <div className="mt-1 text-2xl md:text-3xl font-bold text-slate-900">{displayedPassengers.length}</div>
             </div>
-            <div className="border border-slate-200 rounded-lg p-4">
-              <div className="text-sm font-medium text-slate-500">Passengers Boarded</div>
-              <div className="mt-1 text-3xl font-semibold text-green-600">
+            <div className="bg-green-50 border border-green-100 rounded-xl p-4 transition-all hover:shadow-md">
+              <div className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Boarded</div>
+              <div className="mt-1 text-2xl md:text-3xl font-bold text-green-700">
                 {displayedPassengers.filter(p => p.boarded).length}
               </div>
             </div>
-            <div className="border border-slate-200 rounded-lg p-4">
-              <div className="text-sm font-medium text-slate-500">Pending Boarding</div>
-              <div className="mt-1 text-3xl font-semibold text-amber-600">
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 transition-all hover:shadow-md sm:col-span-2 md:col-span-1">
+              <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Pending</div>
+              <div className="mt-1 text-2xl md:text-3xl font-bold text-amber-700">
                 {displayedPassengers.filter(p => !p.boarded).length}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <QuickAddPassengerModal 
+        isOpen={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        trip={tripData}
+        bookings={bookings}
+        onSuccess={() => fetchManifestData()}
+      />
     </div>
   );
 }

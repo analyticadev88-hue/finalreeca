@@ -34,7 +34,10 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
 
     // Map all passenger fields for the ticket
     const passengers = (booking.passengers || []).map((p: any) => ({
+      id: p.id,
       name: `${p.firstName} ${p.lastName}`,
+      firstName: p.firstName,
+      lastName: p.lastName,
       seat: p.seatNumber,
       title: p.title,
       type: p.type,
@@ -45,6 +48,9 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
       infantPassportNumber: p.infantPassportNumber || "",
       birthdate: p.birthdate || "",
       passportNumber: p.passportNumber || "",
+      phone: p.phone,
+      nextOfKinName: p.nextOfKinName,
+      nextOfKinPhone: p.nextOfKinPhone,
     }));
 
     // Parse seats
@@ -157,3 +163,59 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
     );
   }
 }
+
+export async function PATCH(request: Request, context: { params: Promise<{ orderId: string }> }) {
+  const { orderId } = await context.params;
+  const data = await request.json();
+
+  if (!orderId) {
+    return NextResponse.json({ success: false, error: "Missing order ID" }, { status: 400 });
+  }
+
+  try {
+    const { contactDetails, emergencyContact, passengers } = data;
+
+    // Update the booking details
+    await prisma.booking.update({
+      where: { orderId },
+      data: {
+        userName: contactDetails?.name,
+        userEmail: contactDetails?.email,
+        userPhone: contactDetails?.mobile,
+        contactIdNumber: contactDetails?.idNumber,
+        emergencyContactName: emergencyContact?.name,
+        emergencyContactPhone: emergencyContact?.phone,
+      },
+    });
+
+    // Update passengers if provided
+    if (passengers && Array.isArray(passengers)) {
+      for (const p of passengers) {
+        if (p.id) {
+          await prisma.passenger.update({
+            where: { id: p.id },
+            data: {
+              firstName: p.firstName,
+              lastName: p.lastName,
+              title: p.title,
+              passportNumber: p.passportNumber,
+              type: p.type,
+              phone: p.phone,
+              nextOfKinName: p.nextOfKinName,
+              nextOfKinPhone: p.nextOfKinPhone,
+              hasInfant: p.hasInfant,
+              infantName: p.infantName,
+              infantBirthdate: p.infantBirthdate,
+              infantPassportNumber: p.infantPassportNumber,
+            },
+          });
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, message: "Booking updated successfully" });
+  } catch (error: any) {
+    console.error("Booking update error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

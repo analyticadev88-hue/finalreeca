@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock } from "lucide-react";
+import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrintableTicket } from "@/components/printable-ticket";
 import * as XLSX from "xlsx";
+import { AmendBookingModal } from "@/components/admin/AmendBookingModal";
 
 // Define color scheme
 const colors = {
@@ -89,6 +90,7 @@ export default function BookingsManagement() {
   const [newReturnDate, setNewReturnDate] = useState("");
   const [newReturnTime, setNewReturnTime] = useState("");
   const [email, setEmail] = useState("");
+  const [showAmendModal, setShowAmendModal] = useState(false);
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const [nullifyLoading, setNullifyLoading] = useState(false);
   const [sendTicketLoading, setSendTicketLoading] = useState(false);
@@ -788,6 +790,18 @@ export default function BookingsManagement() {
                     <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     Send Ticket
                   </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-xs sm:text-sm h-9"
+                    onClick={() => {
+                      setShowAmendModal(true);
+                      setShowBookingDetails(false);
+                    }}
+                    style={{ borderColor: colors.secondary, color: colors.secondary }}
+                  >
+                    <Edit3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    Amend Details
+                  </Button>
                   {(selectedBooking.paymentStatus?.toLowerCase() === 'pending' || selectedBooking.bookingStatus?.toLowerCase() === 'confirmed') && (
                     <Button
                       variant="outline"
@@ -1026,6 +1040,13 @@ export default function BookingsManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AmendBookingModal 
+        isOpen={showAmendModal}
+        onClose={() => setShowAmendModal(false)}
+        booking={selectedBooking}
+        onSuccess={() => fetchBookings()}
+      />
     </div>
   );
 }

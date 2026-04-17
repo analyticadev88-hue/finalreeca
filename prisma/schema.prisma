@@ -136,8 +136,9 @@ model Inquiry {
   destination     String
   returnDate      String // <-- Add this line
   specialRequests String?
-  status          String   @default("pending")
-  requestedAt     DateTime @default(now())
+  status          String    @default("pending")
+  requestedAt     DateTime  @default(now())
+  lastReminderAt  DateTime?
 }
 
 model Agent {

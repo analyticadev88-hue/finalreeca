@@ -12,5 +12,12 @@ export async function GET(req: NextRequest, context: { params: { busId: string }
     orderBy: { createdAt: "asc" },
   });
 
-  return NextResponse.json({ bookings });
+  let trip = bookings.length > 0 ? bookings[0].trip : null;
+  if (!trip) {
+    trip = await prisma.trip.findUnique({
+      where: { id: busId }
+    });
+  }
+
+  return NextResponse.json({ bookings, trip });
 }
