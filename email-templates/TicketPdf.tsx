@@ -434,19 +434,23 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
           <View style={styles.bankingDetails}>
             <View style={styles.bankingRow}>
               <Text style={styles.bankingLabel}>BANK:</Text>
-              <Text style={styles.bankingValue}>STANBIC BANK</Text>
+              <Text style={styles.bankingValue}>ABSA BANK</Text>
             </View>
             <View style={styles.bankingRow}>
               <Text style={styles.bankingLabel}>ACCOUNT NAME:</Text>
-              <Text style={styles.bankingValueNormal}>AFRICAN TASTES (PTY)LTD T/A REECA TRAVEL</Text>
+              <Text style={styles.bankingValueNormal}>AFRICAN TASTES PTY LTD</Text>
             </View>
             <View style={styles.bankingRow}>
               <Text style={styles.bankingLabel}>ACCOUNT NUMBER:</Text>
-              <Text style={styles.bankingValue}>9060004001996</Text>
+              <Text style={styles.bankingValue}>2616058</Text>
             </View>
             <View style={styles.bankingRow}>
               <Text style={styles.bankingLabel}>BRANCH:</Text>
-              <Text style={styles.bankingValue}>AIRPORT JUNCTION</Text>
+              <Text style={styles.bankingValue}>MALL BRANCH (290167)</Text>
+            </View>
+            <View style={styles.bankingRow}>
+              <Text style={styles.bankingLabel}>SWIFT CODE:</Text>
+              <Text style={styles.bankingValue}>BARCBWGX</Text>
             </View>
           </View>
         </View>

@@ -335,19 +335,23 @@ export const PrintableTicket: React.FC<PrintableTicketProps> = ({ bookingData })
           <div className="text-sm space-y-2">
             <div className="flex">
               <div className="w-32 font-bold text-gray-800 uppercase">BANK:</div>
-              <div className="font-bold text-gray-800 uppercase">STANBIC BANK</div>
+              <div className="font-bold text-gray-800 uppercase">ABSA BANK</div>
             </div>
             <div className="flex">
               <div className="w-32 font-bold text-gray-800 uppercase">ACCOUNT NAME:</div>
-              <div className="text-gray-700 uppercase">AFRICAN TASTES (PTY)LTD T/A REECA TRAVEL</div>
+              <div className="text-gray-700 uppercase">AFRICAN TASTES PTY LTD</div>
             </div>
             <div className="flex">
               <div className="w-32 font-bold text-gray-800 uppercase">ACCOUNT NUMBER:</div>
-              <div className="font-bold text-gray-800">9060004001996</div>
+              <div className="font-bold text-gray-800">2616058</div>
             </div>
             <div className="flex">
               <div className="w-32 font-bold text-gray-800 uppercase">BRANCH:</div>
-              <div className="font-bold text-gray-800 uppercase">AIRPORT JUNCTION</div>
+              <div className="font-bold text-gray-800 uppercase">MALL BRANCH (290167)</div>
+            </div>
+            <div className="flex">
+              <div className="w-32 font-bold text-gray-800 uppercase">SWIFT CODE:</div>
+              <div className="font-bold text-gray-800 uppercase">BARCBWGX</div>
             </div>
           </div>
         </div>
