@@ -1,8 +1,6 @@
 // app/api/trips/[tripId]/bookings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ tripId: string }> }) {
   try {
@@ -38,14 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.log(`Found ${bookings.length} bookings for trip ID: ${tripId}`);
 
     const trip = await prisma.trip.findUnique({
-      where: { id: tripId },
-      select: {
-        id: true,
-        totalSeats: true,
-        availableSeats: true,
-        occupiedSeats: true,
-        tempLockedSeats: true,
-      },
+      where: { id: tripId }
     });
 
     if (!trip) {
@@ -58,12 +49,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const reservations = await prisma.seatReservation.findMany({ where: { tripId } });
     const reservedSeatNumbers = reservations.map(r => r.seatNumber);
 
+    const tempLockedSeats = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean) : [];
+    const totalBookedSeats = bookings.reduce((total, booking) => total + booking.seatCount, 0);
+
     return NextResponse.json({
       bookings,
       trip,
       reservedSeatNumbers,
       totalBookings: bookings.length,
-      totalBookedSeats: bookings.reduce((total, booking) => total + booking.seatCount, 0),
+      totalBookedSeats,
+      totalLockedSeats: tempLockedSeats.length,
+      totalOccupied: totalBookedSeats + tempLockedSeats.length,
+      lockedSeatNumbers: tempLockedSeats
     });
   } catch (error) {
     console.error('Error fetching trip bookings:', error);

@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '@/lib/adminAuth';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 function isValidDate(date: any): date is Date | string {
   return date && !isNaN(new Date(date).getTime());
@@ -98,11 +96,7 @@ export async function GET(request: NextRequest) {
     const trips = await prisma.trip.findMany({
       where: Object.keys(whereConditions).length > 0 ? whereConditions : undefined,
       include: {
-        bookings: {
-          include: {
-            passengers: true, // <-- Add this
-          },
-        },
+        bookings: true,
         returnBookings: true,
       },
       orderBy: [
@@ -142,19 +136,25 @@ export async function GET(request: NextRequest) {
       const bookedSeats: string[] = [];
       for (const booking of trip.bookings) {
         if (booking.bookingStatus === 'confirmed' && booking.paymentStatus === 'paid') {
-          for (const passenger of booking.passengers) {
-            if (!passenger.isReturn) { // Only count for departure trip
-              bookedSeats.push(passenger.seatNumber);
+          try {
+            const seats = JSON.parse(booking.seats);
+            if (Array.isArray(seats)) {
+              bookedSeats.push(...seats);
             }
+          } catch (e) {
+            console.error('Error parsing booking seats:', e);
           }
         }
       }
 
+      // Parse tempLockedSeats
+      const tempLockedSeats = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean) : [];
+
       // Collect reserved seats from seatReservationMap
       const reservedSeatsFromMap = seatReservationMap.get(trip.id) || [];
 
-      // Combine and deduplicate (include reserved seats)
-      const unavailableSeats = Array.from(new Set([...occupiedSeats, ...bookedSeats, ...reservedSeatsFromMap]));
+      // Combine and deduplicate (include reserved seats and temp locked seats)
+      const unavailableSeats = Array.from(new Set([...occupiedSeats, ...bookedSeats, ...reservedSeatsFromMap, ...tempLockedSeats]));
       const availableSeats = Math.max(0, trip.totalSeats - unavailableSeats.length);
 
       // Calculate hasDeparted

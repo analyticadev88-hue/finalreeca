@@ -279,7 +279,7 @@ export async function createBookingWithRetry(data: any, maxRetries = 3) {
               where: { id: data.tripId },
               data: {
                 occupiedSeats: JSON.stringify(newOccupied),
-                availableSeats: (existingTrip?.totalSeats || 0) - newOccupied.length
+                availableSeats: (existingTrip?.totalSeats || 0) - newOccupied.length - (existingTrip?.tempLockedSeats ? existingTrip.tempLockedSeats.split(',').filter(Boolean).length : 0)
               }
             });
             console.log(`[${orderId}] ✓ Updated departure trip: ${newOccupied.length} occupied seats`);
@@ -293,7 +293,7 @@ export async function createBookingWithRetry(data: any, maxRetries = 3) {
               where: { id: data.returnTripId },
               data: {
                 occupiedSeats: JSON.stringify(newOccupied),
-                availableSeats: (returnTrip?.totalSeats || 0) - newOccupied.length
+                availableSeats: (returnTrip?.totalSeats || 0) - newOccupied.length - (returnTrip?.tempLockedSeats ? returnTrip.tempLockedSeats.split(',').filter(Boolean).length : 0)
               }
             });
             console.log(`[${orderId}] ✓ Updated return trip: ${newOccupied.length} occupied seats`);

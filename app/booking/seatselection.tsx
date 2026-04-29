@@ -301,7 +301,7 @@ export default function SeatSelection({
     setHasError(false);
 
     try {
-      const { bookings, reservedSeatNumbers = [] } = await fetchTripBookings(selectedBus.id);
+      const { bookings, trip, reservedSeatNumbers = [] } = await fetchTripBookings(selectedBus.id);
       const bookedSeats: string[] = bookings
         .filter((booking: any) => {
           return booking.bookingStatus === 'confirmed' &&

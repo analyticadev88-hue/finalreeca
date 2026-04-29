@@ -68,12 +68,15 @@ export async function POST(req: NextRequest) {
       const newOccupied = currentOccupied.filter(seat => !seatsToRemove.includes(seat));
       console.log(`[NULLIFY] Trip ${tripId} new occupied:`, newOccupied);
 
+      // Parse temp locked seats
+      const tempLockedCount = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean).length : 0;
+
       // Update the trip
       await prisma.trip.update({
         where: { id: tripId },
         data: {
           occupiedSeats: JSON.stringify(newOccupied),
-          availableSeats: trip.totalSeats - newOccupied.length
+          availableSeats: trip.totalSeats - newOccupied.length - tempLockedCount
         }
       });
 
