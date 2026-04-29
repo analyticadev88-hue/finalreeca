@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       where: {
         tripId,
         bookingStatus: 'confirmed',
-        paymentStatus: 'paid',
+        paymentStatus: { in: ['paid', 'pending'] },
       },
       select: {
         id: true,
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         totalSeats: true,
         availableSeats: true,
         occupiedSeats: true,
+        tempLockedSeats: true,
       },
     });
 

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
             passengers: true,
           },
           where: {
-            paymentStatus: "paid" // Only count confirmed bookings
+            bookingStatus: "confirmed"
           }
         },
       },
@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
         hasDeparted: trip.hasDeparted,
         passengerCount: passengerCount,
         bookingCount: confirmedBookings.length,
-        hasPassengers: passengerCount > 0
+        hasPassengers: passengerCount > 0,
+        tempLockedSeats: trip.tempLockedSeats ? trip.tempLockedSeats.split(',') : []
       };
     });
 

@@ -30,6 +30,7 @@ interface SelectedBus {
   totalSeats?: number;
   availableSeats?: number;
   occupiedSeats?: string | null;
+  tempLockedSeats?: string | null;
   fare: number;
   promoActive?: boolean;
   promoPrice?: number;
@@ -311,7 +312,8 @@ export default function SeatSelection({
             .filter((p: any) => p.isReturn === isReturnTrip)
             .map((p: any) => p.seatNumber)
         );
-      const mergedBookedSeats = Array.from(new Set([...bookedSeats, ...reservedSeatNumbers.filter((s: string) => !!s)]));
+      const tempLockedSeats: string[] = trip?.tempLockedSeats ? trip.tempLockedSeats.split(',') : [];
+      const mergedBookedSeats = Array.from(new Set([...bookedSeats, ...reservedSeatNumbers.filter((s: string) => !!s), ...tempLockedSeats]));
 
       let occupiedSeats: string[] = [];
       if (selectedBus.occupiedSeats) {

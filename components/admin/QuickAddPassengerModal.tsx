@@ -75,8 +75,9 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
   const [occupiedDetails, setOccupiedDetails] = useState<{
     manual: string[],
     booked: string[],
-    reserved: string[]
-  }>({ manual: [], booked: [], reserved: [] });
+    reserved: string[],
+    tempLocked: string[]
+  }>({ manual: [], booked: [], reserved: [], tempLocked: [] });
 
   // Fetch real-time occupancy data
   useEffect(() => {
@@ -90,8 +91,9 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
                 (b.passengers || []).map((p: any) => p.seatNumber)
             );
             const reserved = data.reservedSeatNumbers || [];
+            const tempLocked = data.trip?.tempLockedSeats ? data.trip.tempLockedSeats.split(',') : [];
             
-            setOccupiedDetails({ manual, booked, reserved });
+            setOccupiedDetails({ manual, booked, reserved, tempLocked });
             setLoading(false);
         })
         .catch(err => {
@@ -109,7 +111,8 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
     const unavailable = new Set([
         ...occupiedDetails.manual, 
         ...occupiedDetails.booked, 
-        ...occupiedDetails.reserved
+        ...occupiedDetails.reserved,
+        ...occupiedDetails.tempLocked
     ]);
     
     const total = trip.totalSeats || 57;
@@ -567,12 +570,14 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
                                                             "w-10 h-10 rounded-lg flex flex-col items-center justify-center text-[10px] font-bold border-2 transition-all",
                                                             isSelected 
                                                                 ? "bg-teal-600 border-teal-700 text-white shadow-md scale-110" 
-                                                                : isOccupied 
-                                                                    ? "bg-orange-100 border-orange-200 text-orange-400 cursor-not-allowed" 
-                                                                    : "bg-white border-gray-200 text-gray-500 hover:border-teal-500 hover:bg-teal-50"
+                                                                : occupiedDetails.tempLocked.includes(seatId)
+                                                                    ? "bg-[#8B4513] border-[#5D2E0C] text-white cursor-not-allowed"
+                                                                    : isOccupied 
+                                                                        ? "bg-orange-100 border-orange-200 text-orange-400 cursor-not-allowed" 
+                                                                        : "bg-white border-gray-200 text-gray-500 hover:border-teal-500 hover:bg-teal-50"
                                                         )}
                                                     >
-                                                        <Armchair className={cn("w-4 h-4 mb-0.5", isSelected ? "text-white" : isOccupied ? "text-orange-300" : "text-gray-400")} />
+                                                        <Armchair className={cn("w-4 h-4 mb-0.5", isSelected ? "text-white" : occupiedDetails.tempLocked.includes(seatId) ? "text-amber-200" : isOccupied ? "text-orange-300" : "text-gray-400")} />
                                                         {seatId}
                                                     </button>
                                                 );
@@ -585,6 +590,7 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
                                             {row.right?.map(seatId => {
                                                 const isOccupied = unavailable.has(seatId);
                                                 const isSelected = passengers.some(p => p.seatNumber === seatId);
+                                                const isTempLocked = occupiedDetails.tempLocked.includes(seatId);
                                                 return (
                                                     <button
                                                         key={seatId}
@@ -594,12 +600,14 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
                                                             "w-10 h-10 rounded-lg flex flex-col items-center justify-center text-[10px] font-bold border-2 transition-all",
                                                             isSelected 
                                                                 ? "bg-teal-600 border-teal-700 text-white shadow-md scale-110" 
-                                                                : isOccupied 
-                                                                    ? "bg-orange-100 border-orange-200 text-orange-400 cursor-not-allowed" 
-                                                                    : "bg-white border-gray-200 text-gray-500 hover:border-teal-500 hover:bg-teal-50"
+                                                                : isTempLocked
+                                                                    ? "bg-[#8B4513] border-[#5D2E0C] text-white cursor-not-allowed"
+                                                                    : isOccupied 
+                                                                        ? "bg-orange-100 border-orange-200 text-orange-400 cursor-not-allowed" 
+                                                                        : "bg-white border-gray-200 text-gray-500 hover:border-teal-500 hover:bg-teal-50"
                                                         )}
                                                     >
-                                                        <Armchair className={cn("w-4 h-4 mb-0.5", isSelected ? "text-white" : isOccupied ? "text-orange-300" : "text-gray-400")} />
+                                                        <Armchair className={cn("w-4 h-4 mb-0.5", isSelected ? "text-white" : isTempLocked ? "text-amber-200" : isOccupied ? "text-orange-300" : "text-gray-400")} />
                                                         {seatId}
                                                     </button>
                                                 );
@@ -611,6 +619,7 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
                                           {row.seats?.map(seatId => {
                                               const isOccupied = unavailable.has(seatId);
                                               const isSelected = passengers.some(p => p.seatNumber === seatId);
+                                              const isTempLocked = occupiedDetails.tempLocked.includes(seatId);
                                               return (
                                                   <button
                                                       key={seatId}
@@ -620,12 +629,14 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
                                                           "w-10 h-10 rounded-lg flex flex-col items-center justify-center text-[10px] font-bold border-2 transition-all",
                                                           isSelected 
                                                               ? "bg-teal-600 border-teal-700 text-white shadow-md scale-110" 
-                                                              : isOccupied 
-                                                                  ? "bg-orange-100 border-orange-200 text-orange-400 cursor-not-allowed" 
-                                                                  : "bg-white border-gray-200 text-gray-500 hover:border-teal-500 hover:bg-teal-50"
+                                                              : isTempLocked
+                                                                  ? "bg-[#8B4513] border-[#5D2E0C] text-white cursor-not-allowed"
+                                                                  : isOccupied 
+                                                                      ? "bg-orange-100 border-orange-200 text-orange-400 cursor-not-allowed" 
+                                                                      : "bg-white border-gray-200 text-gray-500 hover:border-teal-500 hover:bg-teal-50"
                                                       )}
                                                   >
-                                                      <Armchair className={cn("w-4 h-4 mb-0.5", isSelected ? "text-white" : isOccupied ? "text-orange-300" : "text-gray-400")} />
+                                                      <Armchair className={cn("w-4 h-4 mb-0.5", isSelected ? "text-white" : isTempLocked ? "text-amber-200" : isOccupied ? "text-orange-300" : "text-gray-400")} />
                                                       {seatId}
                                                   </button>
                                               );

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from "react";
-import { Download, Eye, ChevronRight, Clock, MapPin, Bus, Calendar as CalendarIcon } from "lucide-react";
+import { Download, Eye, ChevronRight, Clock, MapPin, Bus, Calendar as CalendarIcon, Lock } from "lucide-react";
+import { TempLockModal } from "@/components/admin/TempLockModal";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { Calendar } from "@/components/ui/calendar";
@@ -34,6 +35,7 @@ export interface ScheduleBus {
   passengerCount: number;
   bookingCount: number;
   hasPassengers: boolean;
+  tempLockedSeats: string[];
 }
 
 interface BusScheduleContentProps {
@@ -45,6 +47,8 @@ export default function BusScheduleContent({ basePath = '/admin', onViewManifest
   const [buses, setBuses] = useState<ScheduleBus[]>([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState<Date>(new Date());
+  const [selectedBus, setSelectedBus] = useState<ScheduleBus | null>(null);
+  const [showTempLock, setShowTempLock] = useState(false);
   const router = useRouter();
 
   const fetchBuses = async (selectedDate: Date) => {
@@ -272,6 +276,18 @@ export default function BusScheduleContent({ basePath = '/admin', onViewManifest
                       >
                         <Download className="w-4 h-4" />
                       </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-9 w-9 p-0 border-gray-200 text-amber-600 hover:bg-amber-50 flex items-center justify-center"
+                        title="Temp Lock Seats"
+                        onClick={() => {
+                          setSelectedBus(bus);
+                          setShowTempLock(true);
+                        }}
+                      >
+                        <Lock className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -291,6 +307,15 @@ export default function BusScheduleContent({ basePath = '/admin', onViewManifest
             </Card>
           ))}
         </div>
+      )}
+
+      {selectedBus && (
+        <TempLockModal
+          isOpen={showTempLock}
+          onClose={() => setShowTempLock(false)}
+          trip={selectedBus}
+          onSuccess={() => fetchBuses(date)}
+        />
       )}
     </div>
   );
