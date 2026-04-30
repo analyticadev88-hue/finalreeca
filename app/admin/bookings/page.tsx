@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock, Edit3 } from "lucide-react";
+import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock, Edit3, Utensils, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrintableTicket } from "@/components/printable-ticket";
 import * as XLSX from "xlsx";
@@ -69,6 +69,7 @@ interface Booking {
   specialRequests?: string;
   passengerList?: Passenger[];
   returnTrip?: TripData;
+  addons?: any;
 }
 
 export default function BookingsManagement() {
@@ -80,6 +81,8 @@ export default function BookingsManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all"); // all, today, tomorrow, custom
+  const [customDate, setCustomDate] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -140,7 +143,29 @@ export default function BookingsManagement() {
         booking.bookingStatus.toLowerCase() === statusFilter);
     const matchesPaymentMethod = paymentMethodFilter === "all" ||
       booking.paymentMethod === paymentMethodFilter;
-    return matchesSearch && matchesStatus && matchesPaymentMethod;
+
+    // Date filtering
+    const bookingDate = new Date(booking.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const bDate = new Date(bookingDate);
+    bDate.setHours(0, 0, 0, 0);
+
+    let matchesDate = true;
+    if (dateFilter === "today") {
+      matchesDate = bDate.getTime() === today.getTime();
+    } else if (dateFilter === "tomorrow") {
+      matchesDate = bDate.getTime() === tomorrow.getTime();
+    } else if (dateFilter === "custom" && customDate) {
+      const cDate = new Date(customDate);
+      cDate.setHours(0, 0, 0, 0);
+      matchesDate = bDate.getTime() === cDate.getTime();
+    }
+
+    return matchesSearch && matchesStatus && matchesPaymentMethod && matchesDate;
   });
 
   // Pagination calculations
@@ -202,6 +227,18 @@ export default function BookingsManagement() {
     } finally {
       setLoading(false);
       setShowPrintTicket(true);
+    }
+  };
+
+  const hasMeal = (booking: Booking) => {
+    if (booking.specialRequests?.toLowerCase().includes('meal')) return true;
+    if (!booking.addons) return false;
+    try {
+      const addons = typeof booking.addons === 'string' ? JSON.parse(booking.addons) : booking.addons;
+      return addons.wimpyMeal1?.departure || addons.wimpyMeal1?.return || 
+             addons.wimpyMeal2?.departure || addons.wimpyMeal2?.return;
+    } catch (e) {
+      return false;
     }
   };
 
@@ -404,6 +441,60 @@ export default function BookingsManagement() {
                 <span className="hidden sm:inline">Export</span>
               </Button>
             </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+              <div className="flex bg-white border border-gray-200 rounded-md p-1 gap-1">
+                <Button 
+                  variant={dateFilter === 'all' ? 'default' : 'ghost'} 
+                  size="sm" 
+                  className="flex-1 text-[10px] sm:text-xs h-7"
+                  style={dateFilter === 'all' ? { backgroundColor: colors.primary } : {}}
+                  onClick={() => setDateFilter('all')}
+                >
+                  All Dates
+                </Button>
+                <Button 
+                  variant={dateFilter === 'today' ? 'default' : 'ghost'} 
+                  size="sm" 
+                  className="flex-1 text-[10px] sm:text-xs h-7"
+                  style={dateFilter === 'today' ? { backgroundColor: colors.primary } : {}}
+                  onClick={() => setDateFilter('today')}
+                >
+                  Today
+                </Button>
+                <Button 
+                  variant={dateFilter === 'tomorrow' ? 'default' : 'ghost'} 
+                  size="sm" 
+                  className="flex-1 text-[10px] sm:text-xs h-7"
+                  style={dateFilter === 'tomorrow' ? { backgroundColor: colors.primary } : {}}
+                  onClick={() => setDateFilter('tomorrow')}
+                >
+                  Tomorrow
+                </Button>
+                <Button 
+                  variant={dateFilter === 'custom' ? 'default' : 'ghost'} 
+                  size="sm" 
+                  className="flex-1 text-[10px] sm:text-xs h-7 px-2"
+                  style={dateFilter === 'custom' ? { backgroundColor: colors.primary } : {}}
+                  onClick={() => setDateFilter('custom')}
+                >
+                  <Calendar className="h-3 w-3 mr-1" />
+                  Pick Date
+                </Button>
+              </div>
+              
+              {dateFilter === 'custom' && (
+                <div className="flex items-center gap-2">
+                  <Input 
+                    type="date" 
+                    value={customDate} 
+                    onChange={(e) => setCustomDate(e.target.value)}
+                    className="h-9 text-xs sm:text-sm"
+                    style={{ borderColor: colors.accent }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -536,6 +627,11 @@ export default function BookingsManagement() {
                             >
                               <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
                             </Button>
+                            {hasMeal(booking) && (
+                              <div className="flex items-center justify-center px-1 text-orange-500 bg-orange-50 rounded-full" title="Meal Included">
+                                <Utensils className="h-3 w-3 sm:h-4 sm:w-4" />
+                              </div>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"

@@ -43,6 +43,7 @@ export async function GET() {
       paymentStatus: booking.paymentStatus,
       bookingStatus: booking.bookingStatus,
       specialRequests: '', // Placeholder for special requests, adjust as needed
+      addons: booking.addons,
     }));
 
     return NextResponse.json(formattedBookings);
