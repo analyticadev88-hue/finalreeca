@@ -306,6 +306,10 @@ export const PrintableTicket: React.FC<PrintableTicketProps> = ({ bookingData })
               <span className="text-gray-600">Payment Method:</span>
               <span className="font-bold text-gray-800 ml-2 uppercase">{bookingData.paymentMethod}</span>
             </div>
+            <div className="mb-2">
+              <span className="text-gray-600">Total Amount:</span>
+              <span className="font-bold text-teal-700 ml-2 uppercase">P {bookingData.totalAmount.toLocaleString()}</span>
+            </div>
             <div>
               <span className="text-gray-600">Payment Status:</span>
               <span

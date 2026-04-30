@@ -1747,6 +1747,14 @@ export default function PassengerDetailsForm({
                     const depDate = departureBus?.departureDate
                       ? new Date(departureBus.departureDate)
                       : null;
+
+                    // Day check: Wimpy breakfast is ONLY available on Sat, Sun, Mon
+                    if (depDate) {
+                      const dayOfWeek = depDate.getDay();
+                      const isAllowedDay = [6, 0, 1].includes(dayOfWeek); // 6=Sat, 0=Sun, 1=Mon
+                      if (!isAllowedDay) return null;
+                    }
+
                     const now = new Date();
                     wimpyDisabled = !!depDate && (depDate.getTime() - now.getTime()) < 24 * 60 * 60 * 1000;
                     

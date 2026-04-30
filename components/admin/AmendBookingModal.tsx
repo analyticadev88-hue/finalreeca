@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Save, X, User, Users, Phone, ShieldAlert, Baby } from "lucide-react";
+import { Loader2, Save, X, User, Users, Phone, ShieldAlert, Baby, Armchair, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { AdminSeatPicker } from "./AdminSeatPicker";
 
 interface Passenger {
   id: string;
@@ -49,6 +50,8 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
     },
     passengers: [] as Passenger[],
   });
+
+  const [activeSeatPicker, setActiveSeatPicker] = useState<{ index: number; tripId: string } | null>(null);
 
   const [fullBooking, setFullBooking] = useState<any>(null);
 
@@ -239,19 +242,36 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
             {formData.passengers.map((passenger: Passenger, index: number) => (
               <div key={index} className="border rounded-2xl overflow-hidden shadow-sm">
                  <div className="bg-gray-100 px-4 py-2 border-b flex justify-between items-center">
-                    <span className="font-bold text-xs text-gray-600">PASSENGER #{index + 1} — SEAT {passenger.seat}</span>
-                    <Select value={passenger.title} onValueChange={(val) => handlePassengerChange(index, "title", val)}>
-                        <SelectTrigger className="w-24 h-8 text-xs bg-white">
-                          <SelectValue placeholder="Title" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Mr">Mr</SelectItem>
-                          <SelectItem value="Ms">Ms</SelectItem>
-                          <SelectItem value="Mrs">Mrs</SelectItem>
-                          <SelectItem value="Miss">Miss</SelectItem>
-                          <SelectItem value="Dr">Dr</SelectItem>
-                        </SelectContent>
-                      </Select>
+                     <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 px-2 py-1 bg-teal-50 border border-teal-100 rounded text-teal-700">
+                           <Armchair className="w-3.5 h-3.5" />
+                           <span className="font-bold text-xs">SEAT {passenger.seat}</span>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 text-[10px] text-teal-600 hover:text-teal-700 hover:bg-teal-50 gap-1"
+                          onClick={() => setActiveSeatPicker({ 
+                            index: index, 
+                            tripId: passenger.isReturn && booking.returnTripId ? booking.returnTripId : booking.tripId 
+                          })}
+                        >
+                           Change <ChevronRight className="w-3 h-3" />
+                        </Button>
+
+                        <Select value={passenger.title} onValueChange={(val) => handlePassengerChange(index, "title", val)}>
+                            <SelectTrigger className="w-24 h-8 text-xs bg-white">
+                              <SelectValue placeholder="Title" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Mr">Mr</SelectItem>
+                              <SelectItem value="Ms">Ms</SelectItem>
+                              <SelectItem value="Mrs">Mrs</SelectItem>
+                              <SelectItem value="Miss">Miss</SelectItem>
+                              <SelectItem value="Dr">Dr</SelectItem>
+                            </SelectContent>
+                          </Select>
+                     </div>
                  </div>
                  
                  <div className="p-5 space-y-6 bg-white">
@@ -353,6 +373,24 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {activeSeatPicker && (
+        <AdminSeatPicker 
+          isOpen={!!activeSeatPicker}
+          onClose={() => setActiveSeatPicker(null)}
+          tripId={activeSeatPicker.tripId}
+          currentSeat={formData.passengers[activeSeatPicker.index].seat}
+          currentlySelectedByOtherPassengers={formData.passengers
+            .filter((_, idx) => idx !== activeSeatPicker.index)
+            .filter(p => (p.isReturn && booking.returnTripId ? booking.returnTripId : booking.tripId) === activeSeatPicker.tripId)
+            .map(p => p.seat)}
+          onSelect={(newSeat) => {
+            handlePassengerChange(activeSeatPicker.index, "seat", newSeat);
+            setActiveSeatPicker(null);
+            toast.info(`Seat reassigned to ${newSeat}`);
+          }}
+        />
+      )}
     </Dialog>
   );
 }

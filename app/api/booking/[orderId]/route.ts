@@ -115,10 +115,17 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
           }
           const details = detailsParts.join(" & ");
           
+          const priceMap: Record<string, string> = {
+            extraBaggage: "P300",
+            wimpyMeal1: "P67",
+            wimpyMeal2: "P137",
+            travelInsurance: "P450",
+          };
+          
           addonsArr.push({
             name,
             details: `Trip: ${details}`,
-            price: "" // Price is already in the label for clarity
+            price: priceMap[key] || "" 
           });
         }
       });
@@ -190,8 +197,50 @@ export async function PATCH(request: Request, context: { params: Promise<{ order
 
     // Update passengers if provided
     if (passengers && Array.isArray(passengers)) {
+      // Fetch current booking to compare seats
+      const currentBooking = await prisma.booking.findUnique({
+        where: { orderId },
+        include: { passengers: true }
+      });
+
+      if (!currentBooking) {
+        return NextResponse.json({ success: false, error: "Booking not found" }, { status: 404 });
+      }
+
+      const tripId = currentBooking.tripId;
+      const returnTripId = currentBooking.returnTripId;
+      
+      let departureSeatsChanged = false;
+      let returnSeatsChanged = false;
+
       for (const p of passengers) {
         if (p.id) {
+          const oldPassenger = currentBooking.passengers.find(cp => cp.id === p.id);
+          const newSeat = p.seat || p.seatNumber;
+          
+          if (oldPassenger && newSeat && oldPassenger.seatNumber !== newSeat) {
+            // Seat has changed!
+            // 1. Verify availability (not occupied by someone ELSE)
+            const conflict = await prisma.passenger.findFirst({
+              where: {
+                tripId: oldPassenger.tripId,
+                seatNumber: newSeat,
+                id: { not: p.id } // Not the same passenger
+              }
+            });
+
+            if (conflict) {
+              return NextResponse.json({ 
+                success: false, 
+                error: `Seat ${newSeat} is already occupied by another passenger.` 
+              }, { status: 400 });
+            }
+
+            if (oldPassenger.isReturn) returnSeatsChanged = true;
+            else departureSeatsChanged = true;
+          }
+
+          // Update passenger record
           await prisma.passenger.update({
             where: { id: p.id },
             data: {
@@ -201,6 +250,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ order
               passportNumber: p.passportNumber,
               type: p.type,
               phone: p.phone,
+              seatNumber: p.seat || p.seatNumber, // Update seat number
               nextOfKinName: p.nextOfKinName,
               nextOfKinPhone: p.nextOfKinPhone,
               hasInfant: p.hasInfant,
@@ -211,6 +261,36 @@ export async function PATCH(request: Request, context: { params: Promise<{ order
           });
         }
       }
+
+      // If seats changed, we MUST sync the Booking and Trip records
+      if (departureSeatsChanged || returnSeatsChanged) {
+        // Refetch all passengers for this booking to get updated seat numbers
+        const updatedPassengers = await prisma.passenger.findMany({
+          where: { bookingId: currentBooking.id }
+        });
+
+        // 1. Update Booking records
+        const newDepSeats = updatedPassengers.filter(p => !p.isReturn).map(p => p.seatNumber);
+        const newRetSeats = updatedPassengers.filter(p => p.isReturn).map(p => p.seatNumber);
+
+        await prisma.booking.update({
+          where: { orderId },
+          data: {
+            seats: JSON.stringify(newDepSeats),
+            returnSeats: returnTripId ? JSON.stringify(newRetSeats) : null,
+          }
+        });
+
+        // 2. Sync Trip Occupancy for Departure
+        if (departureSeatsChanged) {
+          await syncTripOccupancy(tripId);
+        }
+
+        // 3. Sync Trip Occupancy for Return
+        if (returnSeatsChanged && returnTripId) {
+          await syncTripOccupancy(returnTripId);
+        }
+      }
     }
 
     return NextResponse.json({ success: true, message: "Booking updated successfully" });
@@ -218,4 +298,37 @@ export async function PATCH(request: Request, context: { params: Promise<{ order
     console.error("Booking update error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+}
+
+/**
+ * Utility to synchronize Trip.occupiedSeats and Trip.availableSeats
+ */
+async function syncTripOccupancy(tripId: string) {
+  const trip = await prisma.trip.findUnique({
+    where: { id: tripId },
+    include: { bookings: { where: { bookingStatus: 'confirmed' } } }
+  });
+
+  if (!trip) return;
+
+  // Get all confirmed seats from passengers directly (safest source of truth)
+  const allPassengers = await prisma.passenger.findMany({
+    where: { 
+      tripId,
+      booking: { bookingStatus: 'confirmed' }
+    },
+    select: { seatNumber: true }
+  });
+
+  const occupiedSeats = Array.from(new Set(allPassengers.map(p => p.seatNumber)));
+  const tempLockedCount = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean).length : 0;
+  const availableSeats = Math.max(0, trip.totalSeats - occupiedSeats.length - tempLockedCount);
+
+  await prisma.trip.update({
+    where: { id: tripId },
+    data: {
+      occupiedSeats: JSON.stringify(occupiedSeats),
+      availableSeats
+    }
+  });
 }
