@@ -134,15 +134,43 @@ export async function GET(request: NextRequest) {
 
       // Collect all booked seats from bookings
       const bookedSeats: string[] = [];
-      for (const booking of trip.bookings) {
-        if (booking.bookingStatus === 'confirmed' && booking.paymentStatus === 'paid') {
+      
+      // Outbound bookings
+      for (const booking of (trip as any).bookings || []) {
+        if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
           try {
-            const seats = JSON.parse(booking.seats);
+            // Seats can be stored as JSON array or comma-separated string
+            let seats: string[] = [];
+            if (booking.seats.startsWith('[')) {
+              seats = JSON.parse(booking.seats);
+            } else {
+              seats = booking.seats.split(',').filter(Boolean);
+            }
             if (Array.isArray(seats)) {
               bookedSeats.push(...seats);
             }
           } catch (e) {
             console.error('Error parsing booking seats:', e);
+          }
+        }
+      }
+
+      // Return bookings
+      for (const booking of (trip as any).returnBookings || []) {
+        if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
+          try {
+            const rSeats = booking.returnSeats || booking.seats; // Fallback to seats if returnSeats missing
+            let seats: string[] = [];
+            if (rSeats.startsWith('[')) {
+              seats = JSON.parse(rSeats);
+            } else {
+              seats = rSeats.split(',').filter(Boolean);
+            }
+            if (Array.isArray(seats)) {
+              bookedSeats.push(...seats);
+            }
+          } catch (e) {
+            console.error('Error parsing return booking seats:', e);
           }
         }
       }

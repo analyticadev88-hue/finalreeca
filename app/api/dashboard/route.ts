@@ -76,7 +76,10 @@ export async function GET(req: NextRequest) {
       },
       include: {
         bookings: {
-          select: { seatCount: true }
+          select: { seatCount: true, bookingStatus: true }
+        },
+        returnBookings: {
+          select: { seatCount: true, bookingStatus: true }
         }
       }
     });
@@ -86,7 +89,15 @@ export async function GET(req: NextRequest) {
     const afternoonOccupancy = [];
 
     for (const trip of todaysTrips) {
-      const bookedSeats = trip.bookings.reduce((sum, booking) => sum + booking.seatCount, 0);
+      const outboundSeats = trip.bookings
+        .filter((b: any) => ["confirmed", "completed", "pending"].includes(b.bookingStatus?.toLowerCase()))
+        .reduce((sum, booking) => sum + booking.seatCount, 0);
+      
+      const returnSeats = (trip as any).returnBookings
+        .filter((b: any) => ["confirmed", "completed", "pending"].includes(b.bookingStatus?.toLowerCase()))
+        .reduce((sum: number, booking: any) => sum + booking.seatCount, 0);
+      
+      const bookedSeats = outboundSeats + returnSeats;
       
       // Parse time to determine if it's morning or afternoon
       let hours;

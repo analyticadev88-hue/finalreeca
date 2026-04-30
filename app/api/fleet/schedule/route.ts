@@ -34,9 +34,17 @@ export async function GET(request: NextRequest) {
             passengers: true,
           },
           where: {
-            bookingStatus: "confirmed"
+            bookingStatus: { in: ["confirmed", "completed", "pending"] }
           }
         },
+        returnBookings: {
+          include: {
+            passengers: true,
+          },
+          where: {
+            bookingStatus: { in: ["confirmed", "completed", "pending"] }
+          }
+        }
       },
       orderBy: {
         departureTime: 'asc'
@@ -46,11 +54,18 @@ export async function GET(request: NextRequest) {
     // Transform the data to match the frontend requirements
     const schedules = trips.map((trip) => {
       const confirmedBookings = trip.bookings;
-      const passengerCount = confirmedBookings.reduce((sum, booking) => 
-        sum + booking.passengers.length, 0
+      const returnBookings = (trip as any).returnBookings || [];
+      const allBookings = [...confirmedBookings, ...returnBookings];
+
+      // Sum passengers for this specific trip
+      const passengerCount = (confirmedBookings || []).reduce((sum, b) => 
+        sum + (Array.isArray(b.passengers) ? b.passengers.filter((p: any) => !p.isReturn).length : 0), 0
+      ) + (returnBookings || []).reduce((sum: number, b: any) => 
+        sum + (Array.isArray(b.passengers) ? b.passengers.filter((p: any) => p.isReturn).length : 0), 0
       );
-      const revenue = confirmedBookings.reduce((sum, booking) => 
-        sum + booking.totalPrice, 0
+
+      const revenue = allBookings.reduce((sum, booking) => 
+        sum + (Number(booking.totalPrice) || 0), 0
       );
       
       // Parse occupied seats to get actual seat data
@@ -72,7 +87,7 @@ export async function GET(request: NextRequest) {
         status: trip.hasDeparted ? "Completed" : "Active",
         hasDeparted: trip.hasDeparted,
         passengerCount: passengerCount,
-        bookingCount: confirmedBookings.length,
+        bookingCount: allBookings.length,
         hasPassengers: passengerCount > 0,
         tempLockedSeats: trip.tempLockedSeats ? trip.tempLockedSeats.split(',') : []
       };

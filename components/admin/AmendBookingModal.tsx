@@ -26,6 +26,7 @@ interface Passenger {
   infantName?: string;
   infantBirthdate?: string;
   infantPassportNumber?: string;
+  isReturn?: boolean;
 }
 
 interface AmendBookingModalProps {
@@ -117,6 +118,7 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
           infantName: p.infantName || "",
           infantBirthdate: p.infantBirthdate || "",
           infantPassportNumber: p.infantPassportNumber || "",
+          isReturn: !!p.isReturn,
         })),
       });
     }
@@ -381,9 +383,9 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
           tripId={activeSeatPicker.tripId}
           currentSeat={formData.passengers[activeSeatPicker.index].seat}
           currentlySelectedByOtherPassengers={formData.passengers
-            .filter((_, idx) => idx !== activeSeatPicker.index)
-            .filter(p => (p.isReturn && booking.returnTripId ? booking.returnTripId : booking.tripId) === activeSeatPicker.tripId)
-            .map(p => p.seat)}
+            .filter((_: any, idx: number) => idx !== activeSeatPicker.index)
+            .filter((p: Passenger) => (p.isReturn && booking.returnTripId ? booking.returnTripId : booking.tripId) === activeSeatPicker.tripId)
+            .map((p: Passenger) => p.seat)}
           onSelect={(newSeat) => {
             handlePassengerChange(activeSeatPicker.index, "seat", newSeat);
             setActiveSeatPicker(null);

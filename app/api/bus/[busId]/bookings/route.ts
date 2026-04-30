@@ -7,8 +7,13 @@ export async function GET(req: NextRequest, context: { params: { busId: string }
   const busId = params.busId;
 
   const bookings = await prisma.booking.findMany({
-    where: { tripId: busId },
-    include: { agent: true, passengers: true, trip: true },
+    where: {
+      OR: [
+        { tripId: busId },
+        { returnTripId: busId }
+      ]
+    },
+    include: { agent: true, passengers: true, trip: true, returnTrip: true },
     orderBy: { createdAt: "asc" },
   });
 

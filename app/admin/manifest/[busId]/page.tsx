@@ -1,5 +1,5 @@
 'use client';
-import { Download, ArrowLeft } from "lucide-react";
+import { Download, ArrowLeft, Utensils } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -63,11 +63,18 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
   const time = trip.departureTime || "";
 
   // Flatten passengers and add booking info
-  const currentTripPassengers = bookings.flatMap(booking =>
-    booking.passengers
-      .filter((p: any) => !p.isReturn)
+  const rawPassengers = bookings.flatMap((booking: any) =>
+    (booking.passengers || [])
+      .filter((p: any) => {
+        if (booking.tripId === busId) return !p.isReturn;
+        if (booking.returnTripId === busId) return p.isReturn;
+        return false;
+      })
       .map((p: any) => ({
-        name: `${p.firstName} ${p.lastName}`,
+        name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'No Name',
+        firstName: p.firstName,
+        lastName: p.lastName,
+        isReturn: p.isReturn,
         seat: p.seatNumber,
         title: p.title,
         boarded: p.boarded,
@@ -77,21 +84,62 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
         date,
         time,
         hasInfant: p.hasInfant,
-        passportNumber: p.passportNumber, // <-- add this
-        type: p.type, // <-- add this
-        infantName: p.infantName, // <-- add this
-        infantBirthdate: p.infantBirthdate, // <-- add this
-        infantPassportNumber: p.infantPassportNumber, // <-- add this
+        passportNumber: p.passportNumber,
+        type: p.type,
+        infantName: p.infantName,
+        infantBirthdate: p.infantBirthdate,
+        infantPassportNumber: p.infantPassportNumber,
         phone: p.phone || "-",
         nokName: p.nextOfKinName || "-",
         nokPhone: p.nextOfKinPhone || "-",
         paymentStatus: booking.paymentStatus,
         bookingStatus: booking.bookingStatus,
+        specialRequests: booking.specialRequests,
+        addons: booking.addons,
       }))
   );
 
+  // Group neighbour-free companion seats: same name + same booking ref = merge into one row
+  // This prevents the same person appearing twice when they bought a "neighbour-free" extra seat.
+  const currentTripPassengers = (() => {
+    const grouped: any[] = [];
+    const seen = new Set<string>(); // key: "bookingRef|normalisedName"
+
+    for (const p of rawPassengers) {
+      const normName = p.name.toLowerCase().trim();
+      const key = `${p.bookingRef}|${normName}`;
+
+      if (seen.has(key)) {
+        // This is a companion seat for the same passenger — merge seat onto existing row
+        const existing = grouped.find(
+          g => `${g.bookingRef}|${g.name.toLowerCase().trim()}` === key
+        );
+        if (existing) {
+          // Append the extra seat number (e.g. "1A" → "1A, 1B")
+          existing.seat = `${existing.seat}, ${p.seat}`;
+          existing.companionSeat = p.seat;
+        }
+      } else {
+        seen.add(key);
+        grouped.push({ ...p });
+      }
+    }
+    return grouped;
+  })();
+
   // Get total seat count from trip data (default to 60 if missing)
   const totalSeats = trip.totalSeats || trip.seatCount || 60;
+
+  // Calculate blocked and reserved seats from trip data
+  const occupiedSeatsList = tripData?.occupiedSeats ? JSON.parse(tripData.occupiedSeats) : [];
+  const tempLockedList = tripData?.tempLockedSeats ? tripData.tempLockedSeats.split(',').filter(Boolean) : [];
+  
+  // Get list of all booked seat numbers for this trip
+  const bookedSeatNumbers = currentTripPassengers.map(p => String(p.seat));
+  
+  // Only count seats as "Blocked" if they are not already occupied by a passenger
+  const blockedSeatsCount = Array.from(new Set([...occupiedSeatsList, ...tempLockedList]))
+    .filter(seat => !bookedSeatNumbers.includes(String(seat))).length;
 
   // Get confirmed and paid passengers
   const confirmedPassengers = currentTripPassengers.filter(p =>
@@ -126,10 +174,9 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
     }))
   ];
 
-  // Show all passengers who have a confirmed booking, regardless of payment status
-  // (e.g., Bank Deposits or 'Swipe in Person' will show up as pending until confirmed)
+  // Show all passengers who have a confirmed or completed booking
   const displayedPassengers = currentTripPassengers.filter(p =>
-    String(p.bookingStatus || '').toLowerCase() === 'confirmed'
+    ["confirmed", "completed"].includes(String(p.bookingStatus || '').toLowerCase())
   );
 
   // PDF Export
@@ -537,13 +584,31 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
                         <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                           {passenger.name.charAt(0)}
                         </div>
-                        <div className="ml-4">
+                        <div className="ml-4 flex items-center gap-2">
                           <div className="text-sm font-medium text-slate-900">{passenger.name}</div>
+                          {passenger.isReturn && (
+                            <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold uppercase">Return</span>
+                          )}
+                          {passenger.companionSeat && (
+                            <span className="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-bold uppercase">Neighbour Free</span>
+                          )}
+                          {(Array.isArray(passenger.addons) && passenger.addons.some((a: any) => a.name?.toLowerCase().includes('meal'))) && (
+                            <Utensils className="h-3 w-3 text-orange-500" />
+                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                      <div className="text-sm text-slate-900 font-mono">{passenger.seat}</div>
+                    <td className="px-3 md:px-6 py-4 hidden md:table-cell">
+                      <div className="text-sm text-slate-900 font-mono">
+                        {passenger.companionSeat
+                          ? passenger.seat.split(', ').map((s: string, i: number) => (
+                              <span key={i} className={`inline-block mr-1 px-1.5 py-0.5 rounded text-xs font-bold ${
+                                i === 0 ? 'bg-slate-100 text-slate-700' : 'bg-purple-50 text-purple-600 border border-purple-100'
+                              }`}>{s}</span>
+                            ))
+                          : passenger.seat
+                        }
+                      </div>
                     </td>
                     <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-800">
@@ -609,10 +674,14 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
         {/* Summary Cards */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
           <h3 className="text-lg font-bold text-slate-900 mb-4">Trip Summary</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all hover:shadow-md">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Passengers</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Booked Passengers</div>
               <div className="mt-1 text-2xl md:text-3xl font-bold text-slate-900">{displayedPassengers.length}</div>
+            </div>
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 transition-all hover:shadow-md">
+              <div className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Admin Blocked</div>
+              <div className="mt-1 text-2xl md:text-3xl font-bold text-orange-700">{blockedSeatsCount}</div>
             </div>
             <div className="bg-green-50 border border-green-100 rounded-xl p-4 transition-all hover:shadow-md">
               <div className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Boarded</div>
@@ -620,13 +689,18 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
                 {displayedPassengers.filter(p => p.boarded).length}
               </div>
             </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 transition-all hover:shadow-md sm:col-span-2 md:col-span-1">
-              <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Pending</div>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 transition-all hover:shadow-md">
+              <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Pending Boarding</div>
               <div className="mt-1 text-2xl md:text-3xl font-bold text-amber-700">
                 {displayedPassengers.filter(p => !p.boarded).length}
               </div>
             </div>
           </div>
+          {(blockedSeatsCount + displayedPassengers.length) > 0 && (
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500 border border-slate-100">
+              Total Seats Taken: <span className="font-bold text-slate-700">{blockedSeatsCount + displayedPassengers.length}</span> (Includes {displayedPassengers.length} passengers and {blockedSeatsCount} seats blocked by admin)
+            </div>
+          )}
         </div>
       </div>
 

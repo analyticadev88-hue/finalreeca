@@ -140,7 +140,9 @@ export default function BookingsManagement() {
     const matchesStatus = statusFilter === "all" ||
       (statusFilter === "pending" ?
         booking.paymentStatus?.toLowerCase() === "pending" :
-        booking.bookingStatus.toLowerCase() === statusFilter);
+        statusFilter === "confirmed" ? 
+          ["confirmed", "completed"].includes(booking.bookingStatus.toLowerCase()) :
+          booking.bookingStatus.toLowerCase() === statusFilter);
     const matchesPaymentMethod = paymentMethodFilter === "all" ||
       booking.paymentMethod === paymentMethodFilter;
 
@@ -396,7 +398,7 @@ export default function BookingsManagement() {
                 </SelectTrigger>
                 <SelectContent style={{ backgroundColor: colors.light }}>
                   <SelectItem value="all" className="text-xs sm:text-sm">All Statuses</SelectItem>
-                  <SelectItem value="confirmed" className="text-xs sm:text-sm">Confirmed</SelectItem>
+                  <SelectItem value="confirmed" className="text-xs sm:text-sm">Confirmed & Completed</SelectItem>
                   <SelectItem value="pending" className="text-xs sm:text-sm">Pending Payment</SelectItem>
                   <SelectItem value="cancelled" className="text-xs sm:text-sm">Cancelled</SelectItem>
                 </SelectContent>
