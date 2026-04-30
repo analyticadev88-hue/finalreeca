@@ -31,6 +31,8 @@ interface DashboardData {
   stats: {
     totalBookings: number;
     totalRevenue: number;
+    monthlyBookings: number;
+    monthlyRevenue: number;
     pendingRequests: number;
     todayDepartures: number;
   };
@@ -211,7 +213,7 @@ export default function DashboardOverview() {
               <div>
                 <p className="text-sm font-medium text-[#6b7280]">Total Bookings</p>
                 <p className="text-2xl font-semibold text-[#111827]">{stats.totalBookings}</p>
-                <p className="text-xs text-[#6b7280] mt-1">This month</p>
+                <p className="text-xs text-[#6b7280] mt-1">{stats.monthlyBookings} bookings this month</p>
               </div>
             </div>
           </div>
@@ -232,7 +234,7 @@ export default function DashboardOverview() {
               <div>
                 <p className="text-sm font-medium text-[#6b7280]">Total Revenue</p>
                 <p className="text-2xl font-semibold text-[#111827]">P {stats.totalRevenue.toLocaleString()}</p>
-                <p className="text-xs text-[#6b7280] mt-1">This month</p>
+                <p className="text-xs text-[#6b7280] mt-1">P {stats.monthlyRevenue.toLocaleString()} this month</p>
               </div>
             </div>
           </div>

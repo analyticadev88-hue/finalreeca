@@ -11,25 +11,48 @@ export async function GET(req: NextRequest) {
     const dayEnd = endOfDay(today);
 
     // Calculate stats
-    const [totalBookings, totalRevenue] = await Promise.all([
+    const [
+      allTimeBookings, 
+      allTimeRevenue,
+      monthlyBookings,
+      monthlyRevenue,
+      todayDepartures
+    ] = await Promise.all([
+      // 1. All-time confirmed bookings
       prisma.booking.count({
         where: {
-          createdAt: { gte: monthStart, lte: monthEnd }
+          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
         }
       }),
+      // 2. All-time confirmed revenue
       prisma.booking.aggregate({
         _sum: { totalPrice: true },
         where: {
-          createdAt: { gte: monthStart, lte: monthEnd }
+          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
+        }
+      }),
+      // 3. Monthly confirmed bookings
+      prisma.booking.count({
+        where: {
+          createdAt: { gte: monthStart, lte: monthEnd },
+          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
+        }
+      }),
+      // 4. Monthly confirmed revenue
+      prisma.booking.aggregate({
+        _sum: { totalPrice: true },
+        where: {
+          createdAt: { gte: monthStart, lte: monthEnd },
+          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
+        }
+      }),
+      // 5. Today's departures
+      prisma.trip.count({
+        where: {
+          departureDate: { gte: dayStart, lte: dayEnd }
         }
       })
     ]);
-
-    const todayDepartures = await prisma.trip.count({
-      where: {
-        departureDate: { gte: dayStart, lte: dayEnd }
-      }
-    });
 
     // Get recent bookings
     const recentBookings = await prisma.booking.findMany({
@@ -101,8 +124,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       stats: {
-        totalBookings,
-        totalRevenue: totalRevenue._sum.totalPrice || 0,
+        totalBookings: allTimeBookings,
+        totalRevenue: allTimeRevenue._sum.totalPrice || 0,
+        monthlyBookings,
+        monthlyRevenue: monthlyRevenue._sum.totalPrice || 0,
         pendingRequests: 0,
         todayDepartures
       },

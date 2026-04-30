@@ -419,6 +419,12 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
                 {booking.paymentStatus}
               </Text>
             </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Paid:</Text>
+              <Text style={[styles.summaryValue, { color: '#059669' }]}>
+                BWP {booking.totalPrice?.toLocaleString() || '0.00'}
+              </Text>
+            </View>
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.summaryRow}>
