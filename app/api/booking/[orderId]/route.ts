@@ -180,7 +180,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ order
   }
 
   try {
-    const { contactDetails, emergencyContact, passengers } = data;
+    const { contactDetails, emergencyContact, passengers, paymentStatus, paymentMethod } = data;
 
     // Update the booking details
     await prisma.booking.update({
@@ -192,6 +192,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ order
         contactIdNumber: contactDetails?.idNumber,
         emergencyContactName: emergencyContact?.name,
         emergencyContactPhone: emergencyContact?.phone,
+        paymentStatus: paymentStatus,
+        paymentMode: paymentMethod,
+        ...(paymentStatus?.toLowerCase() === 'paid' ? { bookingStatus: 'Confirmed' } : {}),
+        ...(paymentStatus?.toLowerCase() === 'cancelled' ? { bookingStatus: 'Cancelled' } : {})
       },
     });
 

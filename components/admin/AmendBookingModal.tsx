@@ -50,6 +50,8 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
       phone: "",
     },
     passengers: [] as Passenger[],
+    paymentStatus: "",
+    paymentMethod: "",
   });
 
   const [activeSeatPicker, setActiveSeatPicker] = useState<{ index: number; tripId: string } | null>(null);
@@ -120,6 +122,8 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
           infantPassportNumber: p.infantPassportNumber || "",
           isReturn: !!p.isReturn,
         })),
+        paymentStatus: fullBooking.paymentStatus || "pending",
+        paymentMethod: fullBooking.paymentMethod || fullBooking.paymentMode || "Credit Card",
       });
     }
   }, [fullBooking]);
@@ -206,6 +210,50 @@ export function AmendBookingModal({ isOpen, onClose, booking, onSuccess }: Amend
                    value={formData.contactDetails.idNumber} 
                    onChange={(e) => setFormData({...formData, contactDetails: {...formData.contactDetails, idNumber: e.target.value}})}
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Financial Details Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-teal-800 font-bold uppercase text-xs tracking-wider">
+               <ShieldAlert className="w-4 h-4 text-amber-500" /> Financial & Payment Status
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50/30 p-4 rounded-xl border border-amber-100">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Payment Status</Label>
+                <Select 
+                  value={formData.paymentStatus} 
+                  onValueChange={(val) => setFormData({...formData, paymentStatus: val})}
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="Paid">Paid</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    <SelectItem value="Refunded">Refunded</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Payment Method</Label>
+                <Select 
+                  value={formData.paymentMethod} 
+                  onValueChange={(val) => setFormData({...formData, paymentMethod: val})}
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select Method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Credit Card">Credit Card</SelectItem>
+                    <SelectItem value="Bank Deposit">Bank Deposit</SelectItem>
+                    <SelectItem value="Swipe in Person">Swipe in Person</SelectItem>
+                    <SelectItem value="Cash">Paid Cash</SelectItem>
+                    <SelectItem value="Free Voucher">Free Voucher</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
