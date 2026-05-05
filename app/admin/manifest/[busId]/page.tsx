@@ -96,6 +96,7 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
         bookingStatus: booking.bookingStatus,
         specialRequests: booking.specialRequests,
         addons: booking.addons,
+        boardingPoint: p.isReturn ? booking.returnBoardingPoint : booking.boardingPoint,
       }))
   );
 
@@ -171,6 +172,7 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
       nokPhone: "",
       paymentStatus: "",
       bookingStatus: "",
+      boardingPoint: "",
     }))
   ];
 
@@ -217,9 +219,10 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
       
       // Table
       autoTable(doc, {
-        head: [["Name", "Seat", "Title", "Booking Ref", "Agent", "Infant", "Boarded"]],
+        head: [["Name", "Pick Up", "Seat", "Title", "Booking Ref", "Agent", "Infant", "Boarded"]],
         body: paddedPassengerList.map(p => [
           p.name,
+          p.boardingPoint || "-",
           p.seat,
           p.title,
           p.bookingRef,
@@ -292,7 +295,8 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
         Route: p.route,
         Date: p.date,
         Time: p.time,
-        "Has Infant": p.hasInfant ? "Yes" : "No", // NEW
+        "Has Infant": p.hasInfant ? "Yes" : "No",
+        "Pick Up Point": p.boardingPoint || "-",
       }))
     );
     
@@ -307,7 +311,8 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
       { wch: 30 }, // Route
       { wch: 15 }, // Date
       { wch: 10 }, // Time
-      { wch: 10 }  // Has Infant
+      { wch: 10 }, // Has Infant
+      { wch: 25 }  // Pick Up Point
     ];
     
     const workbook = XLSX.utils.book_new();
@@ -361,10 +366,11 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
 
       // Table (move down to avoid logo/trip info)
       autoTable(doc, {
-        head: [["#", "Full Name", "Passport Number", "Seat", "Type", "Phone", "NOK Name", "NOK Number", "Infant"]],
+        head: [["#", "Full Name", "Pick Up", "Passport Number", "Seat", "Type", "Phone", "NOK Name", "NOK Number", "Infant"]],
         body: paddedPassengerList.map((p, idx) => [
           idx + 1,
           p.name || " ",
+          p.boardingPoint || " ",
           p.passportNumber || " ",
           p.name ? p.seat : "", // Only show seat number if passenger name is present
           p.type || " ",
@@ -413,6 +419,7 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
         children: [
           new TableCell({ children: [new Paragraph("#")] }),
           new TableCell({ children: [new Paragraph("Full Name")] }),
+          new TableCell({ children: [new Paragraph("Pick Up")] }),
           new TableCell({ children: [new Paragraph("Passport Number")] }),
           new TableCell({ children: [new Paragraph("Seat")] }),
           new TableCell({ children: [new Paragraph("Type")] }),
@@ -427,6 +434,7 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
           children: [
             new TableCell({ children: [new Paragraph(String(idx + 1))] }),
             new TableCell({ children: [new Paragraph(p.name || " ")] }),
+            new TableCell({ children: [new Paragraph(p.boardingPoint || " ")] }),
             new TableCell({ children: [new Paragraph(p.passportNumber || " ")] }),
             new TableCell({ children: [new Paragraph(p.seat)] }),
             new TableCell({ children: [new Paragraph(p.type || " ")] }),
@@ -564,6 +572,7 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Passenger</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Pick Up</th>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">Seat</th>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden lg:table-cell">Title</th>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">Phone</th>
@@ -597,6 +606,9 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
                           )}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-teal-700 font-semibold uppercase">
+                      {passenger.boardingPoint || "-"}
                     </td>
                     <td className="px-3 md:px-6 py-4 hidden md:table-cell">
                       <div className="text-sm text-slate-900 font-mono">
