@@ -250,6 +250,8 @@ const CountryCodeDisplay = ({ value }: { value: string }) => {
   );
 };
 
+import WhatsAppButton from "@/components/WhatsAppButton";
+
 export default function PassengerDetailsForm({
   departureBus,
   returnBus,
@@ -2352,6 +2354,7 @@ export default function PassengerDetailsForm({
           </div>
         </div>
       )}
+      <WhatsAppButton />
     </div>
   );
 }

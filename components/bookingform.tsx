@@ -198,7 +198,7 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
               borderColor: "rgb(243,193,39)"
             }}
           >
-            Search Buses
+            Book Now
           </Button>
         </div>
       </div>

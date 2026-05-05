@@ -182,7 +182,7 @@ export default function BookingHelp() {
                 <div className="bg-teal-100 p-1 rounded-full mt-0.5">
                   <Search className="text-teal-600" size={16} />
                 </div>
-                <span>Click on "Search Buses" to see available options.</span>
+                <span>Click on "Book Now" to see available options.</span>
               </li>
               <li className="flex items-start gap-3">
                 <div className="bg-teal-100 p-1 rounded-full mt-0.5">
