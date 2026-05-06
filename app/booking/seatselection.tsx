@@ -88,55 +88,121 @@ const fetchTripBookings = async (tripId: string) => {
   }
 };
 
+// Convert old seat format (e.g., "3C") to new numeric format (1-57)
+const convertOldSeatToNew = (oldSeatId: string): string | null => {
+  const match = oldSeatId.match(/^(\d+)([A-D])$/);
+  if (!match) return null;
+  
+  const row = parseInt(match[1]);
+  const letter = match[2];
+  
+  // Mapping: for row r, the new IDs are:
+  // A (left window) = 4r-1
+  // B (left aisle) = 4r
+  // C (right aisle) = 4r-2
+  // D (right window) = 4r-3
+  
+  let newId: number;
+  switch (letter) {
+    case 'A': newId = 4 * row - 1; break;
+    case 'B': newId = 4 * row; break;
+    case 'C': newId = 4 * row - 2; break;
+    case 'D': newId = 4 * row - 3; break;
+    default: return null;
+  }
+  
+  return String(newId);
+};
+
+// Convert array of old seat IDs to new format
+const convertOldSeatsToNew = (oldSeats: string[]): string[] => {
+  return oldSeats
+    .map(seat => {
+      const converted = convertOldSeatToNew(seat);
+      return converted !== null ? converted : seat; // Return as-is if not old format
+    });
+};
+
+const SCANIA_ROW_DEFS = (() => {
+  const defs: Array<{
+    lw?: number; la?: number; ra?: number; rw?: number;
+    leftWC?: boolean; back?: number[];
+  }> = [];
+
+  // Rows 1-5  →  seats 1-20  (4 per row)
+  // Pattern per row r (1-based):  lw=4r-1, la=4r, ra=4r-2, rw=4r-3
+  for (let r = 1; r <= 5; r++) {
+    defs.push({ lw: 4*r-1, la: 4*r, ra: 4*r-2, rw: 4*r-3 });
+  }
+  // Row 6  →  WC on left, seats 21-22 on right
+  defs.push({ leftWC: true, ra: 22, rw: 21 });
+  // Row 7  →  WC on left, seats 23-24 on right
+  defs.push({ leftWC: true, ra: 24, rw: 23 });
+
+  // Rows 8-14  →  seats 25-52  (7 rows × 4 = 28 seats)
+  // Left resumes at 25; right resumes at 27 (25,26 belong to left)
+  for (let i = 0; i < 7; i++) {
+    const base = 25 + i * 4;
+    defs.push({ lw: base, la: base+1, ra: base+3, rw: base+2 });
+  }
+
+  // Back row  →  seats 53-57
+  defs.push({ back: [53, 54, 55, 56, 57] });
+
+  return defs;
+})();
+
 const generateRegularBusSeatLayout = (
-  totalSeats = 57,
+  totalSeats: number = 57,
   occupiedSeats: string[] = [],
   bookedSeats: string[] = []
 ): Seat[] => {
+  // Convert old seat format to new numeric format
+  const convertedOccupied = convertOldSeatsToNew(occupiedSeats);
+  const convertedBooked = convertOldSeatsToNew(bookedSeats);
+  const unavailable = new Set([...convertedOccupied, ...convertedBooked]);
   const seats: Seat[] = [];
-  const rows = 14;
-  const unavailableSeats = new Set([...occupiedSeats, ...bookedSeats]);
-  let seatIndex = 0;
 
-  for (let row = 1; row <= rows; row++) {
-    if (row < rows) {
-      const positions = ['A', 'B', 'C', 'D'];
-      const sides = ['left', 'left', 'right', 'right'];
-      for (let i = 0; i < 4; i++) {
-        if (seatIndex >= totalSeats - 5) break;
-        const seatId = `${row}${positions[i]}`;
-        const isAvailable = !unavailableSeats.has(seatId);
+  SCANIA_ROW_DEFS.forEach((rd, rowIndex) => {
+    const rowNum = rowIndex + 1;
+
+    if (rd.back) {
+      rd.back.forEach((n, i) => {
+        const id = String(n);
         seats.push({
-          id: seatId,
-          number: seatId,
-          isAvailable,
-          isSelected: false, // Always initialize as false
-          row,
-          position: positions[i],
-          side: sides[i],
-          seatIndex,
+          id, number: id,
+          isAvailable: !unavailable.has(id),
+          isSelected: false,
+          row: rowNum, position: 'back', side: 'back',
+          seatIndex: n - 1,
         });
-        seatIndex++;
-      }
-    } else {
-      const positions = ['A', 'B', 'C', 'D', 'E'];
-      for (let i = 0; i < 5; i++) {
-        const seatId = `${row}${positions[i]}`;
-        const isAvailable = !unavailableSeats.has(seatId);
-        seats.push({
-          id: seatId,
-          number: seatId,
-          isAvailable,
-          isSelected: false, // Always initialize as false
-          row,
-          position: positions[i],
-          side: 'back',
-          seatIndex,
-        });
-        seatIndex++;
-      }
+      });
+      return;
     }
-  }
+
+    if (rd.leftWC) {
+      // No seat objects for WC rows on left – right side only
+    } else if (rd.lw != null && rd.la != null) {
+      ([
+        [rd.lw, 'lw', 'left'],
+        [rd.la, 'la', 'left'],
+      ] as [number, string, string][]).forEach(([n, pos, side]) => {
+        const id = String(n);
+        seats.push({ id, number: id, isAvailable: !unavailable.has(id), isSelected: false, row: rowNum, position: pos, side, seatIndex: n - 1 });
+      });
+    }
+
+    if (rd.ra != null && rd.rw != null) {
+      ([
+        [rd.ra, 'ra', 'right'],
+        [rd.rw, 'rw', 'right'],
+      ] as [number, string, string][]).forEach(([n, pos, side]) => {
+        const id = String(n);
+        seats.push({ id, number: id, isAvailable: !unavailable.has(id), isSelected: false, row: rowNum, position: pos, side, seatIndex: n - 1 });
+      });
+    }
+  });
+
   return seats;
 };
 
@@ -147,6 +213,7 @@ const generateVehicleSeatLayout = (
   bookedSeats: string[] = []
 ): Seat[] => {
   const seats: Seat[] = [];
+  // Vehicle seat IDs (V1-2A format) don't need conversion - use directly
   const unavailableSeats = new Set([...occupiedSeats, ...bookedSeats]);
   let globalSeatNumber = startSeatIndex + 1;
 
@@ -249,22 +316,30 @@ export default function SeatSelection({
         }
       });
     } else {
-      const numberOfRows = Math.ceil((selectedBus.totalSeats || 57) / 4);
-      for (let row = 1; row <= numberOfRows; row++) {
-        const leftPair = [`${row}A`, `${row}B`];
-        const rightPair = [`${row}C`, `${row}D`];
+      // Build pairs from SCANIA_ROW_DEFS using numeric seat IDs
+      SCANIA_ROW_DEFS.forEach((rd, rowIndex) => {
         const checkPair = (pair: string[]) =>
           pair.every(seatId => {
             const seat = seatLayout.find(s => s.id === seatId);
             return seat && seat.isAvailable;
           });
-        if (checkPair(leftPair)) pairs.push(leftPair);
-        if (checkPair(rightPair)) pairs.push(rightPair);
-      }
+
+        // Left side pair (lw, la)
+        if (rd.lw != null && rd.la != null) {
+          const leftPair = [String(rd.lw), String(rd.la)];
+          if (checkPair(leftPair)) pairs.push(leftPair);
+        }
+
+        // Right side pair (ra, rw)
+        if (rd.ra != null && rd.rw != null) {
+          const rightPair = [String(rd.ra), String(rd.rw)];
+          if (checkPair(rightPair)) pairs.push(rightPair);
+        }
+      });
     }
 
     return pairs;
-  }, [seatLayout, replacementVehicles, isPrivateTour, selectedBus.totalSeats]);
+  }, [seatLayout, replacementVehicles, isPrivateTour]);
 
   const isAdjacent = (seat1: string | undefined, seat2: string | undefined) => {
     if (!seat1 || !seat2) return false;
@@ -285,14 +360,27 @@ export default function SeatSelection({
         ((pos1 === "A" && pos2 === "B") || (pos1 === "C" && pos2 === "D"))
       );
     } else {
-      const row1 = seat1.charAt(0);
-      const row2 = seat2.charAt(0);
-      const pos1 = seat1.charAt(1);
-      const pos2 = seat2.charAt(1);
-      return (
-        row1 === row2 &&
-        ((pos1 === "A" && pos2 === "B") || (pos1 === "C" && pos2 === "D"))
-      );
+      // For numeric seat IDs, check if they form a valid adjacent pair from SCANIA_ROW_DEFS
+      const seat1Num = parseInt(seat1);
+      const seat2Num = parseInt(seat2);
+      if (isNaN(seat1Num) || isNaN(seat2Num)) return false;
+
+      // Check each row definition for valid adjacent pairs
+      for (const rd of SCANIA_ROW_DEFS) {
+        // Left pair (lw, la)
+        if (rd.lw != null && rd.la != null) {
+          if ((seat1Num === rd.lw && seat2Num === rd.la) || (seat1Num === rd.la && seat2Num === rd.lw)) {
+            return true;
+          }
+        }
+        // Right pair (ra, rw)
+        if (rd.ra != null && rd.rw != null) {
+          if ((seat1Num === rd.ra && seat2Num === rd.rw) || (seat1Num === rd.rw && seat2Num === rd.ra)) {
+            return true;
+          }
+        }
+      }
+      return false;
     }
   };
 
@@ -474,154 +562,106 @@ export default function SeatSelection({
   const isMorning = selectedBus.serviceType?.includes("Morning");
   const busImg = isMorning ? morningBusImg : afternoonBusImg;
 
-  const renderRegularBusSeats = () => {
-    const numberOfRows = 14;
+  const renderSeatBtn = (seat: Seat, isSelected: boolean) => {
+    const isHighlighted = highlightedPairs.includes(seat.id);
+    return (
+      <button
+        key={seat.id}
+        onClick={() => handleSeatClick(seat.id)}
+        disabled={!seat.isAvailable}
+        className={`w-8 h-8 md:w-9 md:h-9 rounded-lg text-[11px] font-bold flex items-center justify-center
+                    border-2 transition-all duration-150 hover:scale-105
+                    ${isSelected
+                      ? 'text-white shadow-md scale-105'
+                      : seat.isAvailable
+                        ? 'bg-gray-100 border-gray-300 hover:border-gray-400'
+                        : 'cursor-not-allowed opacity-60'
+                    }`}
+        style={
+          isSelected        ? { backgroundColor: colors.primary, borderColor: colors.primary }
+          : !seat.isAvailable ? { backgroundColor: colors.lightYellow, borderColor: colors.lightYellow }
+          : isHighlighted    ? { borderColor: colors.primary, borderWidth: '3px' }
+          : {}
+        }
+      >
+        {seat.number}
+      </button>
+    );
+  };
 
+  const renderRegularBusSeats = () => {
     return (
       <div className="border-2 rounded-xl p-4 md:p-6 bg-white shadow-sm" style={{ borderColor: colors.secondary }}>
-        <div className="flex justify-end mb-4 md:mb-8">
-          <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg flex items-center justify-center shadow-md" style={{ backgroundColor: colors.primary }}>
+
+        {/* Driver / Door header */}
+        <div className="flex justify-between mb-4">
+          <div className="w-14 h-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-xs text-gray-400">
+            Door
+          </div>
+          <div className="w-14 h-10 rounded-lg flex items-center justify-center text-xs font-bold text-white shadow-md"
+            style={{ backgroundColor: '#22c55e' }}>
+            Driver
           </div>
         </div>
-        <div className="space-y-2 md:space-y-3">
-          {Array.from({ length: numberOfRows }).map((_, rowIndex) => {
-            const rowNumber = rowIndex + 1;
-            if (rowNumber < numberOfRows) {
-              const leftSeats = [`${rowNumber}A`, `${rowNumber}B`];
-              const rightSeats = [`${rowNumber}C`, `${rowNumber}D`];
+
+        {/* Seat rows */}
+        <div className="space-y-1.5">
+          {SCANIA_ROW_DEFS.map((rd, rowIndex) => {
+
+            // ── Back row: 5 seats in a single line ──────────────────────────
+            if (rd.back) {
               return (
-                <div key={rowIndex} className="flex items-center justify-center gap-2 md:gap-4">
-                  <div className="w-4 md:w-6 text-center text-xs font-medium text-gray-500">
-                    {rowNumber}
-                  </div>
-                  <div className="flex gap-1 md:gap-2">
-                    {leftSeats.map((seatId) => {
-                      const seat = seatLayout.find((s) => s.id === seatId);
-                      if (!seat) return <div key={seatId} className="w-8 h-8 md:w-10 md:h-10" />;
-                      const isHighlighted = highlightedPairs.includes(seatId);
-                      const isSelected = selectedSeats.includes(seatId);
-                      return (
-                        <button
-                          key={seatId}
-                          onClick={() => handleSeatClick(seatId)}
-                          disabled={!seat.isAvailable}
-                          className={`w-8 h-8 md:w-10 md:h-10 rounded-lg text-xs font-bold flex items-center justify-center border-2 transition-all duration-200 hover:scale-105
-                            ${isSelected
-                              ? "text-white shadow-md transform scale-105"
-                              : seat.isAvailable
-                                ? isHighlighted
-                                  ? "bg-gray-200 hover:bg-gray-300 hover:border-gray-400 hover:shadow-sm"
-                                  : "bg-gray-200 hover:bg-gray-300 border-gray-300 hover:border-gray-400 hover:shadow-sm"
-                                : "text-gray-600 cursor-not-allowed border-gray-500 opacity-60"
-                            }`}
-                          style={isSelected ? {
-                            backgroundColor: colors.primary,
-                            borderColor: colors.primary
-                          } : !seat.isAvailable ? {
-                            backgroundColor: colors.lightYellow,
-                            borderColor: colors.lightYellow
-                          } : isHighlighted ? {
-                            borderColor: colors.primary,
-                            borderWidth: '3px',
-                            boxShadow: `0 0 0 1px ${colors.primary}`
-                          } : {}}
-                        >
-                          {seatId}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="w-4 md:w-8 border-l-2 border-dashed border-gray-300 h-6 md:h-8 flex items-center justify-center">
-                    <div className="text-xs text-gray-400">||</div>
-                  </div>
-                  <div className="flex gap-1 md:gap-2">
-                    {rightSeats.map((seatId) => {
-                      const seat = seatLayout.find((s) => s.id === seatId);
-                      if (!seat) return <div key={seatId} className="w-8 h-8 md:w-10 md:h-10" />;
-                      const isHighlighted = highlightedPairs.includes(seatId);
-                      const isSelected = selectedSeats.includes(seatId);
-                      return (
-                        <button
-                          key={seatId}
-                          onClick={() => handleSeatClick(seatId)}
-                          disabled={!seat.isAvailable}
-                          className={`w-8 h-8 md:w-10 md:h-10 rounded-lg text-xs font-bold flex items-center justify-center border-2 transition-all duration-200 hover:scale-105
-                            ${isSelected
-                              ? "text-white shadow-md transform scale-105"
-                              : seat.isAvailable
-                                ? isHighlighted
-                                  ? "bg-gray-200 hover:bg-gray-300 hover:border-gray-400 hover:shadow-sm"
-                                  : "bg-gray-200 hover:bg-gray-300 border-gray-300 hover:border-gray-400 hover:shadow-sm"
-                                : "text-gray-600 cursor-not-allowed border-gray-500 opacity-60"
-                            }`}
-                          style={isSelected ? {
-                            backgroundColor: colors.primary,
-                            borderColor: colors.primary
-                          } : !seat.isAvailable ? {
-                            backgroundColor: colors.lightYellow,
-                            borderColor: colors.lightYellow
-                          } : isHighlighted ? {
-                            borderColor: colors.primary,
-                            borderWidth: '3px',
-                            boxShadow: `0 0 0 1px ${colors.primary}`
-                          } : {}}
-                        >
-                          {seatId}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            } else {
-              const lastRowSeats = ['A', 'B', 'C', 'D', 'E'].map(pos => `${rowNumber}${pos}`);
-              return (
-                <div key={rowIndex} className="flex items-center justify-center gap-2 md:gap-4">
-                  <div className="w-4 md:w-6 text-center text-xs font-medium text-gray-500">
-                    {rowNumber}
-                  </div>
-                  <div className="flex gap-1 md:gap-2">
-                    {lastRowSeats.map((seatId) => {
-                      const seat = seatLayout.find((s) => s.id === seatId);
-                      if (!seat) return <div key={seatId} className="w-8 h-8 md:w-10 md:h-10" />;
-                      const isHighlighted = highlightedPairs.includes(seatId);
-                      const isSelected = selectedSeats.includes(seatId);
-                      return (
-                        <button
-                          key={seatId}
-                          onClick={() => handleSeatClick(seatId)}
-                          disabled={!seat.isAvailable}
-                          className={`w-8 h-8 md:w-10 md:h-10 rounded-lg text-xs font-bold flex items-center justify-center border-2 transition-all duration-200 hover:scale-105
-                            ${isSelected
-                              ? "text-white shadow-md transform scale-105"
-                              : seat.isAvailable
-                                ? isHighlighted
-                                  ? "bg-gray-200 hover:bg-gray-300 hover:border-gray-400 hover:shadow-sm"
-                                  : "bg-gray-200 hover:bg-gray-300 border-gray-300 hover:border-gray-400 hover:shadow-sm"
-                                : "text-gray-600 cursor-not-allowed border-gray-500 opacity-60"
-                            }`}
-                          style={isSelected ? {
-                            backgroundColor: colors.primary,
-                            borderColor: colors.primary
-                          } : !seat.isAvailable ? {
-                            backgroundColor: colors.lightYellow,
-                            borderColor: colors.lightYellow
-                          } : isHighlighted ? {
-                            borderColor: colors.primary,
-                            borderWidth: '3px',
-                            boxShadow: `0 0 0 1px ${colors.primary}`
-                          } : {}}
-                        >
-                          {seatId}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div key={rowIndex} className="flex items-center justify-center gap-1.5 mt-2">
+                  {rd.back.map(n => {
+                    const id = String(n);
+                    const seat = seatLayout.find(s => s.id === id);
+                    if (!seat) return null;
+                    const isSelected = selectedSeats.includes(id);
+                    return renderSeatBtn(seat, isSelected);
+                  })}
                 </div>
               );
             }
+
+            // ── Normal rows ──────────────────────────────────────────────────
+            const leftSeats  = rd.leftWC ? null : [rd.lw, rd.la].map(n => seatLayout.find(s => s.id === String(n)));
+            const rightSeats = [rd.ra, rd.rw].map(n => n != null ? seatLayout.find(s => s.id === String(n)) : null);
+
+            return (
+              <div key={rowIndex} className="flex items-center justify-center gap-1.5">
+
+                {/* LEFT SIDE */}
+                {rd.leftWC ? (
+                  <div className="w-[67px] h-[30px] rounded-md border border-dashed border-gray-300 bg-gray-50
+                                  flex items-center justify-center text-[10px] text-gray-400">
+                    WC / Toilet
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    {leftSeats!.map((seat, i) => seat ? renderSeatBtn(seat, selectedSeats.includes(seat.id)) : <div key={`ls-${i}`} className="w-8 h-8 md:w-9 md:h-9" />)}
+                  </div>
+                )}
+
+                {/* AISLE */}
+                <div className="w-3.5 border-l border-dashed border-gray-300 h-7" />
+
+                {/* RIGHT SIDE */}
+                <div className="flex gap-1.5">
+                  {rightSeats.map((seat, i) => seat ? renderSeatBtn(seat, selectedSeats.includes(seat.id)) : <div key={`rs-${i}`} className="w-8 h-8 md:w-9 md:h-9" />)}
+                </div>
+
+              </div>
+            );
           })}
         </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-gray-200 border border-gray-300 inline-block"/>{' '}Available</span>
+          <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded inline-block" style={{background:colors.lightYellow}}/>{' '}Occupied</span>
+          <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded inline-block" style={{background:colors.primary}}/>{' '}Selected</span>
+        </div>
+
       </div>
     );
   };

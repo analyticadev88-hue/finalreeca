@@ -434,7 +434,7 @@ export default function PassengerDetailsForm({
 
   const getAddonPrice = (key: string, departureOrigin?: string, departureDate?: Date, isAgentBooking?: boolean) => {
     const origin = (departureOrigin || "").toLowerCase().trim();
-    
+
     // Check if Wimpy meal should be free on weekends for non-agents
     if ((key === "wimpyMeal1" || key === "wimpyMeal2") && departureDate && !isAgentBooking) {
       const dayOfWeek = departureDate.getDay();
@@ -443,7 +443,7 @@ export default function PassengerDetailsForm({
         return 0; // Free on weekends
       }
     }
-    
+
     switch (key) {
       case "extraBaggage":
         return 300;
@@ -469,12 +469,12 @@ export default function PassengerDetailsForm({
     ADDONS.forEach((addon) => {
       const depPrice = getAddonPrice(addon.key, departureBus?.routeOrigin, departureDateObj, isAgentBooking);
       const returnPrice = getAddonPrice(addon.key, returnBus?.routeOrigin, returnDateObj, isAgentBooking);
-      
+
       if (selectedAddons[addon.key]?.departure) {
         if (addon.key === "wimpyMeal2") {
           // Scale by the number of pairs (e.g. 1 meal for 2 people, 2 meals for 4 people)
           const pairs = Math.floor(departurePayingPassengers.length / 2);
-          total += depPrice * Math.max(1, pairs); 
+          total += depPrice * Math.max(1, pairs);
         } else {
           total += depPrice * departurePayingPassengers.length;
         }
@@ -581,13 +581,13 @@ export default function PassengerDetailsForm({
     if ((isDepNF || isRetNF) && !primaryPassenger.isNeighbourFreeSeat) {
       const primarySeats = isDepNF ? depNF.primary : retNF.primary;
       const companionSeats = isDepNF ? depNF.companion : retNF.companion;
-      
+
       const primaryIndex = primarySeats.indexOf(primaryPassenger.seatNumber);
 
       if (primaryIndex !== -1 && companionSeats[primaryIndex]) {
         const companionSeat = companionSeats[primaryIndex];
         const companionId = `${primaryPassenger.isReturn ? "return" : "departure"}-${companionSeat}`;
-        
+
         setPassengers((prev) =>
           prev.map((p) => {
             if (p.id === companionId) {
@@ -799,41 +799,41 @@ export default function PassengerDetailsForm({
       })),
     });
 
-  return {
-  orderId: generateOrderId(),
-  tripId: departureBus?.id,
-  totalPrice: finalTotal,
-  discountAmount: agentDiscount + consultantDiscount,
-  consultantDiscountType,
-  selectedSeats: [...departureSeats, ...returnSeats],
-  departureSeats: departureSeats,
-  returnSeats: returnSeats,
-  addons: selectedAddons,
-  passengers: passengersForPayload,
-  userName: contactDetails.name.trim(),
-  userEmail: contactDetails.email.trim(),
-  userPhone: contactDetails.mobile,
-  boardingPoint: departureBoardingPoint,
-  droppingPoint: departureDroppingPoint,
-  contactDetails: {
-    ...contactDetails,
-    mobileCountryCode: contactDetails.mobileCountryCode || "+267",
-  },
-  emergencyContact: {
-    name: emergencyContact.name.trim(),
-    phone: emergencyContact.phone,
-    phoneCountryCode: emergencyContact.phoneCountryCode || "+267",
-  },
-  paymentMode,
-  returnTripId: returnBus?.id || undefined,              // ✅
-  returnBoardingPoint: returnBoardingPoint || undefined, // ✅
-  returnDroppingPoint: returnDroppingPoint || undefined, // ✅
-  agentId: agent?.id || undefined,                       // ✅
-  consultantId: consultant?.id || undefined,             // ✅
-  reservationToken: reservationToken || undefined,
-  paymentStatus: (paymentMode === 'Bank Deposit' || paymentMode === 'Credit Card' || paymentMode === 'Swipe in Person') ? 'pending' : 
-                (paymentMode === 'Reservation Paid' || paymentMode === 'Cash') ? 'paid' : 'pending',
-};
+    return {
+      orderId: generateOrderId(),
+      tripId: departureBus?.id,
+      totalPrice: finalTotal,
+      discountAmount: agentDiscount + consultantDiscount,
+      consultantDiscountType,
+      selectedSeats: [...departureSeats, ...returnSeats],
+      departureSeats: departureSeats,
+      returnSeats: returnSeats,
+      addons: selectedAddons,
+      passengers: passengersForPayload,
+      userName: contactDetails.name.trim(),
+      userEmail: contactDetails.email.trim(),
+      userPhone: contactDetails.mobile,
+      boardingPoint: departureBoardingPoint,
+      droppingPoint: departureDroppingPoint,
+      contactDetails: {
+        ...contactDetails,
+        mobileCountryCode: contactDetails.mobileCountryCode || "+267",
+      },
+      emergencyContact: {
+        name: emergencyContact.name.trim(),
+        phone: emergencyContact.phone,
+        phoneCountryCode: emergencyContact.phoneCountryCode || "+267",
+      },
+      paymentMode,
+      returnTripId: returnBus?.id || undefined,              // ✅
+      returnBoardingPoint: returnBoardingPoint || undefined, // ✅
+      returnDroppingPoint: returnDroppingPoint || undefined, // ✅
+      agentId: agent?.id || undefined,                       // ✅
+      consultantId: consultant?.id || undefined,             // ✅
+      reservationToken: reservationToken || undefined,
+      paymentStatus: (paymentMode === 'Bank Deposit' || paymentMode === 'Credit Card' || paymentMode === 'Swipe in Person') ? 'pending' :
+        (paymentMode === 'Reservation Paid' || paymentMode === 'Cash') ? 'paid' : 'pending',
+    };
   };
 
   const handleSubmit = async () => {
@@ -1133,7 +1133,7 @@ export default function PassengerDetailsForm({
                 <p className="font-bold text-base sm:text-lg text-gray-800">Grand Total:</p>
                 <p className="font-bold text-[rgb(0,153,153)] text-lg sm:text-xl">P {useFreeVoucher ? '0.00' : finalTotal.toFixed(2)}</p>
               </div>
-              
+
               {consultant && (
                 <div className="border border-gray-200 rounded-lg overflow-hidden mt-6">
                   <button
@@ -1763,7 +1763,7 @@ export default function PassengerDetailsForm({
 
                   if (isWimpy) {
                     if (depOrigin !== "gaborone") return null;
-                    
+
                     const departurePayingPassengers = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat);
                     if (addon.key === "wimpyMeal2" && departurePayingPassengers.length <= 1) return null;
 
@@ -1772,7 +1772,7 @@ export default function PassengerDetailsForm({
                       : null;
 
                     // Wimpy meals available every day
-                    
+
                     // Note only for Meal 2 as requested
                     if (addon.key === "wimpyMeal2") {
                       wimpyInfo = (
@@ -1822,14 +1822,14 @@ export default function PassengerDetailsForm({
                           {addonImages.length > 0 && (
                             <div className="flex gap-2 shrink-0">
                               {addonImages.map((img: string, i: number) => (
-                                <div 
+                                <div
                                   key={i}
                                   className="relative w-24 h-24 shrink-0 overflow-hidden rounded-lg border-2 border-transparent hover:border-[rgb(0,153,153)] cursor-pointer transition-all shadow-sm"
                                   onClick={() => setSelectedImage(img)}
                                 >
-                                  <img 
-                                    src={img} 
-                                    alt={`${addon.label} ${i + 1}`} 
+                                  <img
+                                    src={img}
+                                    alt={`${addon.label} ${i + 1}`}
                                     className="w-full h-full object-cover"
                                   />
                                   <div className="absolute inset-0 bg-black/5 hover:bg-transparent transition-colors flex items-center justify-center group">
@@ -1864,10 +1864,10 @@ export default function PassengerDetailsForm({
                                   </div>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-4 self-end sm:self-center">
                                 <div className="flex gap-4">
-                                  <label 
+                                  <label
                                     className="flex items-center gap-2 text-sm cursor-pointer group"
                                   >
                                     <Checkbox
@@ -1881,7 +1881,7 @@ export default function PassengerDetailsForm({
                                     <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Departure</span>
                                   </label>
                                   {isRoundTrip && addon.showOnReturn && (
-                                    <label 
+                                    <label
                                       className="flex items-center gap-2 text-sm cursor-pointer group"
                                     >
                                       <Checkbox
@@ -1901,14 +1901,14 @@ export default function PassengerDetailsForm({
                                 </span>
                               </div>
                             </div>
-                            
+
                             {/* Preference Select for Wimpy Meal 2 only */}
                             {addon.key === "wimpyMeal2" && (selectedAddons[addon.key]?.departure || selectedAddons[addon.key]?.return) && (
                               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {selectedAddons[addon.key]?.departure && (
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase">Departure Preference</label>
-                                    <Select 
+                                    <Select
                                       value={selectedAddons[addon.key]?.departurePref}
                                       onValueChange={(val) => handleAddonPreference(addon.key, "departure", val)}
                                     >
@@ -1923,9 +1923,9 @@ export default function PassengerDetailsForm({
                                   </div>
                                 )}
                                 {isRoundTrip && selectedAddons[addon.key]?.return && (
-                                   <div className="space-y-1">
+                                  <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase">Return Preference</label>
-                                    <Select 
+                                    <Select
                                       value={selectedAddons[addon.key]?.returnPref}
                                       onValueChange={(val) => handleAddonPreference(addon.key, "return", val)}
                                     >
@@ -2208,7 +2208,7 @@ export default function PassengerDetailsForm({
                       </>
                     ) : (
                       <>
-                        You have chosen to <span className="font-semibold text-[rgb(0,153,153)]">Swipe at Office</span>. 
+                        You have chosen to <span className="font-semibold text-[rgb(0,153,153)]">Swipe at Office</span>.
                         Please ensure you arrive at the designated point to complete payment.
                       </>
                     )}
@@ -2245,12 +2245,12 @@ export default function PassengerDetailsForm({
         <DialogContent className="max-w-2xl bg-black/90 border-none p-0 flex items-center justify-center overflow-hidden">
           {selectedImage && (
             <div className="relative w-full h-full flex items-center justify-center p-4">
-              <img 
-                src={selectedImage} 
-                className="max-w-full max-h-[80vh] object-contain rounded-lg" 
-                alt="Meal Preview" 
+              <img
+                src={selectedImage}
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+                alt="Meal Preview"
               />
-              <button 
+              <button
                 onClick={() => setSelectedImage(null)}
                 className="absolute top-4 right-4 text-white bg-black/50 p-2 rounded-full hover:bg-black/70 transition-colors"
                 aria-label="Close preview"
