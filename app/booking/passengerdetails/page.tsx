@@ -1777,9 +1777,6 @@ export default function PassengerDetailsForm({
                       const isAllowedDay = [6, 0, 1].includes(dayOfWeek); // 6=Sat, 0=Sun, 1=Mon
                       if (!isAllowedDay) return null;
                     }
-
-                    const now = new Date();
-                    wimpyDisabled = !!depDate && (depDate.getTime() - now.getTime()) < 24 * 60 * 60 * 1000;
                     
                     // Note only for Meal 2 as requested
                     if (addon.key === "wimpyMeal2") {
@@ -1793,7 +1790,7 @@ export default function PassengerDetailsForm({
                                 Note: You can opt for a Wimpy Cheese Burger or a Double Up Breakfast.
                               </p>
                               <p className="mt-1 text-gray-500 text-[10px] sm:text-xs">
-                                * Available from Gaborone only. Must be ordered at least 24 hours before departure.
+                                * Available from Gaborone only.
                               </p>
                             </div>
                           </div>
@@ -1877,15 +1874,6 @@ export default function PassengerDetailsForm({
                                 <div className="flex gap-4">
                                   <label 
                                     className="flex items-center gap-2 text-sm cursor-pointer group"
-                                    onClick={() => {
-                                      if (isWimpy && wimpyDisabled) {
-                                        makeToast({
-                                          title: "Selection Unavailable",
-                                          description: "Wimpy meals must be ordered at least 24 hours before departure.",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }}
                                   >
                                     <Checkbox
                                       checked={!!selectedAddons[addon.key]?.departure}
@@ -1900,15 +1888,6 @@ export default function PassengerDetailsForm({
                                   {isRoundTrip && addon.showOnReturn && (
                                     <label 
                                       className="flex items-center gap-2 text-sm cursor-pointer group"
-                                      onClick={() => {
-                                        if (isWimpy && wimpyDisabled) {
-                                          makeToast({
-                                            title: "Selection Unavailable",
-                                            description: "Wimpy meals must be ordered at least 24 hours before departure.",
-                                            variant: "destructive",
-                                          });
-                                        }
-                                      }}
                                     >
                                       <Checkbox
                                         checked={!!selectedAddons[addon.key]?.return}
