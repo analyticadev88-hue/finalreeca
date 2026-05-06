@@ -432,8 +432,18 @@ export default function PassengerDetailsForm({
     }
   };
 
-  const getAddonPrice = (key: string, departureOrigin?: string) => {
+  const getAddonPrice = (key: string, departureOrigin?: string, departureDate?: Date, isAgentBooking?: boolean) => {
     const origin = (departureOrigin || "").toLowerCase().trim();
+    
+    // Check if Wimpy meal should be free on weekends for non-agents
+    if ((key === "wimpyMeal1" || key === "wimpyMeal2") && departureDate && !isAgentBooking) {
+      const dayOfWeek = departureDate.getDay();
+      // Friday (5), Saturday (6), Sunday (0) - make free for non-agents
+      if ([0, 5, 6].includes(dayOfWeek)) {
+        return 0; // Free on weekends
+      }
+    }
+    
     switch (key) {
       case "extraBaggage":
         return 300;
@@ -452,24 +462,29 @@ export default function PassengerDetailsForm({
     let total = 0;
     const departurePayingPassengers = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat);
     const returnPayingPassengers = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat);
+    const isAgentBooking = !!agent;
+    const departureDateObj = departureBus?.departureDate ? new Date(departureBus.departureDate) : undefined;
+    const returnDateObj = returnBus?.departureDate ? new Date(returnBus.departureDate) : undefined;
 
     ADDONS.forEach((addon) => {
-      const price = getAddonPrice(addon.key, departureBus?.routeOrigin);
+      const depPrice = getAddonPrice(addon.key, departureBus?.routeOrigin, departureDateObj, isAgentBooking);
+      const returnPrice = getAddonPrice(addon.key, returnBus?.routeOrigin, returnDateObj, isAgentBooking);
+      
       if (selectedAddons[addon.key]?.departure) {
         if (addon.key === "wimpyMeal2") {
           // Scale by the number of pairs (e.g. 1 meal for 2 people, 2 meals for 4 people)
           const pairs = Math.floor(departurePayingPassengers.length / 2);
-          total += price * Math.max(1, pairs); 
+          total += depPrice * Math.max(1, pairs); 
         } else {
-          total += price * departurePayingPassengers.length;
+          total += depPrice * departurePayingPassengers.length;
         }
       }
       if (isRoundTrip && selectedAddons[addon.key]?.return) {
         if (addon.key === "wimpyMeal2") {
           const pairs = Math.floor(returnPayingPassengers.length / 2);
-          total += price * Math.max(1, pairs);
+          total += returnPrice * Math.max(1, pairs);
         } else {
-          total += price * returnPayingPassengers.length;
+          total += returnPrice * returnPayingPassengers.length;
         }
       }
     });
@@ -1067,8 +1082,12 @@ export default function PassengerDetailsForm({
                 if (addon && (value.departure || value.return)) {
                   const departurePayingCount = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat).length;
                   const returnPayingCount = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat).length;
-                  const price = getAddonPrice(key, departureBus?.routeOrigin);
-                  const addonTotal = (value.departure ? price * departurePayingCount : 0) + (isRoundTrip && value.return ? price * returnPayingCount : 0);
+                  const isAgentBooking = !!agent;
+                  const departureDateObj = departureBus?.departureDate ? new Date(departureBus.departureDate) : undefined;
+                  const returnDateObj = returnBus?.departureDate ? new Date(returnBus.departureDate) : undefined;
+                  const depPrice = getAddonPrice(key, departureBus?.routeOrigin, departureDateObj, isAgentBooking);
+                  const returnPrice = getAddonPrice(key, returnBus?.routeOrigin, returnDateObj, isAgentBooking);
+                  const addonTotal = (value.departure ? depPrice * departurePayingCount : 0) + (isRoundTrip && value.return ? returnPrice * returnPayingCount : 0);
                   return (
                     <div key={key} className="flex justify-between pt-2">
                       <p className="font-medium text-gray-700 text-sm sm:text-base">{addon.label}:</p>
@@ -1738,7 +1757,9 @@ export default function PassengerDetailsForm({
                   let wimpyDisabled = false;
                   let wimpyInfo = null;
                   let insuranceInfo = null;
-                  let price = getAddonPrice(addon.key, depOrigin);
+                  const isAgentBooking = !!agent;
+                  const departureDateObj = departureBus?.departureDate ? new Date(departureBus.departureDate) : undefined;
+                  let price = getAddonPrice(addon.key, depOrigin, departureDateObj, isAgentBooking);
 
                   if (isWimpy) {
                     if (depOrigin !== "gaborone") return null;
