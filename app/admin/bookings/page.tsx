@@ -83,6 +83,8 @@ export default function BookingsManagement() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all"); // all, today, tomorrow, custom
   const [customDate, setCustomDate] = useState<string>("");
+  const [routeFilter, setRouteFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -100,6 +102,27 @@ export default function BookingsManagement() {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [modalMessage, setModalMessage] = useState<string | null>(null);
   const [modalType, setModalType] = useState<'success' | 'error' | null>(null);
+
+  // Compute unique routes and times from bookings for filter dropdowns
+  const uniqueRoutes = Array.from(new Set(bookings.map(b => b.route).filter(Boolean))).sort();
+  const uniqueTimes = Array.from(new Set(bookings.map(b => b.time).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+  // Today's route summary for quick focus
+  const todaySummary = (() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const summary: Record<string, { count: number; times: Record<string, number> }> = {};
+    bookings.forEach(b => {
+      const bDate = new Date(b.date);
+      bDate.setHours(0, 0, 0, 0);
+      if (bDate.getTime() === today.getTime()) {
+        if (!summary[b.route]) summary[b.route] = { count: 0, times: {} };
+        summary[b.route].count += 1;
+        summary[b.route].times[b.time] = (summary[b.route].times[b.time] || 0) + 1;
+      }
+    });
+    return summary;
+  })();
 
   const formatDate = (date: Date | string | undefined, formatStr: string) => {
     if (!date) return "N/A";
@@ -136,7 +159,9 @@ export default function BookingsManagement() {
     const matchesSearch =
       booking.passengerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.bookingRef.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.email.toLowerCase().includes(searchTerm.toLowerCase());
+      booking.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      booking.route.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      booking.time.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" ||
       (statusFilter === "pending" ?
         booking.paymentStatus?.toLowerCase() === "pending" :
@@ -145,6 +170,10 @@ export default function BookingsManagement() {
           booking.bookingStatus.toLowerCase() === statusFilter);
     const matchesPaymentMethod = paymentMethodFilter === "all" ||
       booking.paymentMethod === paymentMethodFilter;
+    const matchesRoute = routeFilter === "all" ||
+      booking.route === routeFilter;
+    const matchesTime = timeFilter === "all" ||
+      booking.time === timeFilter;
 
     // Date filtering
     const bookingDate = new Date(booking.date);
@@ -167,7 +196,7 @@ export default function BookingsManagement() {
       matchesDate = bDate.getTime() === cDate.getTime();
     }
 
-    return matchesSearch && matchesStatus && matchesPaymentMethod && matchesDate;
+    return matchesSearch && matchesStatus && matchesPaymentMethod && matchesDate && matchesRoute && matchesTime;
   });
 
   // Pagination calculations
@@ -384,7 +413,7 @@ export default function BookingsManagement() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search bookings..."
+                placeholder="Search by name, ref, email, route or time..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 text-xs sm:text-sm"
@@ -444,6 +473,50 @@ export default function BookingsManagement() {
               </Button>
             </div>
             
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-1">
+              <Select value={routeFilter} onValueChange={setRouteFilter}>
+                <SelectTrigger className="w-full text-xs sm:text-sm h-9">
+                  <SelectValue placeholder="Route" />
+                </SelectTrigger>
+                <SelectContent style={{ backgroundColor: colors.light }}>
+                  <SelectItem value="all" className="text-xs sm:text-sm">All Routes</SelectItem>
+                  {uniqueRoutes.map(route => (
+                    <SelectItem key={route} value={route} className="text-xs sm:text-sm">{route}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={timeFilter} onValueChange={setTimeFilter}>
+                <SelectTrigger className="w-full text-xs sm:text-sm h-9">
+                  <SelectValue placeholder="Time" />
+                </SelectTrigger>
+                <SelectContent style={{ backgroundColor: colors.light }}>
+                  <SelectItem value="all" className="text-xs sm:text-sm">All Times</SelectItem>
+                  {uniqueTimes.map(time => (
+                    <SelectItem key={time} value={time} className="text-xs sm:text-sm">{time}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                className="border-gray-300 text-gray-600 hover:bg-gray-50 text-xs sm:text-sm h-9"
+                onClick={() => {
+                  setSearchTerm("");
+                  setStatusFilter("all");
+                  setPaymentMethodFilter("all");
+                  setDateFilter("all");
+                  setRouteFilter("all");
+                  setTimeFilter("all");
+                  setCustomDate("");
+                  setCurrentPage(1);
+                }}
+                size="sm"
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Clear Filters</span>
+                <span className="sm:hidden">Clear</span>
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
               <div className="flex bg-white border border-gray-200 rounded-md p-1 gap-1">
                 <Button 
@@ -497,6 +570,40 @@ export default function BookingsManagement() {
                 </div>
               )}
             </div>
+
+            {/* Today's Route Focus Summary */}
+            {Object.keys(todaySummary).length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="h-4 w-4" style={{ color: colors.primary }} />
+                  <span className="text-xs sm:text-sm font-semibold" style={{ color: colors.dark }}>
+                    Today's Focus — {Object.values(todaySummary).reduce((sum, r) => sum + r.count, 0)} bookings
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(todaySummary).map(([route, data]) => (
+                    <button
+                      key={route}
+                      onClick={() => {
+                        setDateFilter('today');
+                        setRouteFilter(route);
+                        setCurrentPage(1);
+                      }}
+                      className="flex flex-col items-start px-3 py-2 rounded-md border text-left hover:shadow-sm transition-shadow"
+                      style={{
+                        backgroundColor: routeFilter === route && dateFilter === 'today' ? colors.primary + '15' : colors.light,
+                        borderColor: routeFilter === route && dateFilter === 'today' ? colors.primary : colors.accent + '40',
+                      }}
+                    >
+                      <span className="text-xs font-semibold" style={{ color: colors.dark }}>{route}</span>
+                      <span className="text-[10px]" style={{ color: colors.accent }}>
+                        {data.count} booking{data.count !== 1 ? 's' : ''} · {Object.entries(data.times).map(([t, c]) => `${t} (${c})`).join(', ')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
