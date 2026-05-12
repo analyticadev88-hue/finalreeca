@@ -94,6 +94,14 @@ export default function BookingsManagement() {
   const [newDepartureTime, setNewDepartureTime] = useState("");
   const [newReturnDate, setNewReturnDate] = useState("");
   const [newReturnTime, setNewReturnTime] = useState("");
+  const [changeRoute, setChangeRoute] = useState(false);
+  const [newRouteOrigin, setNewRouteOrigin] = useState("");
+  const [newRouteDestination, setNewRouteDestination] = useState("");
+  const [newRouteName, setNewRouteName] = useState("");
+  const [newBoardingPoint, setNewBoardingPoint] = useState("");
+  const [newDroppingPoint, setNewDroppingPoint] = useState("");
+  const [overridePrice, setOverridePrice] = useState(false);
+  const [newTotalPrice, setNewTotalPrice] = useState("");
   const [email, setEmail] = useState("");
   const [showAmendModal, setShowAmendModal] = useState(false);
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
@@ -154,6 +162,11 @@ export default function BookingsManagement() {
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  // Reset to page 1 whenever any filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, paymentMethodFilter, dateFilter, customDate, routeFilter, timeFilter]);
 
   const filteredBookings = bookings.filter((booking) => {
     const matchesSearch =
@@ -383,18 +396,53 @@ export default function BookingsManagement() {
     }
   };
 
-  // --- Reschedule Booking handler (stub) ---
+  // --- Reschedule Booking handler ---
   const handleRescheduleBooking = async () => {
+    if (!selectedBooking) return;
     setRescheduleLoading(true);
     try {
-      // Simulate API call
-      await new Promise(res => setTimeout(res, 1200));
-      setModalType('success');
-      setModalMessage('Booking rescheduled and ticket sent!');
+      const res = await fetch('/api/booking/reschedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: selectedBooking.bookingRef,
+          newDepartureDate: newDepartureDate,
+          newDepartureTime: newDepartureTime,
+          newReturnDate: selectedBooking.returnTrip ? newReturnDate : undefined,
+          newReturnTime: selectedBooking.returnTrip ? newReturnTime : undefined,
+          ...(changeRoute ? {
+            newRouteOrigin: newRouteOrigin || undefined,
+            newRouteDestination: newRouteDestination || undefined,
+            newRouteName: newRouteName || undefined,
+            newBoardingPoint: newBoardingPoint || undefined,
+            newDroppingPoint: newDroppingPoint || undefined,
+          } : {}),
+          ...(overridePrice && newTotalPrice ? { newTotalPrice: Number(newTotalPrice) } : {}),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Reschedule failed');
+      }
+
+      await fetchBookings();
+      alert('Booking rescheduled successfully!');
       setShowRescheduleModal(false);
-    } catch (err) {
-      setModalType('error');
-      setModalMessage('Failed to reschedule booking.');
+      setNewDepartureDate('');
+      setNewDepartureTime('');
+      setNewReturnDate('');
+      setNewReturnTime('');
+      setChangeRoute(false);
+      setNewRouteOrigin('');
+      setNewRouteDestination('');
+      setNewRouteName('');
+      setNewBoardingPoint('');
+      setNewDroppingPoint('');
+      setOverridePrice(false);
+      setNewTotalPrice('');
+    } catch (err: any) {
+      alert('Failed to reschedule booking: ' + (err.message || 'Unknown error'));
     } finally {
       setRescheduleLoading(false);
     }
@@ -1039,7 +1087,17 @@ export default function BookingsManagement() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+            {/* Current Info Summary */}
+            {selectedBooking && (
+              <div className="p-2 bg-gray-50 rounded-md text-xs space-y-1">
+                <div><span style={{ color: colors.accent }}>Current Route:</span> <span className="font-medium">{selectedBooking.route}</span></div>
+                <div><span style={{ color: colors.accent }}>Current Date:</span> <span className="font-medium">{formatDate(selectedBooking.date, 'yyyy-MM-dd')}</span></div>
+                <div><span style={{ color: colors.accent }}>Current Time:</span> <span className="font-medium">{selectedBooking.time}</span></div>
+                <div><span style={{ color: colors.accent }}>Current Price:</span> <span className="font-medium">P {selectedBooking.totalAmount?.toFixed ? selectedBooking.totalAmount.toFixed(2) : selectedBooking.totalAmount}</span></div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
                 New Departure Date
@@ -1050,7 +1108,7 @@ export default function BookingsManagement() {
                 onChange={(e) => setNewDepartureDate(e.target.value)}
                 className="text-xs sm:text-sm h-9"
                 style={{ borderColor: colors.accent }}
-                min={formatDate(new Date(), 'yyyy-MM-dd')} // Can't reschedule to past dates
+                min={formatDate(new Date(), 'yyyy-MM-dd')}
               />
             </div>
             <div>
@@ -1084,7 +1142,7 @@ export default function BookingsManagement() {
                         onChange={(e) => setNewReturnDate(e.target.value)}
                         className="text-xs sm:text-sm h-9"
                         style={{ borderColor: colors.accent }}
-                        min={newDepartureDate || formatDate(new Date(), 'yyyy-MM-dd')} // Return can't be before departure
+                        min={newDepartureDate || formatDate(new Date(), 'yyyy-MM-dd')}
                       />
                     </div>
                     <div>
@@ -1102,7 +1160,6 @@ export default function BookingsManagement() {
                   </div>
                 </div>
 
-                {/* Validation message if dates are invalid */}
                 {newDepartureDate && newReturnDate && newDepartureDate > newReturnDate && (
                   <div className="text-xs sm:text-sm p-2 rounded-md" style={{ backgroundColor: colors.destructive + '10', color: colors.destructive }}>
                     Return date cannot be before departure date
@@ -1110,6 +1167,108 @@ export default function BookingsManagement() {
                 )}
               </>
             )}
+
+            {/* Route Change Section */}
+            <div className="pt-3 border-t border-gray-200">
+              <label className="flex items-center gap-2 text-xs sm:text-sm font-medium mb-2" style={{ color: colors.dark }}>
+                <input
+                  type="checkbox"
+                  checked={changeRoute}
+                  onChange={(e) => setChangeRoute(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                Change Route / Stops
+              </label>
+
+              {changeRoute && (
+                <div className="space-y-3 pl-1">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Origin</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Gaborone"
+                      value={newRouteOrigin}
+                      onChange={(e) => setNewRouteOrigin(e.target.value)}
+                      className="text-xs sm:text-sm h-9"
+                      style={{ borderColor: colors.accent }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Destination</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. OR Tambo Airport"
+                      value={newRouteDestination}
+                      onChange={(e) => setNewRouteDestination(e.target.value)}
+                      className="text-xs sm:text-sm h-9"
+                      style={{ borderColor: colors.accent }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Route Name (optional)</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Gaborone → OR Tambo Airport"
+                      value={newRouteName}
+                      onChange={(e) => setNewRouteName(e.target.value)}
+                      className="text-xs sm:text-sm h-9"
+                      style={{ borderColor: colors.accent }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>New Boarding Point</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Mogobe Plaza"
+                      value={newBoardingPoint}
+                      onChange={(e) => setNewBoardingPoint(e.target.value)}
+                      className="text-xs sm:text-sm h-9"
+                      style={{ borderColor: colors.accent }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>New Dropping Point</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. OR Tambo Airport Terminal A"
+                      value={newDroppingPoint}
+                      onChange={(e) => setNewDroppingPoint(e.target.value)}
+                      className="text-xs sm:text-sm h-9"
+                      style={{ borderColor: colors.accent }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pricing Override Section */}
+            <div className="pt-3 border-t border-gray-200">
+              <label className="flex items-center gap-2 text-xs sm:text-sm font-medium mb-2" style={{ color: colors.dark }}>
+                <input
+                  type="checkbox"
+                  checked={overridePrice}
+                  onChange={(e) => setOverridePrice(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                Override Price
+              </label>
+
+              {overridePrice && (
+                <div className="pl-1">
+                  <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>New Total Price (BWP)</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 1200"
+                    value={newTotalPrice}
+                    onChange={(e) => setNewTotalPrice(e.target.value)}
+                    className="text-xs sm:text-sm h-9"
+                    style={{ borderColor: colors.accent }}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
