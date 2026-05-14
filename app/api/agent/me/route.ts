@@ -21,5 +21,5 @@ export async function GET(req: NextRequest) {
   const agent = await prisma.agent.findUnique({ where: { id: agentId } });
   if (!agent) return NextResponse.json({}, { status: 401 });
 
-  return NextResponse.json({ id: agent.id, name: agent.name, email: agent.email });
+  return NextResponse.json({ id: agent.id, name: agent.name, email: agent.email, commissionRate: agent.commissionRate });
 }

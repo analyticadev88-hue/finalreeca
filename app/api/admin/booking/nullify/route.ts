@@ -59,28 +59,39 @@ export async function POST(req: NextRequest) {
         return;
       }
 
+      // Resolve seat source (parent trip if linked)
+      const seatSourceId = trip.parentTripId || tripId;
+      const seatSource = seatSourceId !== tripId
+        ? await prisma.trip.findUnique({ where: { id: seatSourceId } })
+        : trip;
+      
+      if (!seatSource) {
+        console.error(`[NULLIFY] Seat source trip ${seatSourceId} not found`);
+        return;
+      }
+
       // Parse current occupied seats
-      const currentOccupied = parseSeatsArray(trip.occupiedSeats);
-      console.log(`[NULLIFY] Trip ${tripId} current occupied:`, currentOccupied);
+      const currentOccupied = parseSeatsArray(seatSource.occupiedSeats);
+      console.log(`[NULLIFY] Trip ${seatSourceId} current occupied:`, currentOccupied);
       console.log(`[NULLIFY] Seats to remove:`, seatsToRemove);
 
       // Remove the seats
       const newOccupied = currentOccupied.filter(seat => !seatsToRemove.includes(seat));
-      console.log(`[NULLIFY] Trip ${tripId} new occupied:`, newOccupied);
+      console.log(`[NULLIFY] Trip ${seatSourceId} new occupied:`, newOccupied);
 
       // Parse temp locked seats
-      const tempLockedCount = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean).length : 0;
+      const tempLockedCount = seatSource.tempLockedSeats ? seatSource.tempLockedSeats.split(',').filter(Boolean).length : 0;
 
-      // Update the trip
+      // Update the seat source trip
       await prisma.trip.update({
-        where: { id: tripId },
+        where: { id: seatSourceId },
         data: {
           occupiedSeats: JSON.stringify(newOccupied),
-          availableSeats: trip.totalSeats - newOccupied.length - tempLockedCount
+          availableSeats: seatSource.totalSeats - newOccupied.length - tempLockedCount
         }
       });
 
-      console.log(`[NULLIFY] Trip ${tripId} updated successfully`);
+      console.log(`[NULLIFY] Trip ${seatSourceId} updated successfully`);
     };
 
     // Get seats from booking (departure)

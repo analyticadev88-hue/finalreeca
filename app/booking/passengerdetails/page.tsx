@@ -27,6 +27,7 @@ import {
   Info,
   Gift,
   UserPlus,
+  Clock,
 } from "lucide-react";
 import { SearchData, BoardingPoint } from "@/lib/types";
 import { format } from "date-fns";
@@ -386,7 +387,7 @@ export default function PassengerDetailsForm({
     addons: true,
   });
 
-  const [agent, setAgent] = useState<{ id: string; name: string; email: string } | null>(
+  const [agent, setAgent] = useState<{ id: string; name: string; email: string; commissionRate?: number } | null>(
     null
   );
   const [consultant, setConsultant] = useState<{ id: string; name: string; email: string } | null>(
@@ -659,6 +660,22 @@ export default function PassengerDetailsForm({
       .then((data) => setPromotions((data.promotions || []).filter((p: any) => p.active)));
   }, []);
 
+  // Auto-clear Wimpy selections if departure is less than 24 hours away
+  useEffect(() => {
+    if (!departureBus?.departureDate) return;
+    const depDate = new Date(departureBus.departureDate);
+    const hoursUntil = Math.floor((depDate.getTime() - Date.now()) / (1000 * 60 * 60));
+    if (hoursUntil < 24) {
+      setSelectedAddons(prev => {
+        const next = { ...prev };
+        let changed = false;
+        if (next["wimpyMeal1"]) { delete next["wimpyMeal1"]; changed = true; }
+        if (next["wimpyMeal2"]) { delete next["wimpyMeal2"]; changed = true; }
+        return changed ? next : prev;
+      });
+    }
+  }, [departureBus?.departureDate]);
+
   let consultantDiscount = 0;
   if (consultant && consultantDiscountType !== "none") {
     if (consultantDiscountType === "student") {
@@ -675,7 +692,7 @@ export default function PassengerDetailsForm({
       }
     }
   }
-  const agentDiscount: number = agent ? Math.round(baseTotal * 0.1) : 0;
+  const agentDiscount: number = agent ? Math.round(baseTotal * ((agent.commissionRate ?? 10) / 100)) : 0;
   const finalTotal: number = baseTotal - agentDiscount - consultantDiscount;
 
   const getBoardingPoints = (key: string): BoardingPoint[] => {
@@ -1102,7 +1119,7 @@ export default function PassengerDetailsForm({
 
               {agent && (
                 <div className="flex justify-between pt-2">
-                  <p className="font-medium text-gray-700 text-sm sm:text-base">Agent Discount (10%):</p>
+                  <p className="font-medium text-gray-700 text-sm sm:text-base">Agent Discount ({agent.commissionRate ?? 10}%):</p>
                   <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
                     -P {agentDiscount.toFixed(2)}
                   </p>
@@ -1771,7 +1788,13 @@ export default function PassengerDetailsForm({
                       ? new Date(departureBus.departureDate)
                       : null;
 
-                    // Wimpy meals available every day
+                    // Wimpy meals require at least 24 hours notice
+                    const hoursUntilDeparture = depDate
+                      ? Math.floor((depDate.getTime() - Date.now()) / (1000 * 60 * 60))
+                      : Infinity;
+                    if (hoursUntilDeparture < 24) {
+                      wimpyDisabled = true;
+                    }
 
                     // Note only for Meal 2 as requested
                     if (addon.key === "wimpyMeal2") {
@@ -1787,6 +1810,12 @@ export default function PassengerDetailsForm({
                               <p className="mt-1 text-gray-500 text-[10px] sm:text-xs">
                                 * Available from Gaborone only.
                               </p>
+                              {wimpyDisabled && (
+                                <p className="mt-2 flex items-center gap-1 text-red-600 font-medium text-[10px] sm:text-xs">
+                                  <Clock className="h-3 w-3" />
+                                  Wimpy meals must be ordered at least 24 hours before departure.
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>

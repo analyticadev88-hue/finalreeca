@@ -306,33 +306,48 @@ export async function PATCH(request: Request, context: { params: Promise<{ order
 
 /**
  * Utility to synchronize Trip.occupiedSeats and Trip.availableSeats
+ * For child trips, syncs the parent trip's occupancy.
  */
 async function syncTripOccupancy(tripId: string) {
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
-    include: { bookings: { where: { bookingStatus: 'confirmed' } } }
+    select: { parentTripId: true, totalSeats: true, tempLockedSeats: true }
   });
 
   if (!trip) return;
 
-  // Get all confirmed seats from passengers directly (safest source of truth)
+  const seatSourceId = trip.parentTripId || tripId;
+  const seatSource = await prisma.trip.findUnique({
+    where: { id: seatSourceId },
+    select: { id: true, totalSeats: true, tempLockedSeats: true }
+  });
+
+  if (!seatSource) return;
+
+  // Get all confirmed seats from passengers on the seat source trip AND any child trips
+  const childTripIds = await prisma.trip.findMany({
+    where: { parentTripId: seatSourceId },
+    select: { id: true }
+  });
+  const relevantTripIds = [seatSourceId, ...childTripIds.map(c => c.id)];
+
   const allPassengers = await prisma.passenger.findMany({
     where: { 
-      tripId,
+      tripId: { in: relevantTripIds },
       booking: { bookingStatus: 'confirmed' }
     },
     select: { seatNumber: true }
   });
 
   const occupiedSeats = Array.from(new Set(allPassengers.map(p => p.seatNumber)));
-  const tempLockedCount = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean).length : 0;
-  const availableSeats = Math.max(0, trip.totalSeats - occupiedSeats.length - tempLockedCount);
+  const tempLockedCount = seatSource.tempLockedSeats ? seatSource.tempLockedSeats.split(',').filter(Boolean).length : 0;
+  const availableSeats = Math.max(0, seatSource.totalSeats - occupiedSeats.length - tempLockedCount);
 
   await prisma.trip.update({
-    where: { id: tripId },
+    where: { id: seatSourceId },
     data: {
       occupiedSeats: JSON.stringify(occupiedSeats),
       availableSeats
     }
   });
-}
+}

@@ -273,30 +273,34 @@ export async function createBookingWithRetry(data: any, maxRetries = 3) {
 
           if (departureSeats.length > 0) {
             const existingTrip = await tx.trip.findUnique({ where: { id: data.tripId } });
-            const currentOccupied = JSON.parse(existingTrip?.occupiedSeats || '[]');
+            const seatSourceId = existingTrip?.parentTripId || data.tripId;
+            const seatSource = await tx.trip.findUnique({ where: { id: seatSourceId } });
+            const currentOccupied = JSON.parse(seatSource?.occupiedSeats || '[]');
             const newOccupied = Array.from(new Set([...currentOccupied, ...departureSeats]));
             await tx.trip.update({
-              where: { id: data.tripId },
+              where: { id: seatSourceId },
               data: {
                 occupiedSeats: JSON.stringify(newOccupied),
-                availableSeats: (existingTrip?.totalSeats || 0) - newOccupied.length - (existingTrip?.tempLockedSeats ? existingTrip.tempLockedSeats.split(',').filter(Boolean).length : 0)
+                availableSeats: (seatSource?.totalSeats || 0) - newOccupied.length - (seatSource?.tempLockedSeats ? seatSource.tempLockedSeats.split(',').filter(Boolean).length : 0)
               }
             });
-            console.log(`[${orderId}] ✓ Updated departure trip: ${newOccupied.length} occupied seats`);
+            console.log(`[${orderId}] ✓ Updated departure trip (${seatSourceId}): ${newOccupied.length} occupied seats`);
           }
 
           if (returnSeats.length > 0 && data.returnTripId) {
             const returnTrip = await tx.trip.findUnique({ where: { id: data.returnTripId } });
-            const currentOccupied = JSON.parse(returnTrip?.occupiedSeats || '[]');
+            const seatSourceId = returnTrip?.parentTripId || data.returnTripId;
+            const seatSource = await tx.trip.findUnique({ where: { id: seatSourceId } });
+            const currentOccupied = JSON.parse(seatSource?.occupiedSeats || '[]');
             const newOccupied = Array.from(new Set([...currentOccupied, ...returnSeats]));
             await tx.trip.update({
-              where: { id: data.returnTripId },
+              where: { id: seatSourceId },
               data: {
                 occupiedSeats: JSON.stringify(newOccupied),
-                availableSeats: (returnTrip?.totalSeats || 0) - newOccupied.length - (returnTrip?.tempLockedSeats ? returnTrip.tempLockedSeats.split(',').filter(Boolean).length : 0)
+                availableSeats: (seatSource?.totalSeats || 0) - newOccupied.length - (seatSource?.tempLockedSeats ? seatSource.tempLockedSeats.split(',').filter(Boolean).length : 0)
               }
             });
-            console.log(`[${orderId}] ✓ Updated return trip: ${newOccupied.length} occupied seats`);
+            console.log(`[${orderId}] ✓ Updated return trip (${seatSourceId}): ${newOccupied.length} occupied seats`);
           }
 
           if (reservationLinkRecord) {

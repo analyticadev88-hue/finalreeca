@@ -57,6 +57,7 @@ const normalizeSeat = (seat: string): string => {
 export function TempLockModal({ isOpen, onClose, trip, onSuccess }: TempLockModalProps) {
   const [loading, setLoading] = useState(false);
   const [lockedSeats, setLockedSeats] = useState<string[]>([]);
+  const [selectedToUnblock, setSelectedToUnblock] = useState<string[]>([]);
   const [occupiedDetails, setOccupiedDetails] = useState<{
     booked: string[],
     reserved: string[]
@@ -66,6 +67,7 @@ export function TempLockModal({ isOpen, onClose, trip, onSuccess }: TempLockModa
   useEffect(() => {
     if (isOpen && trip?.id) {
       setLoading(true);
+      setSelectedToUnblock([]);
       // Normalize any existing tempLockedSeats to numeric
       const normalizedExisting = (trip.tempLockedSeats || [])
         .map((s: string) => normalizeSeat(String(s)));
@@ -261,16 +263,74 @@ export function TempLockModal({ isOpen, onClose, trip, onSuccess }: TempLockModa
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-amber-900 text-sm">Selection Summary</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-amber-900 text-sm">Blocked Seats</h4>
+                  {lockedSeats.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedToUnblock.length === lockedSeats.length && lockedSeats.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedToUnblock([...lockedSeats]);
+                            } else {
+                              setSelectedToUnblock([]);
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        Select All
+                      </label>
+                    </div>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {lockedSeats.length === 0 && <span className="text-xs text-gray-500 italic">No seats currently locked</span>}
                   {lockedSeats.map(seat => (
-                    <span key={seat} className="bg-[#8B4513] text-white px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                    <label key={seat} className={cn(
+                      "px-2 py-1 rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer border-2 transition-all",
+                      selectedToUnblock.includes(seat)
+                        ? "bg-amber-100 border-amber-500 text-amber-900"
+                        : "bg-[#8B4513] border-[#8B4513] text-white"
+                    )}>
+                      <input
+                        type="checkbox"
+                        checked={selectedToUnblock.includes(seat)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedToUnblock(prev => [...prev, seat]);
+                          } else {
+                            setSelectedToUnblock(prev => prev.filter(s => s !== seat));
+                          }
+                        }}
+                        className="rounded border-gray-300"
+                      />
                       {seat}
-                      <button onClick={() => handleSeatToggle(seat)} className="hover:text-amber-200"><X className="w-3 h-3" /></button>
-                    </span>
+                      <button
+                        onClick={(e) => { e.preventDefault(); handleSeatToggle(seat); }}
+                        className="hover:text-amber-200 ml-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </label>
                   ))}
                 </div>
+                {selectedToUnblock.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setLockedSeats(prev => prev.filter(s => !selectedToUnblock.includes(s)));
+                      setSelectedToUnblock([]);
+                      toast.success(`Unblocked ${selectedToUnblock.length} seat(s)`);
+                    }}
+                    className="text-amber-700 border-amber-300 hover:bg-amber-50 mt-2"
+                  >
+                    <Unlock className="w-3 h-3 mr-1" />
+                    Unblock Selected ({selectedToUnblock.length})
+                  </Button>
+                )}
               </div>
             </div>
 

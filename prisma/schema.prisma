@@ -41,6 +41,7 @@ model Trip {
   replacementVehicles String?  // JSON string of vehicle array
   vehicleCount        Int?     // Total number of vehicles
   tempLockedSeats     String?  // Comma-separated seat numbers blocked by admin
+  parentTripId        String?  // Link to parent trip for segment bookings
 
   bookings       Booking[]   @relation("TripBooking")
   returnBookings Booking[]   @relation("ReturnTripBooking")
@@ -155,6 +156,7 @@ model Agent {
   approved       Boolean   @default(false)
   suspended      Boolean   @default(false)
   suspensionDate DateTime?
+  commissionRate Float     @default(10) // Percentage, e.g. 5.5 means 5.5%
 }
 
 model Consultant {

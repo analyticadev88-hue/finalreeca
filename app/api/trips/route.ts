@@ -105,6 +105,14 @@ export async function GET(request: NextRequest) {
       ]
     });
 
+    // Collect parent trip IDs for seat resolution
+    const parentIds = trips.filter(t => t.parentTripId).map(t => t.parentTripId!);
+    const parentTrips = parentIds.length > 0 ? await prisma.trip.findMany({
+      where: { id: { in: parentIds } },
+      select: { id: true, occupiedSeats: true, totalSeats: true, tempLockedSeats: true }
+    }) : [];
+    const parentMap = new Map(parentTrips.map(p => [p.id, p]));
+
     console.log('Found trips:', trips.map(t => ({
       id: t.id,
       date: t.departureDate,
@@ -122,68 +130,77 @@ export async function GET(request: NextRequest) {
     }
 
     const tripsWithAvailability = trips.map(trip => {
-      // Parse occupiedSeats from trip
+      // For child trips, read seat data from parent
+      const seatSource = trip.parentTripId ? parentMap.get(trip.parentTripId) : trip;
+      const effectiveOccupiedSeats = seatSource?.occupiedSeats || trip.occupiedSeats;
+      const effectiveTotalSeats = seatSource?.totalSeats || trip.totalSeats;
+      const effectiveTempLocked = seatSource?.tempLockedSeats || trip.tempLockedSeats;
+
+      // Parse occupiedSeats from seat source
       let occupiedSeats: string[] = [];
-      if (trip.occupiedSeats) {
+      if (effectiveOccupiedSeats) {
         try {
-          occupiedSeats = JSON.parse(trip.occupiedSeats);
+          occupiedSeats = JSON.parse(effectiveOccupiedSeats);
         } catch {
           occupiedSeats = [];
         }
       }
 
-      // Collect all booked seats from bookings
+      // Collect all booked seats from bookings on THIS trip and its parent
       const bookedSeats: string[] = [];
+      const tripsToCheck = [trip, ...(trip.parentTripId && parentMap.get(trip.parentTripId) ? [{ id: trip.parentTripId, bookings: (trip as any).bookings, returnBookings: (trip as any).returnBookings }] : [])];
       
-      // Outbound bookings
-      for (const booking of (trip as any).bookings || []) {
-        if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
-          try {
-            // Seats can be stored as JSON array or comma-separated string
-            let seats: string[] = [];
-            if (booking.seats.startsWith('[')) {
-              seats = JSON.parse(booking.seats);
-            } else {
-              seats = booking.seats.split(',').filter(Boolean);
+      for (const t of tripsToCheck) {
+        // Outbound bookings
+        for (const booking of (t as any).bookings || []) {
+          if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
+            try {
+              let seats: string[] = [];
+              if (booking.seats.startsWith('[')) {
+                seats = JSON.parse(booking.seats);
+              } else {
+                seats = booking.seats.split(',').filter(Boolean);
+              }
+              if (Array.isArray(seats)) {
+                bookedSeats.push(...seats);
+              }
+            } catch (e) {
+              console.error('Error parsing booking seats:', e);
             }
-            if (Array.isArray(seats)) {
-              bookedSeats.push(...seats);
+          }
+        }
+
+        // Return bookings
+        for (const booking of (t as any).returnBookings || []) {
+          if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
+            try {
+              const rSeats = booking.returnSeats || booking.seats;
+              let seats: string[] = [];
+              if (rSeats.startsWith('[')) {
+                seats = JSON.parse(rSeats);
+              } else {
+                seats = rSeats.split(',').filter(Boolean);
+              }
+              if (Array.isArray(seats)) {
+                bookedSeats.push(...seats);
+              }
+            } catch (e) {
+              console.error('Error parsing return booking seats:', e);
             }
-          } catch (e) {
-            console.error('Error parsing booking seats:', e);
           }
         }
       }
 
-      // Return bookings
-      for (const booking of (trip as any).returnBookings || []) {
-        if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
-          try {
-            const rSeats = booking.returnSeats || booking.seats; // Fallback to seats if returnSeats missing
-            let seats: string[] = [];
-            if (rSeats.startsWith('[')) {
-              seats = JSON.parse(rSeats);
-            } else {
-              seats = rSeats.split(',').filter(Boolean);
-            }
-            if (Array.isArray(seats)) {
-              bookedSeats.push(...seats);
-            }
-          } catch (e) {
-            console.error('Error parsing return booking seats:', e);
-          }
-        }
-      }
+      // Parse tempLockedSeats from seat source
+      const tempLockedSeats = effectiveTempLocked ? effectiveTempLocked.split(',').filter(Boolean) : [];
 
-      // Parse tempLockedSeats
-      const tempLockedSeats = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean) : [];
-
-      // Collect reserved seats from seatReservationMap
+      // Collect reserved seats from seatReservationMap for THIS trip and parent
       const reservedSeatsFromMap = seatReservationMap.get(trip.id) || [];
+      const parentReservedSeats = trip.parentTripId ? (seatReservationMap.get(trip.parentTripId) || []) : [];
 
-      // Combine and deduplicate (include reserved seats and temp locked seats)
-      const unavailableSeats = Array.from(new Set([...occupiedSeats, ...bookedSeats, ...reservedSeatsFromMap, ...tempLockedSeats]));
-      const availableSeats = Math.max(0, trip.totalSeats - unavailableSeats.length);
+      // Combine and deduplicate
+      const unavailableSeats = Array.from(new Set([...occupiedSeats, ...bookedSeats, ...reservedSeatsFromMap, ...parentReservedSeats, ...tempLockedSeats]));
+      const availableSeats = Math.max(0, effectiveTotalSeats - unavailableSeats.length);
 
       // Calculate hasDeparted
       let hasDeparted = false;
@@ -203,10 +220,14 @@ export async function GET(request: NextRequest) {
 
       return {
         ...trip,
+        totalSeats: effectiveTotalSeats,
         availableSeats,
+        occupiedSeats: effectiveOccupiedSeats || '[]',
+        tempLockedSeats: effectiveTempLocked || '',
         departureDate: departureDateISO,
         hasDeparted,
-        reservedSeatsCount: 0, // default, may be overwritten below if Prisma supports TripReservation
+        reservedSeatsCount: 0,
+        parentTripId: trip.parentTripId,
       } as any;
     });
 

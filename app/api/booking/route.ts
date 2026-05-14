@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createBookingWithRetry } from '@/lib/retrybookingservice';
 import { bookingProtection, handleArcjetDecision, logArcjetDecision } from '@/lib/arcjet';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +20,21 @@ export async function POST(req: NextRequest) {
         { success: false, error: arcjetResult.message },
         { status: arcjetResult.status }
       );
+    }
+
+    // Validate Wimpy 24-hour rule
+    if (data.addons && (data.addons.wimpyMeal1 || data.addons.wimpyMeal2)) {
+      const trip = await prisma.trip.findUnique({ where: { id: data.tripId } });
+      if (trip) {
+        const depDate = new Date(trip.departureDate);
+        const hoursUntil = Math.floor((depDate.getTime() - Date.now()) / (1000 * 60 * 60));
+        if (hoursUntil < 24) {
+          return NextResponse.json(
+            { success: false, error: 'Wimpy meals must be ordered at least 24 hours before departure.' },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // If paymentStatus is not set, default to 'pending' (for bank deposit)

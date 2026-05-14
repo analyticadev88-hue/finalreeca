@@ -78,12 +78,48 @@ export default function BusSchedule() {
       status: "Active",
     },
     {
+      route: "Gaborone to Rustenburg",
+      date: dateString,
+      time: "07:00",
+      service: "Morning Bus",
+      seats: 57,
+      fare: "P199.50",
+      status: "Active",
+    },
+    {
+      route: "Rustenburg to OR Tambo Airport",
+      date: dateString,
+      time: "09:30",
+      service: "Morning Bus",
+      seats: 57,
+      fare: "P199.50",
+      status: "Active",
+    },
+    {
       route: "OR Tambo Airport to Gaborone",
       date: dateString,
       time: "08:00",
       service: "Morning Bus",
       seats: 57,
       fare: "P500",
+      status: "Active",
+    },
+    {
+      route: "OR Tambo Airport to Rustenburg",
+      date: dateString,
+      time: "19:30",
+      service: "Morning Bus",
+      seats: 57,
+      fare: "P199.50",
+      status: "Active",
+    },
+    {
+      route: "Rustenburg to Gaborone",
+      date: dateString,
+      time: "17:00",
+      service: "Morning Bus",
+      seats: 57,
+      fare: "P199.50",
       status: "Active",
     },
     {
@@ -96,12 +132,48 @@ export default function BusSchedule() {
       status: "Active",
     },
     {
+      route: "Gaborone to Rustenburg",
+      date: dateString,
+      time: "15:00",
+      service: "Afternoon Bus",
+      seats: 57,
+      fare: "P199.50",
+      status: "Active",
+    },
+    {
+      route: "Rustenburg to OR Tambo Airport",
+      date: dateString,
+      time: "17:30",
+      service: "Afternoon Bus",
+      seats: 57,
+      fare: "P199.50",
+      status: "Active",
+    },
+    {
       route: "OR Tambo Airport to Gaborone",
       date: dateString,
       time: "17:00",
       service: "Afternoon Bus",
       seats: 57,
       fare: "P500",
+      status: "Active",
+    },
+    {
+      route: "OR Tambo Airport to Rustenburg",
+      date: dateString,
+      time: "10:30",
+      service: "Afternoon Bus",
+      seats: 57,
+      fare: "P199.50",
+      status: "Active",
+    },
+    {
+      route: "Rustenburg to Gaborone",
+      date: dateString,
+      time: "08:00",
+      service: "Afternoon Bus",
+      seats: 57,
+      fare: "P199.50",
       status: "Active",
     },
   ];
@@ -173,7 +245,7 @@ export default function BusSchedule() {
               Bus Schedule
             </h1>
             <p className="text-xl "  style={{ color: 'rgb(148,138,84)' }}>
-              Reeca Bus - Daily Route: Gaborone – OR Tambo International Airport
+              Reeca Bus - Daily Routes: Gaborone – Rustenburg – OR Tambo International Airport
             </p>
           </div>
 

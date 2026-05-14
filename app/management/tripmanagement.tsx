@@ -136,7 +136,11 @@ export default function TripManagement({ bookings, setBookings }: TripManagement
   // Example route times data
   const routeTimes: Record<string, string[]> = {
     "Gaborone to OR Tambo": ["07:00", "15:00"],
-    "OR Tambo to Gaborone": ["10:00", "18:00"],
+    "Gaborone to Rustenburg": ["07:00", "15:00"],
+    "Rustenburg to OR Tambo": ["09:30", "17:30"],
+    "OR Tambo to Gaborone": ["08:00", "17:00"],
+    "OR Tambo to Rustenburg": ["10:30", "19:30"],
+    "Rustenburg to Gaborone": ["08:00", "17:00"],
   };
 
   const [selectedRoute, setSelectedRoute] = useState(getTrip(bookings[0])?.routeName);

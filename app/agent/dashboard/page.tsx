@@ -8,8 +8,8 @@ import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 
 export default function AgentDashboard() {
-  const [agent, setAgent] = useState<{ name: string; email: string; id: string } | null>(null);
-  const [stats, setStats] = useState<{ bookings: number; revenue: number }>({ bookings: 0, revenue: 0 });
+  const [agent, setAgent] = useState<{ name: string; email: string; id: string; commissionRate?: number } | null>(null);
+  const [stats, setStats] = useState<{ bookings: number; revenue: number; commission: number }>({ bookings: 0, revenue: 0, commission: 0 });
   const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -33,16 +33,27 @@ export default function AgentDashboard() {
     if (agent?.id) {
       setIsLoading(true);
       console.log("[Dashboard] Fetching bookings for agentId:", agent.id);
-      fetch(`/api/agent/${agent.id}/bookings`)
-        .then(async res => {
-          if (res.ok) {
-            const data = await res.json();
+      Promise.all([
+        fetch(`/api/agent/${agent.id}/bookings`),
+        fetch(`/api/agents/${agent.id}/sales`),
+      ])
+        .then(async ([bookingsRes, salesRes]) => {
+          if (bookingsRes.ok) {
+            const data = await bookingsRes.json();
             console.log("[Dashboard] Bookings fetched:", data.bookings);
             setBookings(data.bookings || []);
+          }
+          if (salesRes.ok) {
+            const salesData = await salesRes.json();
             setStats({
-              bookings: data.bookings.length,
-              revenue: data.bookings.reduce((sum: number, b: any) => sum + (b.totalPrice || 0), 0),
+              bookings: salesData.bookings || 0,
+              revenue: salesData.revenue || 0,
+              commission: salesData.commission || 0,
             });
+            // Update agent with commissionRate from server if available
+            if (salesData.commissionRate !== undefined && agent) {
+              setAgent({ ...agent, commissionRate: salesData.commissionRate });
+            }
           }
           setIsLoading(false);
         })
@@ -149,7 +160,7 @@ export default function AgentDashboard() {
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="border-l-4 border-[#009393] hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">TOTAL BOOKINGS</CardTitle>
@@ -168,6 +179,42 @@ export default function AgentDashboard() {
           </Card>
           <Card className="border-l-4 border-[#febf00] hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
             <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">COMMISSION RATE</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-gray-900">
+                  {agent.commissionRate ?? 10}%
+                </div>
+                <div className="p-3 rounded-full bg-[#febf00]/10 text-[#febf00]">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7" />
+                  </svg>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">Your earning percentage per sale</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-green-500 hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">TOTAL COMMISSION</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-gray-900">
+                  P{stats.commission.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="p-3 rounded-full bg-green-500/10 text-green-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V4m0 7v7" />
+                  </svg>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">Total earnings from paid bookings</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-[#958c55] hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">MOST ROUTE BOOKED FOR</CardTitle>
             </CardHeader>
             <CardContent>
@@ -177,35 +224,13 @@ export default function AgentDashboard() {
                     {getMostBookedRoute(bookings)}
                   </div>
                 </div>
-                <div className="p-3 rounded-full bg-[#febf00]/10 text-[#febf00]">
+                <div className="p-3 rounded-full bg-[#958c55]/10 text-[#958c55]">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2z" />
                   </svg>
                 </div>
               </div>
               <p className="mt-2 text-xs text-gray-500">Most frequently booked route</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-[#958c55] hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">QUICK ACTIONS</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={() => router.push("/")}
-                  className="bg-[#009393] hover:bg-[#007a7a] text-white px-4 py-2 text-sm transition-colors duration-200 shadow-sm"
-                >
-                  New Booking
-                </Button>
-                <Button
-                  variant="outline"
-                  className="text-sm border-[#958c55] text-[#958c55] hover:bg-[#958c55]/10"
-                  onClick={() => router.push("/")}
-                >
-                  View Schedule
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>

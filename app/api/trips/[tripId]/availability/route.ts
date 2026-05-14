@@ -11,30 +11,42 @@ export async function GET(request: Request, context: any) {
     const trip = await prisma.trip.findUnique({ where: { id: tripId }, include: { bookings: true } });
     if (!trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
 
-    const occupiedSeatsArray = trip.occupiedSeats ? JSON.parse(trip.occupiedSeats) : [];
+    // Resolve seat source (parent trip if linked)
+    const seatSourceId = trip.parentTripId || tripId;
+    const seatSource = seatSourceId !== tripId
+      ? await prisma.trip.findUnique({ where: { id: seatSourceId }, include: { bookings: true } })
+      : trip;
+
+    const occupiedSeatsArray = seatSource?.occupiedSeats ? JSON.parse(seatSource.occupiedSeats) : [];
 
     const bookedSeats: string[] = [];
-    for (const booking of trip.bookings) {
-      if (booking.bookingStatus === 'confirmed' && booking.paymentStatus === 'paid') {
-        try {
-          const seats = JSON.parse(booking.seats);
-          if (Array.isArray(seats)) {
-            bookedSeats.push(...seats);
+    // Check bookings on both the requested trip and the seat source trip
+    const tripsToCheck = [trip, ...(seatSource && seatSource.id !== trip.id ? [seatSource] : [])];
+    for (const t of tripsToCheck) {
+      for (const booking of t.bookings || []) {
+        if (booking.bookingStatus === 'confirmed' && booking.paymentStatus === 'paid') {
+          try {
+            const seats = JSON.parse(booking.seats);
+            if (Array.isArray(seats)) {
+              bookedSeats.push(...seats);
+            }
+          } catch (e) {
+            console.error('Error parsing booking seats:', e);
           }
-        } catch (e) {
-          console.error('Error parsing booking seats:', e);
         }
       }
     }
 
-    const tempLockedSeats = trip.tempLockedSeats ? trip.tempLockedSeats.split(',').filter(Boolean) : [];
-    const reservations = await reservationService.findActiveReservations(tripId);
+    const tempLockedSeats = seatSource?.tempLockedSeats ? seatSource.tempLockedSeats.split(',').filter(Boolean) : [];
+    const reservations = await reservationService.findActiveReservations(seatSourceId);
 
     return NextResponse.json({ 
       occupiedSeats: occupiedSeatsArray, 
       bookedSeats: Array.from(new Set(bookedSeats)), 
       tempLockedSeats,
-      reservations 
+      reservations,
+      parentTripId: trip.parentTripId,
+      totalSeats: seatSource?.totalSeats || trip.totalSeats,
     });
   } catch (err: any) {
     console.error('Error fetching trip availability', err);

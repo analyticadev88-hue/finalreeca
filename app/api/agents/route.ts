@@ -12,6 +12,8 @@ export async function GET() {
       idNumber: true,
       approved: true,
       suspended: true,
+      suspensionDate: true,
+      commissionRate: true,
       createdAt: true
     }
   });

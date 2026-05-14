@@ -10,11 +10,19 @@ export type RouteDescriptor = {
 const BUS_TIME_MAP: Record<string, Array<{ departureTime: string; origin: string; destination: string }>> = {
   'Morning Bus': [
     { departureTime: '07:00', origin: 'Gaborone', destination: 'OR Tambo Airport' },
-    { departureTime: '17:00', origin: 'OR Tambo Airport', destination: 'Gaborone' }
+    { departureTime: '07:00', origin: 'Gaborone', destination: 'Rustenburg' },
+    { departureTime: '09:30', origin: 'Rustenburg', destination: 'OR Tambo Airport' },
+    { departureTime: '17:00', origin: 'OR Tambo Airport', destination: 'Gaborone' },
+    { departureTime: '19:30', origin: 'OR Tambo Airport', destination: 'Rustenburg' },
+    { departureTime: '17:00', origin: 'Rustenburg', destination: 'Gaborone' }
   ],
   'Afternoon Bus': [
     { departureTime: '15:00', origin: 'Gaborone', destination: 'OR Tambo Airport' },
-    { departureTime: '08:00', origin: 'OR Tambo Airport', destination: 'Gaborone' }
+    { departureTime: '15:00', origin: 'Gaborone', destination: 'Rustenburg' },
+    { departureTime: '17:30', origin: 'Rustenburg', destination: 'OR Tambo Airport' },
+    { departureTime: '08:00', origin: 'OR Tambo Airport', destination: 'Gaborone' },
+    { departureTime: '10:30', origin: 'OR Tambo Airport', destination: 'Rustenburg' },
+    { departureTime: '08:00', origin: 'Rustenburg', destination: 'Gaborone' }
   ]
 };
 

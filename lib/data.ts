@@ -48,12 +48,19 @@ export const boardingPoints: Record<string, BoardingPoint[]> = {
     { id: 'bp-gab-1', name: "Mogobe Plaza, Gaborone CBD", times: ["07:00", "15:00"] },
     { id: 'bp-gab-2', name: "Shell Riverwalk", times: ["07:30", "15:30"] },
   ],
+  rustenburg: [
+    { id: 'bp-rus-1', name: "Rustenburg Station", times: ["09:30", "17:30"] },
+  ],
   ortambo: [{ id: 'bp-ort-1', name: "OR Tambo Airport", times: ["08:00", "17:00"] }],
 };
 
 export const routes = [
   "Gaborone → OR Tambo Airport",
   "OR Tambo Airport → Gaborone",
+  "Gaborone → Rustenburg",
+  "Rustenburg → Gaborone",
+  "Rustenburg → OR Tambo Airport",
+  "OR Tambo Airport → Rustenburg",
 ];
 
 export const mockBookings: Booking[] = [

@@ -58,6 +58,7 @@ interface Trip {
   droppingPoint: string;
   promoActive: boolean;
   hasDeparted: boolean;
+  parentTripId?: string | null;
 }
 
 interface Route {
@@ -75,6 +76,7 @@ interface TripFormProps {
   onSave: (trip: Trip) => void;
   routes: Route[];
   times: Time[];
+  allTrips?: Trip[];
 }
 
 interface AutomateTripsModalProps {
@@ -561,6 +563,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times }) => {
       routeDestination: '',
       boardingPoint: '',
       droppingPoint: '',
+      parentTripId: '',
     }
   );
 
@@ -577,6 +580,12 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times }) => {
     e.preventDefault();
     onSave(formData);
   };
+
+  const potentialParents = (allTrips || []).filter(t => 
+    t.id !== trip?.id && 
+    t.departureTime === formData.departureTime &&
+    new Date(t.departureDate).toDateString() === new Date(formData.departureDate).toDateString()
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -599,6 +608,30 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times }) => {
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Parent Trip (Optional)</label>
+          <Select
+            onValueChange={(value) => {
+              setFormData({ ...formData, parentTripId: value === 'none' ? '' : value });
+            }}
+            value={formData.parentTripId || 'none'}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Standalone trip" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Standalone trip (own seats)</SelectItem>
+              {potentialParents.map((p) => (
+                <SelectItem key={p.id} value={p.id!}>
+                  {p.routeName} — {p.departureTime} ({p.availableSeats}/{p.totalSeats} seats)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Link to a parent to share its seat inventory. Same date & time only.
+          </p>
         </div>
         <div className="space-y-2">
           <label className="block text-sm font-medium">Date</label>
@@ -905,6 +938,10 @@ const FleetManagementPage = () => {
   const routes: Route[] = [
     { id: '1', name: 'Gaborone to OR Tambo Airport' },
     { id: '2', name: 'OR Tambo Airport to Gaborone' },
+    { id: '3', name: 'Gaborone to Rustenburg' },
+    { id: '4', name: 'Rustenburg to Gaborone' },
+    { id: '5', name: 'Rustenburg to OR Tambo Airport' },
+    { id: '6', name: 'OR Tambo Airport to Rustenburg' },
   ];
 
   const times: Time[] = [
@@ -912,6 +949,10 @@ const FleetManagementPage = () => {
     { id: '2', time: '15:00' },
     { id: '3', time: '08:00' },
     { id: '4', time: '17:00' },
+    { id: '5', time: '09:30' },
+    { id: '6', time: '17:30' },
+    { id: '7', time: '19:30' },
+    { id: '8', time: '10:30' },
   ];
 
   useEffect(() => {
@@ -1542,6 +1583,7 @@ const FleetManagementPage = () => {
               onSave={handleSaveTrip}
               routes={routes}
               times={times}
+              allTrips={trips}
             />
           )}
         </DialogContent>

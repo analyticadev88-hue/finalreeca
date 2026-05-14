@@ -101,17 +101,19 @@ export async function POST(req: NextRequest) {
         });
         newTripId = newTrip.id;
 
-        // Remove this booking's seats from the old trip
-        const oldOccupied = parseSeats(oldTrip.occupiedSeats);
+        // Remove this booking's seats from the old trip (or its parent)
+        const oldSeatSourceId = oldTrip.parentTripId || oldTrip.id;
+        const oldSeatSource = await tx.trip.findUnique({ where: { id: oldSeatSourceId } });
+        const oldOccupied = parseSeats(oldSeatSource?.occupiedSeats || '[]');
         const updatedOldOccupied = oldOccupied.filter((s) => !departureSeats.includes(s));
         await tx.trip.update({
-          where: { id: oldTrip.id },
+          where: { id: oldSeatSourceId },
           data: {
             occupiedSeats: JSON.stringify(updatedOldOccupied),
             availableSeats:
-              oldTrip.totalSeats -
+              (oldSeatSource?.totalSeats || oldTrip.totalSeats) -
               updatedOldOccupied.length -
-              (oldTrip.tempLockedSeats ? oldTrip.tempLockedSeats.split(",").filter(Boolean).length : 0),
+              (oldSeatSource?.tempLockedSeats ? oldSeatSource.tempLockedSeats.split(",").filter(Boolean).length : 0),
           },
         });
       }
@@ -141,16 +143,18 @@ export async function POST(req: NextRequest) {
         });
         newReturnTripId = newReturnTrip.id;
 
-        const oldOccupied = parseSeats(oldReturnTrip.occupiedSeats);
+        const oldReturnSeatSourceId = oldReturnTrip.parentTripId || oldReturnTrip.id;
+        const oldReturnSeatSource = await tx.trip.findUnique({ where: { id: oldReturnSeatSourceId } });
+        const oldOccupied = parseSeats(oldReturnSeatSource?.occupiedSeats || '[]');
         const updatedOldOccupied = oldOccupied.filter((s) => !returnSeats.includes(s));
         await tx.trip.update({
-          where: { id: oldReturnTrip.id },
+          where: { id: oldReturnSeatSourceId },
           data: {
             occupiedSeats: JSON.stringify(updatedOldOccupied),
             availableSeats:
-              oldReturnTrip.totalSeats -
+              (oldReturnSeatSource?.totalSeats || oldReturnTrip.totalSeats) -
               updatedOldOccupied.length -
-              (oldReturnTrip.tempLockedSeats ? oldReturnTrip.tempLockedSeats.split(",").filter(Boolean).length : 0),
+              (oldReturnSeatSource?.tempLockedSeats ? oldReturnSeatSource.tempLockedSeats.split(",").filter(Boolean).length : 0),
           },
         });
       }

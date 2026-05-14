@@ -69,8 +69,11 @@ export default function AgentManagementPage() {
     bookings: 0,
     revenue: 0,
     commission: 0,
+    commissionRate: 10,
   });
   const [searchTerm, setSearchTerm] = useState("");
+  const [editCommissionRate, setEditCommissionRate] = useState<string>("");
+  const [savingCommission, setSavingCommission] = useState(false);
 
   useEffect(() => {
     fetch("/api/agents")
@@ -87,6 +90,12 @@ export default function AgentManagementPage() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    if (selectedAgent) {
+      setEditCommissionRate(String(selectedAgent.commissionRate ?? 10));
+    }
+  }, [selectedAgent]);
 
   const handleApprove = async (id: string) => {
     try {
@@ -174,6 +183,32 @@ export default function AgentManagementPage() {
       setAgentSales(salesData);
     } catch (error) {
       console.error("Error fetching activity data:", error);
+    }
+  };
+
+  const handleSaveCommissionRate = async () => {
+    if (!selectedAgent) return;
+    const rate = parseFloat(editCommissionRate);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      alert("Please enter a valid commission rate between 0 and 100");
+      return;
+    }
+    setSavingCommission(true);
+    try {
+      const response = await fetch(`/api/agents/${selectedAgent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commissionRate: rate }),
+      });
+      if (!response.ok) throw new Error("Failed to update commission rate");
+      const data = await response.json();
+      setAgents(agents.map((a) => (a.id === selectedAgent.id ? { ...a, commissionRate: rate } : a)));
+      setSelectedAgent({ ...selectedAgent, commissionRate: rate });
+    } catch (error) {
+      console.error("Error saving commission rate:", error);
+      alert("Failed to save commission rate");
+    } finally {
+      setSavingCommission(false);
     }
   };
 
@@ -498,6 +533,38 @@ export default function AgentManagementPage() {
               <Separator style={{ backgroundColor: colors.border }} />
 
               <div className="space-y-2">
+                <h4 className="font-medium" style={{ color: colors.primary }}>Commission Rate</h4>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      value={editCommissionRate}
+                      onChange={(e) => setEditCommissionRate(e.target.value)}
+                      className="w-24 text-sm"
+                      placeholder="10"
+                    />
+                    <span className="text-sm font-medium" style={{ color: colors.primary }}>%</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveCommissionRate}
+                    disabled={savingCommission}
+                    style={{ backgroundColor: colors.accent }}
+                  >
+                    {savingCommission ? "Saving..." : "Save Rate"}
+                  </Button>
+                </div>
+                <p className="text-xs" style={{ color: colors.accent }}>
+                  Current rate: {selectedAgent.commissionRate ?? 10}% — Agent keeps this percentage from each ticket sale.
+                </p>
+              </div>
+
+              <Separator style={{ backgroundColor: colors.border }} />
+
+              <div className="space-y-2">
                 <h4 className="font-medium" style={{ color: colors.primary }}>Performance Metrics</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                   <Card className="text-center p-3 sm:p-4" style={{ backgroundColor: colors.muted }}>
@@ -613,7 +680,7 @@ export default function AgentManagementPage() {
                       {agentSales.commission.toLocaleString()} BWP
                     </div>
                     <div className="text-xs" style={{ color: colors.accent }}>
-                      10% commission rate
+                      {agentSales.commissionRate ?? selectedAgent.commissionRate ?? 10}% commission rate
                     </div>
                   </CardContent>
                 </Card>

@@ -147,6 +147,16 @@ export default function BookingsManagement() {
     return dateObj.toLocaleDateString("en-US", options);
   };
 
+  const toInputDate = (date: Date | string | undefined): string => {
+    if (!date) return "";
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return "";
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const dd = String(dateObj.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   // Helper to refetch bookings
   const fetchBookings = async () => {
     try {
@@ -167,6 +177,29 @@ export default function BookingsManagement() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, paymentMethodFilter, dateFilter, customDate, routeFilter, timeFilter]);
+
+  // Pre-fill reschedule form with current booking data when modal opens
+  useEffect(() => {
+    if (showRescheduleModal && selectedBooking) {
+      setNewDepartureDate(toInputDate(selectedBooking.date));
+      setNewDepartureTime(selectedBooking.time);
+      if (selectedBooking.returnTrip) {
+        setNewReturnDate(toInputDate(selectedBooking.returnTrip.date));
+        setNewReturnTime(selectedBooking.returnTrip.time);
+      } else {
+        setNewReturnDate('');
+        setNewReturnTime('');
+      }
+      setChangeRoute(false);
+      setNewRouteOrigin('');
+      setNewRouteDestination('');
+      setNewRouteName('');
+      setNewBoardingPoint('');
+      setNewDroppingPoint('');
+      setOverridePrice(false);
+      setNewTotalPrice('');
+    }
+  }, [showRescheduleModal, selectedBooking]);
 
   const filteredBookings = bookings.filter((booking) => {
     const matchesSearch =
@@ -413,7 +446,7 @@ export default function BookingsManagement() {
           ...(changeRoute ? {
             newRouteOrigin: newRouteOrigin || undefined,
             newRouteDestination: newRouteDestination || undefined,
-            newRouteName: newRouteName || undefined,
+            newRouteName: newRouteName && newRouteName !== '__custom__' ? newRouteName : undefined,
             newBoardingPoint: newBoardingPoint || undefined,
             newDroppingPoint: newDroppingPoint || undefined,
           } : {}),
@@ -1183,38 +1216,82 @@ export default function BookingsManagement() {
               {changeRoute && (
                 <div className="space-y-3 pl-1">
                   <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Origin</label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. Gaborone"
-                      value={newRouteOrigin}
-                      onChange={(e) => setNewRouteOrigin(e.target.value)}
-                      className="text-xs sm:text-sm h-9"
-                      style={{ borderColor: colors.accent }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Destination</label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. OR Tambo Airport"
-                      value={newRouteDestination}
-                      onChange={(e) => setNewRouteDestination(e.target.value)}
-                      className="text-xs sm:text-sm h-9"
-                      style={{ borderColor: colors.accent }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Route Name (optional)</label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. Gaborone → OR Tambo Airport"
+                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Select Route</label>
+                    <select
                       value={newRouteName}
-                      onChange={(e) => setNewRouteName(e.target.value)}
-                      className="text-xs sm:text-sm h-9"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewRouteName(val);
+                        if (val && val !== '__custom__') {
+                          // Auto-parse origin/destination from route string
+                          const seps = [' to ', ' → ', '->', ' - '];
+                          let origin = '';
+                          let destination = '';
+                          for (const sep of seps) {
+                            const idx = val.indexOf(sep);
+                            if (idx !== -1) {
+                              origin = val.substring(0, idx).trim();
+                              destination = val.substring(idx + sep.length).trim();
+                              break;
+                            }
+                          }
+                          setNewRouteOrigin(origin);
+                          setNewRouteDestination(destination);
+                        } else if (val === '__custom__') {
+                          setNewRouteOrigin('');
+                          setNewRouteDestination('');
+                        }
+                      }}
+                      className="w-full h-9 px-2 text-xs sm:text-sm border rounded-md bg-white"
                       style={{ borderColor: colors.accent }}
-                    />
+                    >
+                      <option value="">-- Choose a route --</option>
+                      {uniqueRoutes.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                      <option value="__custom__">✎ Custom route</option>
+                    </select>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Origin</label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Gaborone"
+                        value={newRouteOrigin}
+                        onChange={(e) => setNewRouteOrigin(e.target.value)}
+                        className="text-xs sm:text-sm h-9"
+                        style={{ borderColor: colors.accent }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Destination</label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. OR Tambo Airport"
+                        value={newRouteDestination}
+                        onChange={(e) => setNewRouteDestination(e.target.value)}
+                        className="text-xs sm:text-sm h-9"
+                        style={{ borderColor: colors.accent }}
+                      />
+                    </div>
+                  </div>
+
+                  {newRouteName === '__custom__' && (
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Custom Route Name</label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Gaborone → OR Tambo Airport"
+                        value={newRouteName === '__custom__' ? '' : newRouteName}
+                        onChange={(e) => setNewRouteName(e.target.value)}
+                        className="text-xs sm:text-sm h-9"
+                        style={{ borderColor: colors.accent }}
+                      />
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>New Boarding Point</label>
                     <Input
