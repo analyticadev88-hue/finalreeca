@@ -564,6 +564,8 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
       boardingPoint: '',
       droppingPoint: '',
       parentTripId: '',
+      isRustenburgStopover: false,
+      rustenburgFare: 350,
     }
   );
 
@@ -580,6 +582,22 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
     e.preventDefault();
     onSave(formData);
   };
+
+  useEffect(() => {
+    if (trip?.id && allTrips) {
+      const existingSub = allTrips.find(t => 
+        t.parentTripId === trip.id && 
+        (t.routeDestination === 'Rustenburg' || t.routeOrigin === 'Rustenburg')
+      );
+      if (existingSub) {
+        setFormData(prev => ({
+          ...prev,
+          isRustenburgStopover: true,
+          rustenburgFare: existingSub.fare
+        }));
+      }
+    }
+  }, [trip, allTrips]);
 
   const potentialParents = (allTrips || []).filter(t => 
     t.id !== trip?.id && 
@@ -609,6 +627,33 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             </SelectContent>
           </Select>
         </div>
+        {/* Simplified Rustenburg Stopover Toggle */}
+        {['Gaborone → OR Tambo Airport', 'OR Tambo Airport → Gaborone'].includes(formData.routeName) && (
+          <div className="space-y-2 p-3 border rounded-lg bg-teal-50/50 border-teal-100">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-teal-900">Enable Rustenburg Stopover</label>
+              <Switch
+                checked={formData.isRustenburgStopover}
+                onCheckedChange={(checked) => setFormData({ ...formData, isRustenburgStopover: checked })}
+              />
+            </div>
+            <p className="text-xs text-teal-700">
+              Automatically creates a linked trip sharing seats with this bus.
+            </p>
+            {formData.isRustenburgStopover && (
+              <div className="pt-2">
+                <label className="block text-xs font-medium text-teal-800 mb-1">Rustenburg Fare (Pula)</label>
+                <Input
+                  type="number"
+                  value={formData.rustenburgFare}
+                  onChange={(e) => setFormData({ ...formData, rustenburgFare: parseInt(e.target.value) })}
+                  className="h-8 text-sm"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           <label className="block text-sm font-medium">Parent Trip (Optional)</label>
           <Select
@@ -630,7 +675,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Link to a parent to share its seat inventory. Same date & time only.
+            Link to a parent to share its seat inventory.
           </p>
         </div>
         <div className="space-y-2">
@@ -1130,6 +1175,7 @@ const FleetManagementPage = () => {
   const handleSaveTrip = async (trip: Trip) => {
     setIsLoading(true);
     try {
+      // 1. Save the main trip
       const response = await fetch('/api/trips', {
         method: trip.id ? 'PUT' : 'POST',
         headers: {
@@ -1140,14 +1186,52 @@ const FleetManagementPage = () => {
       if (!response.ok) {
         throw new Error('Failed to save trip');
       }
-      const data = await response.json();
-      setTrips(prevTrips => {
-        if (trip.id) {
-          return prevTrips.map(t => t.id === trip.id ? data : t);
+      const savedMainTrip = await response.json();
+
+      // 2. Handle automatic Rustenburg sub-trip logic
+      // Check if a linked Rustenburg trip already exists for this parent
+      const existingSubTrip = trips.find(t => t.parentTripId === savedMainTrip.id && (t.routeDestination === 'Rustenburg' || t.routeOrigin === 'Rustenburg'));
+
+      if ((trip as any).isRustenburgStopover) {
+        const isDirectionForward = trip.routeName === 'Gaborone → OR Tambo Airport';
+        const subTripData = {
+          ...trip,
+          id: existingSubTrip?.id, 
+          routeName: isDirectionForward ? 'Gaborone → Rustenburg' : 'Rustenburg → Gaborone',
+          routeOrigin: isDirectionForward ? 'Gaborone' : 'Rustenburg',
+          routeDestination: isDirectionForward ? 'Rustenburg' : 'Gaborone',
+          fare: (trip as any).rustenburgFare || 350,
+          parentTripId: savedMainTrip.id,
+          boardingPoint: isDirectionForward ? trip.boardingPoint : 'Rustenburg Station',
+          droppingPoint: isDirectionForward ? 'Rustenburg Station' : trip.droppingPoint,
+          isRustenburgStopover: false, // Don't loop
+        };
+
+        await fetch('/api/trips', {
+          method: existingSubTrip ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(subTripData),
+        });
+      } else if (existingSubTrip) {
+        // Toggle was turned OFF for an existing sub-trip - try to delete it
+        // Only delete if no bookings exist (availableSeats === totalSeats)
+        if (existingSubTrip.availableSeats === existingSubTrip.totalSeats) {
+          await fetch('/api/trips', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: existingSubTrip.id }),
+          });
         } else {
-          return [...prevTrips, data];
+          toast({
+            title: "Could not remove stopover",
+            description: "The Rustenburg sub-trip already has bookings and cannot be removed.",
+            variant: "destructive"
+          });
         }
-      });
+      }
+
+      // Refresh the trips list to show all changes
+      fetchTrips();
       handleCloseModal();
     } catch (error) {
       console.error('Error saving trip:', error);
