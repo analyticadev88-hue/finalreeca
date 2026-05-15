@@ -107,7 +107,7 @@ export default function ReservationEntry() {
         // If the reservation link was prepaid (client already paid), set the form to 'Reservation Paid'
         // so the booking is created immediately without an external payment. Do NOT treat Bank Deposit as paid here.
         initialPaymentMode={prepaid ? 'Reservation Paid' : undefined}
-        allowedPaymentModes={prepaid ? ['Reservation Paid','Credit Card','Bank Deposit','Cash','Free Voucher'] : undefined}
+        allowedPaymentModes={prepaid ? ['Reservation Paid','Credit Card','Bank Deposit'] : undefined}
       />
     </div>
   );

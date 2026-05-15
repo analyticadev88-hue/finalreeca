@@ -434,17 +434,6 @@ export default function PassengerDetailsForm({
   };
 
   const getAddonPrice = (key: string, departureOrigin?: string, departureDate?: Date, isAgentBooking?: boolean) => {
-    const origin = (departureOrigin || "").toLowerCase().trim();
-
-    // Check if Wimpy meal should be free on weekends for non-agents
-    if ((key === "wimpyMeal1" || key === "wimpyMeal2") && departureDate && !isAgentBooking) {
-      const dayOfWeek = departureDate.getDay();
-      // Friday (5), Saturday (6), Sunday (0) - make free for non-agents
-      if ([0, 5, 6].includes(dayOfWeek)) {
-        return 0; // Free on weekends
-      }
-    }
-
     switch (key) {
       case "extraBaggage":
         return 300;
@@ -2049,20 +2038,26 @@ export default function PassengerDetailsForm({
                 <SelectContent>
                   {(() => {
                     const canonical = [
-                      { value: 'Credit Card', label: 'Credit Card | Debit Card' },
-                      { value: 'Bank Deposit', label: 'Pay with Bank Deposit' },
-                      { value: 'Swipe in Person', label: 'Swipe at Office / Bus' },
-                      { value: 'Cash', label: 'Paid Cash (In Person)', conditional: !!consultant },
-                      { value: 'Free Voucher', label: 'Free Voucher (Request Auth)', conditional: !!consultant },
+                      { value: 'Credit Card', label: 'Pay online (credit/debit card)' },
+                      { value: 'Bank Deposit', label: 'Book Now Pay Later — pay within 1 hour (cash deposit/bank transfer)' },
+                      { value: 'Swipe in Person', label: 'Swipe onboard (limited)' },
+                      // Consultant-only options
+                      { value: 'Cash', label: 'Paid Cash (In Person)' },
+                      { value: 'Free Voucher', label: 'Free Voucher (Request Auth)' },
                       { value: 'Reservation Paid', label: 'Already Paid (Reservation)' },
-                    ] as { value: string; label: string; conditional?: boolean }[];
+                    ] as { value: string; label: string }[];
 
                     const filtered = canonical.filter((opt) => {
-                      if (opt.value === 'Free Voucher' && !consultant) return false;
+                      // Cash and Free Voucher are consultant-only — explicit value check
+                      if ((opt.value === 'Cash' || opt.value === 'Free Voucher') && !consultant) return false;
+                      // Reservation Paid is internal-only (never shown by default)
+                      if (opt.value === 'Reservation Paid') return false;
+                      // If a restricted set of modes is passed, honour it
                       if (allowedPaymentModes && allowedPaymentModes.length > 0) {
+                        // Still enforce consultant-only gate even within allowed list
+                        if ((opt.value === 'Cash' || opt.value === 'Free Voucher') && !consultant) return false;
                         return allowedPaymentModes.includes(opt.value);
                       }
-                      if (opt.value === 'Reservation Paid') return false;
                       return true;
                     });
 
@@ -2073,6 +2068,15 @@ export default function PassengerDetailsForm({
                 </SelectContent>
               </Select>
             </div>
+            {paymentMode === 'Credit Card' && (
+              <p className="mt-2 text-sm text-teal-700 font-medium">✓ Guaranteed seat — your booking is confirmed immediately upon payment.</p>
+            )}
+            {paymentMode === 'Bank Deposit' && (
+              <p className="mt-2 text-sm text-teal-700 font-medium">⏳ Temporary hold — your seat is reserved for 1 hour. Share proof of deposit to <span className="font-semibold">tickets@reecatravel.co.bw</span> or visit our office within 1 hour or your booking will be <span className="font-semibold text-red-600">nullified</span>.</p>
+            )}
+            {paymentMode === 'Swipe in Person' && (
+              <p className="mt-2 text-sm text-teal-700 font-medium">⚠️ Limited availability — only available if seats are still open at boarding time. Not guaranteed.</p>
+            )}
           </div>
 
           {/* Terms and Conditions */}
@@ -2193,7 +2197,7 @@ export default function PassengerDetailsForm({
               : paymentMode === "Bank Deposit"
                 ? "Proceed"
                 : paymentMode === "Cash"
-                  ? "Mark as Paid"
+                  ? "Mark as Paid (Cash)"
                   : paymentMode === "Reservation Paid"
                     ? "Submit"
                     : `Pay (P ${finalTotal.toFixed(2)})`}
@@ -2237,7 +2241,7 @@ export default function PassengerDetailsForm({
                       </>
                     ) : (
                       <>
-                        You have chosen to <span className="font-semibold text-[rgb(0,153,153)]">Swipe at Office</span>.
+                        You have chosen to <span className="font-semibold text-[rgb(0,153,153)]">Swipe onboard</span>.
                         Please ensure you arrive at the designated point to complete payment.
                       </>
                     )}

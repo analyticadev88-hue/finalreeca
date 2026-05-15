@@ -546,7 +546,7 @@ const AutomateTripsModal: React.FC<AutomateTripsModalProps> = ({
   );
 };
 
-const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times }) => {
+const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTrips }) => {
   const [formData, setFormData] = useState<Trip>(
     trip || {
       routeName: '',

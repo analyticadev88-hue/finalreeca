@@ -94,23 +94,8 @@ export default function DashboardOverview() {
       }
     };
 
-    const fetchFareSettings = async () => {
-      try {
-        const response = await fetch('/api/faresettings');
-        if (!response.ok) {
-          throw new Error('Failed to fetch fare settings');
-        }
-        const data = await response.json();
-        setInfantFare(data.infant ?? 250);
-        setChildFare(data.child ?? 400);
-      } catch (err) {
-        console.error("Error fetching fare settings:", err);
-      }
-    };
-
     fetchDashboardData();
     fetchInquiryCount();
-    fetchFareSettings();
   }, []);
 
   useEffect(() => {
