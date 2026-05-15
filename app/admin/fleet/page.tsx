@@ -606,110 +606,47 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
   );
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Route</label>
-          <Select
-            onValueChange={(value) => {
-              setFormData({ ...formData, routeName: value });
-            }}
-            value={formData.routeName}
-            required
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a route" />
-            </SelectTrigger>
-            <SelectContent>
-              {routes.map((route) => (
-                <SelectItem key={route.id} value={route.name}>{route.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* SECTION 1: CORE SCHEDULE */}
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-gray-50">
+          <CalendarIcon className="h-4 w-4 text-[rgb(0,147,147)]" />
+          <h4 className="font-bold text-sm text-gray-700 uppercase tracking-wider">1. Schedule & Service</h4>
         </div>
-        {/* Simplified Rustenburg Stopover Toggle */}
-        {['Gaborone → OR Tambo Airport', 'OR Tambo Airport → Gaborone'].includes(formData.routeName) && (
-          <div className="space-y-2 p-3 border rounded-lg bg-teal-50/50 border-teal-100">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-teal-900">Enable Rustenburg Stopover</label>
-              <Switch
-                checked={formData.isRustenburgStopover}
-                onCheckedChange={(checked) => setFormData({ ...formData, isRustenburgStopover: checked })}
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-500 ml-1">Departure Date</label>
+            <div className="relative">
+              <CalendarIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                name="departureDate"
+                type="date"
+                value={new Date(formData.departureDate).toISOString().split('T')[0]}
+                onChange={(e) => {
+                  setFormData({
+                    ...formData,
+                    departureDate: new Date(e.target.value).toISOString()
+                  });
+                }}
+                className="pl-10 border-gray-200 focus:ring-[rgb(0,147,147)]"
+                required
               />
             </div>
-            <p className="text-xs text-teal-700">
-              Automatically creates a linked trip sharing seats with this bus.
-            </p>
-            {formData.isRustenburgStopover && (
-              <div className="pt-2">
-                <label className="block text-xs font-medium text-teal-800 mb-1">Rustenburg Fare (Pula)</label>
-                <Input
-                  type="number"
-                  value={formData.rustenburgFare}
-                  onChange={(e) => setFormData({ ...formData, rustenburgFare: parseInt(e.target.value) })}
-                  className="h-8 text-sm"
-                />
-              </div>
-            )}
           </div>
-        )}
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Parent Trip (Optional)</label>
-          <Select
-            onValueChange={(value) => {
-              setFormData({ ...formData, parentTripId: value === 'none' ? '' : value });
-            }}
-            value={formData.parentTripId || 'none'}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Standalone trip" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Standalone trip (own seats)</SelectItem>
-              {potentialParents.map((p) => (
-                <SelectItem key={p.id} value={p.id!}>
-                  {p.routeName} — {p.departureTime} ({p.availableSeats}/{p.totalSeats} seats)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Link to a parent to share its seat inventory.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Date</label>
-          <div className="relative">
-            <CalendarIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              name="departureDate"
-              type="date"
-              value={new Date(formData.departureDate).toISOString().split('T')[0]}
-              onChange={(e) => {
-                setFormData({
-                  ...formData,
-                  departureDate: new Date(e.target.value).toISOString()
-                });
-              }}
-              className="pl-10"
-              required
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Departure Time</label>
-          <div className="relative">
-            <ClockIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-500 ml-1">Departure Time</label>
             <Select
-              onValueChange={(value) => {
-                setFormData({ ...formData, departureTime: value });
-              }}
+              onValueChange={(value) => setFormData({ ...formData, departureTime: value })}
               value={formData.departureTime}
               required
             >
-              <SelectTrigger className="pl-10">
-                <SelectValue placeholder="Select time" />
+              <SelectTrigger className="border-gray-200">
+                <div className="flex items-center gap-2">
+                  <ClockIcon className="h-4 w-4 text-gray-400" />
+                  <SelectValue placeholder="Select time" />
+                </div>
               </SelectTrigger>
               <SelectContent>
                 {times.map((time) => (
@@ -718,128 +655,212 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
               </SelectContent>
             </Select>
           </div>
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Service Type</label>
-          <Select
-            onValueChange={(value) => {
-              setFormData({ ...formData, serviceType: value });
-            }}
-            value={formData.serviceType}
-            required
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Morning Bus">Morning Bus</SelectItem>
-              <SelectItem value="Afternoon Bus">Afternoon Bus</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Available Seats</label>
-          <Input
-            name="availableSeats"
-            type="number"
-            value={formData.availableSeats}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Total Seats</label>
-          <Input
-            name="totalSeats"
-            type="number"
-            value={formData.totalSeats}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Fare (Pula)</label>
-          <Input
-            name="fare"
-            type="number"
-            value={formData.fare}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Duration (Minutes)</label>
-          <Input
-            name="durationMinutes"
-            type="number"
-            value={formData.durationMinutes}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Route Origin</label>
-          <Input
-            name="routeOrigin"
-            value={formData.routeOrigin || ''}
-            onChange={handleInputChange}
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Route Destination</label>
-          <Input
-            name="routeDestination"
-            value={formData.routeDestination || ''}
-            onChange={handleInputChange}
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Boarding Point</label>
-          <Input
-            name="boardingPoint"
-            value={formData.boardingPoint || ''}
-            onChange={handleInputChange}
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">Dropping Point</label>
-          <Input
-            name="droppingPoint"
-            value={formData.droppingPoint || ''}
-            onChange={handleInputChange}
-          />
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-500 ml-1">Service Type</label>
+            <Select
+              onValueChange={(value) => setFormData({ ...formData, serviceType: value })}
+              value={formData.serviceType}
+              required
+            >
+              <SelectTrigger className="border-gray-200">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Morning Bus">Morning Bus</SelectItem>
+                <SelectItem value="Afternoon Bus">Afternoon Bus</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-2">
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="promoActive"
-            checked={formData.promoActive}
-            onCheckedChange={(checked: boolean) => {
-              setFormData({ ...formData, promoActive: checked });
-            }}
-          />
-          <label htmlFor="promoActive" className="text-sm font-medium leading-none">
-            Promo Active
-          </label>
+
+      {/* SECTION 2: FLEET & CAPACITY */}
+      {!formData.parentTripId ? (
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-2 pb-2 border-b border-gray-50">
+            <BusIcon className="h-4 w-4 text-[rgb(0,147,147)]" />
+            <h4 className="font-bold text-sm text-gray-700 uppercase tracking-wider">2. Bus Capacity</h4>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-500 ml-1">Total Seats</label>
+              <Input
+                name="totalSeats"
+                type="number"
+                value={formData.totalSeats}
+                onChange={handleInputChange}
+                required
+                className="border-gray-200"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-500 ml-1">Available Seats</label>
+              <Input
+                name="availableSeats"
+                type="number"
+                value={formData.availableSeats}
+                onChange={handleInputChange}
+                required
+                className="border-gray-200"
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="hasDeparted"
-            checked={formData.hasDeparted}
-            onCheckedChange={(checked: boolean) => {
-              setFormData({ ...formData, hasDeparted: checked });
-            }}
-            disabled={!!trip}
-          />
-          <label htmlFor="hasDeparted" className="text-sm font-medium leading-none">
-            Has Departed
-          </label>
+      ) : (
+        <div className="bg-teal-50 p-3 rounded-xl border border-teal-100 flex items-center gap-3">
+          <div className="bg-teal-500 text-white p-1.5 rounded-full">
+            <LinkIcon className="h-3.5 w-3.5" />
+          </div>
+          <div className="text-xs">
+            <span className="font-bold text-teal-900 block">Linked Sub-Trip</span>
+            <span className="text-teal-700">Sharing seat inventory with its parent bus.</span>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 3: ROUTE & STOPOVERS */}
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-gray-50">
+          <MapPinIcon className="h-4 w-4 text-[rgb(0,147,147)]" />
+          <h4 className="font-bold text-sm text-gray-700 uppercase tracking-wider">3. Route Details</h4>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-500 ml-1">Main Route</label>
+            <Select
+              onValueChange={(value) => setFormData({ ...formData, routeName: value })}
+              value={formData.routeName}
+              required
+            >
+              <SelectTrigger className="border-gray-200">
+                <SelectValue placeholder="Select a route" />
+              </SelectTrigger>
+              <SelectContent>
+                {routes.map((route) => (
+                  <SelectItem key={route.id} value={route.name}>{route.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-500 ml-1">Fare (Pula)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">P</span>
+              <Input
+                name="fare"
+                type="number"
+                value={formData.fare}
+                onChange={handleInputChange}
+                required
+                className="pl-7 border-gray-200"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* SMART STOPOVER CARD */}
+        {['Gaborone → OR Tambo Airport', 'OR Tambo Airport → Gaborone'].includes(formData.routeName) && (
+          <div className={`p-4 rounded-xl border transition-all duration-300 ${formData.isRustenburgStopover ? 'bg-teal-50 border-teal-200' : 'bg-gray-50 border-gray-100'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${formData.isRustenburgStopover ? 'bg-teal-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                  <TicketIcon className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h5 className={`text-sm font-bold ${formData.isRustenburgStopover ? 'text-teal-900' : 'text-gray-600'}`}>
+                    Rustenburg Stopover
+                  </h5>
+                  <p className="text-[10px] text-gray-500">Enable to sell seats to/from Rustenburg on this bus.</p>
+                </div>
+              </div>
+              <Switch
+                checked={formData.isRustenburgStopover}
+                onCheckedChange={(checked) => setFormData({ ...formData, isRustenburgStopover: checked })}
+                className="data-[state=checked]:bg-teal-600"
+              />
+            </div>
+            
+            {formData.isRustenburgStopover && (
+              <div className="pt-3 mt-3 border-t border-teal-100 grid grid-cols-2 gap-3 animate-in zoom-in-95">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-teal-700 uppercase">Stopover Fare</label>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-teal-600 text-xs font-bold">P</span>
+                    <Input
+                      type="number"
+                      value={formData.rustenburgFare}
+                      onChange={(e) => setFormData({ ...formData, rustenburgFare: parseInt(e.target.value) })}
+                      className="h-8 pl-5 text-sm border-teal-200 bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-end pb-1">
+                  <Badge className="bg-teal-100 text-teal-700 border-teal-200 hover:bg-teal-100 font-medium text-[10px]">
+                    AUTO-LINKED
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ADVANCED POINTS (COLLAPSIBLE-STYLE) */}
+        <div className="pt-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Boarding Point</label>
+              <Input
+                name="boardingPoint"
+                value={formData.boardingPoint || ''}
+                onChange={handleInputChange}
+                className="h-8 text-xs border-gray-100 bg-gray-50/50"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Dropping Point</label>
+              <Input
+                name="droppingPoint"
+                value={formData.droppingPoint || ''}
+                onChange={handleInputChange}
+                className="h-8 text-xs border-gray-100 bg-gray-50/50"
+              />
+            </div>
+          </div>
         </div>
       </div>
-      <div className="flex justify-end pt-4">
-        <Button type="submit" className="w-full md:w-auto" style={{ backgroundColor: colors.primary }}>
-          {trip ? 'Update Trip' : 'Create Trip'}
+
+      {/* FOOTER ACTIONS */}
+      <div className="flex items-center justify-between pt-4">
+        <div className="flex gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="promoActive"
+              checked={formData.promoActive}
+              onCheckedChange={(checked: boolean) => setFormData({ ...formData, promoActive: checked })}
+            />
+            <label htmlFor="promoActive" className="text-xs font-medium text-gray-600">Promo Active</label>
+          </div>
+          {!trip && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="hasDeparted"
+                checked={formData.hasDeparted}
+                onCheckedChange={(checked: boolean) => setFormData({ ...formData, hasDeparted: checked })}
+              />
+              <label htmlFor="hasDeparted" className="text-xs font-medium text-gray-600">Departed</label>
+            </div>
+          )}
+        </div>
+        
+        <Button 
+          type="submit" 
+          className="px-8 shadow-lg shadow-[rgb(0,147,147)]/20 hover:scale-[1.02] transition-transform" 
+          style={{ backgroundColor: 'rgb(0,147,147)' }}
+        >
+          {trip ? 'Update Trip Schedule' : 'Create New Trip'}
         </Button>
       </div>
     </form>
@@ -1470,37 +1491,55 @@ const FleetManagementPage = () => {
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleOpenModal(trip)}
-                                    disabled={trip.hasDeparted}
-                                    style={{ color: colors.primary }}
-                                  >
-                                    <EditIcon className="h-4 w-4" />
-                                  </Button>
-                                  {!trip.hasDeparted && (
-                                    <>
+                                  <div className="flex items-center gap-1.5">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleOpenModal(trip)}
+                                      disabled={trip.hasDeparted}
+                                      style={{ color: colors.primary }}
+                                      title="Edit Schedule"
+                                    >
+                                      <EditIcon className="h-4 w-4" />
+                                    </Button>
+
+                                    {/* QUICK ADD STOPOVER BUTTON */}
+                                    {!trip.hasDeparted && !trip.parentTripId && ['Gaborone → OR Tambo Airport', 'OR Tambo Airport → Gaborone'].includes(trip.routeName) && (
                                       <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
-                                        onClick={() => handleMarkDeparted(trip.id!)}
-                                        style={{ color: colors.secondary }}
+                                        onClick={() => handleSaveTrip({ ...trip, isRustenburgStopover: true } as any)}
+                                        className="h-8 border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800"
+                                        title="Quick Add Rustenburg Stopover"
                                       >
-                                        <ArrowRightIcon className="h-4 w-4" />
+                                        <PlusIcon className="h-3 w-3 mr-1" />
+                                        Stop
                                       </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteTrip(trip.id!)}
-                                        style={{ color: colors.destructive }}
-                                      >
-                                        <TrashIcon className="h-4 w-4" />
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
+                                    )}
+
+                                    {!trip.hasDeparted && (
+                                      <>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleMarkDeparted(trip.id!)}
+                                          style={{ color: colors.secondary }}
+                                          title="Mark Departed"
+                                        >
+                                          <ArrowRightIcon className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeleteTrip(trip.id!)}
+                                          style={{ color: colors.destructive }}
+                                          title="Delete Trip"
+                                        >
+                                          <TrashIcon className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
                               </TableCell>
                             </TableRow>
                           ))}
