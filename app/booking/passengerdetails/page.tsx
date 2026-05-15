@@ -864,10 +864,7 @@ export default function PassengerDetailsForm({
       return;
     }
 
-    if (!emergencyContact.name || !emergencyContact.phone) {
-      alert("Please provide emergency contact details");
-      return;
-    }
+
 
     if (!departureBoardingPoint || !departureDroppingPoint) {
       alert("Please select departure boarding and dropping points");
@@ -1401,32 +1398,36 @@ export default function PassengerDetailsForm({
                               />
                             </div>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Next of Kin Name</label>
-                            <Input
-                              value={passenger.nextOfKinName || ""}
-                              onChange={(e) => updatePassenger(passenger.id, "nextOfKinName", e.target.value)}
-                              placeholder="Next of Kin Name"
-                              disabled={isCompanion}
-                              className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Next of Kin Phone</label>
-                            <div className="flex gap-2">
-                              <CountryCodeSelect
-                                value={passenger.nextOfKinPhoneCountryCode || "+267"}
-                                onChange={(value) => updatePassenger(passenger.id, "nextOfKinPhoneCountryCode", value)}
-                              />
-                              <Input
-                                value={passenger.nextOfKinPhone || ""}
-                                onChange={(e) => updatePassenger(passenger.id, "nextOfKinPhone", e.target.value)}
-                                placeholder="Next of Kin Phone"
-                                disabled={isCompanion}
-                                className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
-                              />
-                            </div>
-                          </div>
+                          {passengers.length === 1 && (
+                            <>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Next of Kin Name</label>
+                                <Input
+                                  value={passenger.nextOfKinName || ""}
+                                  onChange={(e) => updatePassenger(passenger.id, "nextOfKinName", e.target.value)}
+                                  placeholder="Next of Kin Name"
+                                  disabled={isCompanion}
+                                  className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Next of Kin Phone</label>
+                                <div className="flex gap-2">
+                                  <CountryCodeSelect
+                                    value={passenger.nextOfKinPhoneCountryCode || "+267"}
+                                    onChange={(value) => updatePassenger(passenger.id, "nextOfKinPhoneCountryCode", value)}
+                                  />
+                                  <Input
+                                    value={passenger.nextOfKinPhone || ""}
+                                    onChange={(e) => updatePassenger(passenger.id, "nextOfKinPhone", e.target.value)}
+                                    placeholder="Next of Kin Phone"
+                                    disabled={isCompanion}
+                                    className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
+                                  />
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                         {!isCompanion && (
                           <>
@@ -1557,84 +1558,12 @@ export default function PassengerDetailsForm({
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ID Type</label>
-                    <Select
-                      value={contactDetails.idType}
-                      onValueChange={(value) => handleContactChange("idType", value)}
-                      required
-                    >
-                      <SelectTrigger className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300">
-                        <SelectValue placeholder="ID Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Passport">Passport</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
-                    <Input
-                      value={contactDetails.idNumber}
-                      onChange={(e) => handleContactChange("idNumber", e.target.value)}
-                      placeholder="Passport Number"
-                      className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
-                    />
-                  </div>
-                </div>
+
               </div>
             )}
           </div>
 
-          {/* Emergency Contact Section - Same as before */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <button
-              onClick={() => openOnlySection("emergency")}
-              className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-left flex justify-between items-center transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
-                  4
-                </span>
-                <h3 className="font-bold text-lg text-gray-800">Emergency Contact</h3>
-              </div>
-              {openSections.emergency ? (
-                <ChevronUp className="text-gray-500" />
-              ) : (
-                <ChevronDown className="text-gray-500" />
-              )}
-            </button>
-            {openSections.emergency && (
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <Input
-                    value={emergencyContact.name}
-                    onChange={(e) => handleEmergencyChange("name", e.target.value)}
-                    placeholder="Name"
-                    className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                  <div className="flex gap-2">
-                    <CountryCodeSelect
-                      value={emergencyContact.phoneCountryCode || "+267"}
-                      onChange={(value) => handleEmergencyChange("phoneCountryCode", value)}
-                    />
-                    <Input
-                      type="tel"
-                      value={emergencyContact.phone}
-                      onChange={(e) => handleEmergencyChange("phone", e.target.value)}
-                      placeholder="Phone Number"
-                      className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300 flex-1"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+
 
           {/* Trip Points Section - Same as before */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -2039,7 +1968,7 @@ export default function PassengerDetailsForm({
                   {(() => {
                     const canonical = [
                       { value: 'Credit Card', label: 'Pay online (credit/debit card)' },
-                      { value: 'Bank Deposit', label: 'Book Now Pay Later — pay within 1 hour (cash deposit/bank transfer)' },
+                      { value: 'Bank Deposit', label: 'Book Now Pay Later' },
                       { value: 'Swipe in Person', label: 'Swipe onboard (limited)' },
                       // Consultant-only options
                       { value: 'Cash', label: 'Paid Cash (In Person)' },
@@ -2071,9 +2000,7 @@ export default function PassengerDetailsForm({
             {paymentMode === 'Credit Card' && (
               <p className="mt-2 text-sm text-teal-700 font-medium">✓ Guaranteed seat — your booking is confirmed immediately upon payment.</p>
             )}
-            {paymentMode === 'Bank Deposit' && (
-              <p className="mt-2 text-sm text-teal-700 font-medium">⏳ Temporary hold — your seat is reserved for 1 hour. Share proof of deposit to <span className="font-semibold">tickets@reecatravel.co.bw</span> or visit our office within 1 hour or your booking will be <span className="font-semibold text-red-600">nullified</span>.</p>
-            )}
+
             {paymentMode === 'Swipe in Person' && (
               <p className="mt-2 text-sm text-teal-700 font-medium">⚠️ Limited availability — only available if seats are still open at boarding time. Not guaranteed.</p>
             )}

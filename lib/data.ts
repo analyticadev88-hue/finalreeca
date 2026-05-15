@@ -47,6 +47,7 @@ export const boardingPoints: Record<string, BoardingPoint[]> = {
   gaborone: [
     { id: 'bp-gab-1', name: "Mogobe Plaza, Gaborone CBD", times: ["07:00", "15:00"] },
     { id: 'bp-gab-2', name: "Shell Riverwalk", times: ["07:30", "15:30"] },
+    { id: 'bp-gab-3', name: "Tlokweng Border", times: ["08:00", "16:00"] },
   ],
   rustenburg: [
     { id: 'bp-rus-1', name: "Rustenburg Station", times: ["09:30", "17:30"] },
