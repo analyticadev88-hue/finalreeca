@@ -1573,7 +1573,7 @@ export default function PassengerDetailsForm({
             >
               <div className="flex items-center gap-3">
                 <span className="bg-[rgb(0,153,153)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
-                  5
+                  4
                 </span>
                 <h3 className="font-bold text-lg text-gray-800">Trip Points</h3>
               </div>
@@ -1669,6 +1669,9 @@ export default function PassengerDetailsForm({
               className="w-full p-4 bg-gray-100 text-left flex justify-between items-center hover:bg-gray-200 transition-all"
             >
               <h3 className="font-bold text-lg text-[rgb(148,138,84)] flex items-center gap-2">
+                <span className="bg-[rgb(148,138,84)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                  5
+                </span>
                 Personalize Your Trip
               </h3>
               {openSections.addons ? (

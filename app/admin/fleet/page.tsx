@@ -676,7 +676,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
       </div>
 
       {/* SECTION 2: FLEET & CAPACITY */}
-      {!formData.parentTripId ? (
+      {(!formData.parentTripId && !formData.routeName.includes('Rustenburg')) ? (
         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-4 animate-in fade-in">
           <div className="flex items-center gap-2 pb-2 border-b border-gray-50">
             <BusIcon className="h-4 w-4 text-[rgb(0,147,147)]" />
