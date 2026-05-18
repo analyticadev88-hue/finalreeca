@@ -74,6 +74,10 @@ export default function AgentManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editCommissionRate, setEditCommissionRate] = useState<string>("");
   const [savingCommission, setSavingCommission] = useState(false);
+  const [editPaymentMethods, setEditPaymentMethods] = useState<string[]>([]);
+  const [savingPaymentMethods, setSavingPaymentMethods] = useState(false);
+
+  const ALL_PAYMENT_METHODS = ["Credit Card", "Cash"];
 
   useEffect(() => {
     fetch("/api/agents")
@@ -94,6 +98,7 @@ export default function AgentManagementPage() {
   useEffect(() => {
     if (selectedAgent) {
       setEditCommissionRate(String(selectedAgent.commissionRate ?? 10));
+      setEditPaymentMethods(selectedAgent.allowedPaymentMethods || ["Credit Card"]);
     }
   }, [selectedAgent]);
 
@@ -201,7 +206,6 @@ export default function AgentManagementPage() {
         body: JSON.stringify({ commissionRate: rate }),
       });
       if (!response.ok) throw new Error("Failed to update commission rate");
-      const data = await response.json();
       setAgents(agents.map((a) => (a.id === selectedAgent.id ? { ...a, commissionRate: rate } : a)));
       setSelectedAgent({ ...selectedAgent, commissionRate: rate });
     } catch (error) {
@@ -209,6 +213,26 @@ export default function AgentManagementPage() {
       alert("Failed to save commission rate");
     } finally {
       setSavingCommission(false);
+    }
+  };
+
+  const handleSavePaymentMethods = async () => {
+    if (!selectedAgent) return;
+    setSavingPaymentMethods(true);
+    try {
+      const response = await fetch(`/api/agents/${selectedAgent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowedPaymentMethods: editPaymentMethods }),
+      });
+      if (!response.ok) throw new Error("Failed to update payment methods");
+      setAgents(agents.map((a) => (a.id === selectedAgent.id ? { ...a, allowedPaymentMethods: editPaymentMethods } : a)));
+      setSelectedAgent({ ...selectedAgent, allowedPaymentMethods: editPaymentMethods });
+    } catch (error) {
+      console.error("Error saving payment methods:", error);
+      alert("Failed to save payment methods");
+    } finally {
+      setSavingPaymentMethods(false);
     }
   };
 
@@ -560,6 +584,46 @@ export default function AgentManagementPage() {
                 <p className="text-xs" style={{ color: colors.accent }}>
                   Current rate: {selectedAgent.commissionRate ?? 10}% — Agent keeps this percentage from each ticket sale.
                 </p>
+              </div>
+
+              <Separator style={{ backgroundColor: colors.border }} />
+
+              <div className="space-y-3">
+                <h4 className="font-medium" style={{ color: colors.primary }}>Payment Methods</h4>
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap gap-3">
+                    {ALL_PAYMENT_METHODS.map((method) => (
+                      <label key={method} className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 border rounded-md shadow-sm hover:bg-gray-50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={editPaymentMethods.includes(method)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditPaymentMethods([...editPaymentMethods, method]);
+                            } else {
+                              setEditPaymentMethods(editPaymentMethods.filter(m => m !== method));
+                            }
+                          }}
+                          className="rounded border-gray-300 w-4 h-4 text-[rgb(0,153,153)] focus:ring-[rgb(0,153,153)]"
+                        />
+                        <span className="text-sm font-medium text-gray-700">{method}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSavePaymentMethods}
+                      disabled={savingPaymentMethods}
+                      style={{ backgroundColor: colors.accent }}
+                    >
+                      {savingPaymentMethods ? "Saving..." : "Save Methods"}
+                    </Button>
+                  </div>
+                  <p className="text-xs" style={{ color: colors.accent }}>
+                    Select the payment methods this agent is allowed to use when booking tickets. "Credit Card" is the default.
+                  </p>
+                </div>
               </div>
 
               <Separator style={{ backgroundColor: colors.border }} />

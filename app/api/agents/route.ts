@@ -14,6 +14,7 @@ export async function GET() {
       suspended: true,
       suspensionDate: true,
       commissionRate: true,
+      allowedPaymentMethods: true,
       createdAt: true
     }
   });

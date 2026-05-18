@@ -95,8 +95,8 @@ export function TempLockModal({ isOpen, onClose, trip, onSuccess }: TempLockModa
     }
   }, [isOpen, trip?.id, trip.tempLockedSeats]);
 
-  const { seatGrid, bookedSet, reservedSet } = useMemo(() => {
-    if (!trip) return { seatGrid: [], bookedSet: new Set(), reservedSet: new Set() };
+  const { seatGrid, bookedSet, reservedSet, allAvailableSeats } = useMemo(() => {
+    if (!trip) return { seatGrid: [], bookedSet: new Set(), reservedSet: new Set(), allAvailableSeats: [] };
 
     const bookedSet = new Set(occupiedDetails.booked);
     const reservedSet = new Set(occupiedDetails.reserved);
@@ -144,8 +144,30 @@ export function TempLockModal({ isOpen, onClose, trip, onSuccess }: TempLockModa
     // Back row: seats 53-57
     grid.push({ row: 15, left: [], right: [], back: [53, 54, 55, 56, 57], isBack: true, isWC: false });
 
-    return { seatGrid: grid, bookedSet, reservedSet };
+    const availableSeats: string[] = [];
+    grid.forEach(row => {
+      [...row.left, ...row.right, ...row.back].forEach(seatId => {
+        const seatStr = String(seatId);
+        if (!bookedSet.has(seatStr) && !reservedSet.has(seatStr)) {
+          availableSeats.push(seatStr);
+        }
+      });
+    });
+
+    return { seatGrid: grid, bookedSet, reservedSet, allAvailableSeats: availableSeats };
   }, [trip, occupiedDetails]);
+
+  const handleSelectAllToggle = () => {
+    // If we already have all available seats locked, unlock everything.
+    // Otherwise, lock all available seats.
+    if (lockedSeats.length === allAvailableSeats.length && allAvailableSeats.length > 0) {
+      setLockedSeats([]);
+      toast.success("Unlocked all seats");
+    } else {
+      setLockedSeats(allAvailableSeats);
+      toast.success(`Locked all ${allAvailableSeats.length} available seats`);
+    }
+  };
 
   const handleSeatToggle = (seatId: string) => {
     if (bookedSet.has(seatId) || reservedSet.has(seatId)) {
@@ -260,6 +282,20 @@ export function TempLockModal({ isOpen, onClose, trip, onSuccess }: TempLockModa
                   <div className="w-4 h-4 bg-gray-200 rounded-sm" />
                   <span className="text-xs font-medium text-gray-700">Booked (Gray)</span>
                 </div>
+              </div>
+
+              <div className="flex justify-start">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSelectAllToggle}
+                  className="bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900 font-semibold"
+                  disabled={allAvailableSeats.length === 0}
+                >
+                  {lockedSeats.length === allAvailableSeats.length && allAvailableSeats.length > 0 
+                    ? "Unlock All Seats" 
+                    : "Lock All Available Seats"}
+                </Button>
               </div>
 
               <div className="space-y-2">

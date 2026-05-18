@@ -144,19 +144,20 @@ model Inquiry {
 }
 
 model Agent {
-  id             String    @id @default(uuid())
-  email          String    @unique
-  name           String
-  organization   String
-  mobile         String
-  idNumber       String
-  password       String // hashed
-  createdAt      DateTime  @default(now())
-  bookings       Booking[]
-  approved       Boolean   @default(false)
-  suspended      Boolean   @default(false)
-  suspensionDate DateTime?
-  commissionRate Float     @default(10) // Percentage, e.g. 5.5 means 5.5%
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  name                  String
+  organization          String
+  mobile                String
+  idNumber              String
+  password              String // hashed
+  createdAt             DateTime  @default(now())
+  bookings              Booking[]
+  approved              Boolean   @default(false)
+  suspended             Boolean   @default(false)
+  suspensionDate        DateTime?
+  commissionRate        Float     @default(10) // Percentage, e.g. 5.5 means 5.5%
+  allowedPaymentMethods String[]  @default(["Credit Card"])
 }
 
 model Consultant {

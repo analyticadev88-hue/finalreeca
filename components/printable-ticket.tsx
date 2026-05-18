@@ -50,6 +50,8 @@ interface BookingData {
     phone: string;
   };
   passengers?: Passenger[];
+  agent?: { name: string; organization: string };
+  consultant?: { name: string; organization: string };
 }
 
 interface PrintableTicketProps {
@@ -308,7 +310,11 @@ export const PrintableTicket: React.FC<PrintableTicketProps> = ({ bookingData })
             </div>
             <div className="mb-2">
               <span className="text-gray-600">Total Paid:</span>
-              <span className="font-bold text-teal-700 ml-2 uppercase">BWP {bookingData.totalAmount?.toLocaleString() || '0.00'}</span>
+              <span className="font-bold text-teal-700 ml-2 uppercase">
+                BWP {bookingData.totalAmount?.toLocaleString() || '0.00'}
+                {bookingData.agent && " (Agent)"}
+                {bookingData.consultant && " (Consultant)"}
+              </span>
             </div>
             <div>
               <span className="text-gray-600">Payment Status:</span>

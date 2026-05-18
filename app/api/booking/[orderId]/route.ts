@@ -22,6 +22,8 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
         passengers: true,
         trip: true,
         returnTrip: true,
+        agent: { select: { name: true, organization: true } },
+        consultant: { select: { name: true, organization: true } },
       },
     });
 
@@ -158,6 +160,8 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
       passengers,
       departureTrip,
       returnTrip,
+      agent: booking.agent,
+      consultant: booking.consultant,
     };
 
     console.log("Final response data:", JSON.stringify(responseData, null, 2));

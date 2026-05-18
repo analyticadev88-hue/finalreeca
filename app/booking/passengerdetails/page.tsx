@@ -387,7 +387,7 @@ export default function PassengerDetailsForm({
     addons: true,
   });
 
-  const [agent, setAgent] = useState<{ id: string; name: string; email: string; commissionRate?: number } | null>(
+  const [agent, setAgent] = useState<{ id: string; name: string; email: string; commissionRate?: number; allowedPaymentMethods?: string[] } | null>(
     null
   );
   const [consultant, setConsultant] = useState<{ id: string; name: string; email: string } | null>(
@@ -614,6 +614,13 @@ export default function PassengerDetailsForm({
         if (res.ok) {
           const agentData = await res.json();
           setAgent(agentData);
+          if (agentData && agentData.name && agentData.email) {
+            setContactDetails((prev) => ({
+              ...prev,
+              name: prev.name || agentData.name,
+              email: prev.email || agentData.email,
+            }));
+          }
         } else {
           setAgent(null);
         }
@@ -627,6 +634,13 @@ export default function PassengerDetailsForm({
         if (res.ok) {
           const consultantData = await res.json();
           setConsultant(consultantData);
+          if (consultantData && consultantData.name && consultantData.email) {
+            setContactDetails((prev) => ({
+              ...prev,
+              name: prev.name || consultantData.name,
+              email: prev.email || consultantData.email,
+            }));
+          }
         } else {
           setConsultant(null);
         }
@@ -1980,16 +1994,29 @@ export default function PassengerDetailsForm({
                     ] as { value: string; label: string }[];
 
                     const filtered = canonical.filter((opt) => {
-                      // Cash and Free Voucher are consultant-only — explicit value check
-                      if ((opt.value === 'Cash' || opt.value === 'Free Voucher') && !consultant) return false;
+                      // Consultant check
+                      if ((opt.value === 'Cash' || opt.value === 'Free Voucher') && !consultant) {
+                        // Agents can have 'Cash' if explicitly allowed
+                        if (agent && agent.allowedPaymentMethods?.includes('Cash') && opt.value === 'Cash') {
+                          // Allow Cash for agent if configured
+                        } else {
+                          return false;
+                        }
+                      }
+                      
                       // Reservation Paid is internal-only (never shown by default)
                       if (opt.value === 'Reservation Paid') return false;
-                      // If a restricted set of modes is passed, honour it
+
+                      // If user is an agent, restrict to their allowed methods
+                      if (agent && agent.allowedPaymentMethods && agent.allowedPaymentMethods.length > 0) {
+                         if (!agent.allowedPaymentMethods.includes(opt.value)) return false;
+                      }
+
+                      // If a restricted set of modes is passed from props, honour it
                       if (allowedPaymentModes && allowedPaymentModes.length > 0) {
-                        // Still enforce consultant-only gate even within allowed list
-                        if ((opt.value === 'Cash' || opt.value === 'Free Voucher') && !consultant) return false;
                         return allowedPaymentModes.includes(opt.value);
                       }
+                      
                       return true;
                     });
 

@@ -5,20 +5,29 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   try {
     const { id } = await context.params;
     const body = await req.json();
-    const { commissionRate } = body;
+    const { commissionRate, allowedPaymentMethods } = body;
 
-    if (commissionRate === undefined || commissionRate === null) {
-      return NextResponse.json({ error: "commissionRate is required" }, { status: 400 });
+    const dataToUpdate: any = {};
+
+    if (commissionRate !== undefined && commissionRate !== null) {
+      const rate = parseFloat(commissionRate);
+      if (isNaN(rate) || rate < 0 || rate > 100) {
+        return NextResponse.json({ error: "Commission rate must be between 0 and 100" }, { status: 400 });
+      }
+      dataToUpdate.commissionRate = rate;
     }
 
-    const rate = parseFloat(commissionRate);
-    if (isNaN(rate) || rate < 0 || rate > 100) {
-      return NextResponse.json({ error: "Commission rate must be between 0 and 100" }, { status: 400 });
+    if (allowedPaymentMethods !== undefined && Array.isArray(allowedPaymentMethods)) {
+      dataToUpdate.allowedPaymentMethods = allowedPaymentMethods;
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
     const agent = await prisma.agent.update({
       where: { id },
-      data: { commissionRate: rate },
+      data: dataToUpdate,
       select: {
         id: true,
         name: true,
@@ -30,6 +39,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         suspended: true,
         suspensionDate: true,
         commissionRate: true,
+        allowedPaymentMethods: true,
         createdAt: true,
       },
     });
