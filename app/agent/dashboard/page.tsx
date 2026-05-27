@@ -3,9 +3,11 @@ import { deleteCookie } from "cookies-next";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
+import { Mail, Eye } from "lucide-react";
 
 export default function AgentDashboard() {
   const [agent, setAgent] = useState<{ name: string; email: string; id: string; commissionRate?: number } | null>(null);
@@ -13,6 +15,13 @@ export default function AgentDashboard() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [showBookingDetails, setShowBookingDetails] = useState(false);
+  const [showSendTicketModal, setShowSendTicketModal] = useState(false);
+  const [email, setEmail] = useState("");
+  const [sendTicketLoading, setSendTicketLoading] = useState(false);
+  const [modalMessage, setModalMessage] = useState<string | null>(null);
+  const [modalType, setModalType] = useState<'success' | 'error' | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -85,6 +94,40 @@ export default function AgentDashboard() {
 
   const toggleProfileMenu = () => {
     setShowProfileMenu(!showProfileMenu);
+  };
+
+  const handleViewBooking = async (booking: any) => {
+    try {
+      const res = await fetch(`/api/booking/${booking.orderId}`);
+      if (!res.ok) throw new Error("Failed to fetch booking details");
+      const data = await res.json();
+      setSelectedBooking(data);
+      setEmail(data.userEmail || "");
+      setShowBookingDetails(true);
+    } catch (err) {
+      alert("Failed to load booking details.");
+    }
+  };
+
+  const handleSendTicket = async () => {
+    if (!selectedBooking || !email) return;
+    setSendTicketLoading(true);
+    try {
+      const res = await fetch('/api/send-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: selectedBooking.bookingRef, email }),
+      });
+      if (!res.ok) throw new Error('Failed to send ticket');
+      setModalType('success');
+      setModalMessage('Ticket sent successfully!');
+      setShowSendTicketModal(false);
+    } catch (err) {
+      setModalType('error');
+      setModalMessage('Failed to send ticket.');
+    } finally {
+      setSendTicketLoading(false);
+    }
   };
 
   function getMostBookedRoute(bookings: any[]) {
@@ -364,7 +407,9 @@ export default function AgentDashboard() {
                             variant="ghost"
                             size="sm"
                             className="text-[#009393] hover:text-[#007a7a] hover:bg-[#009393]/10"
+                            onClick={() => handleViewBooking(b)}
                           >
+                            <Eye className="h-4 w-4 mr-1" />
                             View
                           </Button>
                         </td>
@@ -401,6 +446,139 @@ export default function AgentDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Booking Details Modal */}
+      <Dialog open={showBookingDetails} onOpenChange={setShowBookingDetails}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg" style={{ backgroundColor: '#ffffff' }}>
+          <DialogHeader>
+            <DialogTitle className="text-sm sm:text-base" style={{ color: '#009393' }}>
+              Booking Details #{selectedBooking?.bookingRef}
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm" style={{ color: '#958c55' }}>
+              View ticket details and send to client
+            </DialogDescription>
+          </DialogHeader>
+          {selectedBooking && (
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 text-xs sm:text-sm">
+              <section>
+                <h4 className="font-semibold mb-2" style={{ color: '#1a1a1a' }}>Client Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div><span style={{ color: '#958c55' }}>Name:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.userName}</span></div>
+                  <div><span style={{ color: '#958c55' }}>Email:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.userEmail}</span></div>
+                  <div><span style={{ color: '#958c55' }}>Phone:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.userPhone || '-'}</span></div>
+                </div>
+              </section>
+
+              <section>
+                <h4 className="font-semibold mb-2" style={{ color: '#009393' }}>Journey Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div><span style={{ color: '#009393' }}>Route:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.departureTrip?.route}</span></div>
+                  <div><span style={{ color: '#009393' }}>Date:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.departureTrip?.date ? new Date(selectedBooking.departureTrip.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}</span></div>
+                  <div><span style={{ color: '#009393' }}>Time:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.departureTrip?.time}</span></div>
+                  <div><span style={{ color: '#009393' }}>Bus:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.departureTrip?.bus}</span></div>
+                  <div><span style={{ color: '#009393' }}>Boarding:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.departureTrip?.boardingPoint}</span></div>
+                  <div><span style={{ color: '#009393' }}>Dropping:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.departureTrip?.droppingPoint}</span></div>
+                </div>
+              </section>
+
+              {selectedBooking.returnTrip && (
+                <section>
+                  <h4 className="font-semibold mb-2" style={{ color: '#009393' }}>Return Journey</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div><span style={{ color: '#009393' }}>Route:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.returnTrip.route}</span></div>
+                    <div><span style={{ color: '#009393' }}>Date:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{new Date(selectedBooking.returnTrip.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span></div>
+                    <div><span style={{ color: '#009393' }}>Time:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.returnTrip.time}</span></div>
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h4 className="font-semibold mb-2" style={{ color: '#febf00' }}>Payment Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div><span style={{ color: '#958c55' }}>Method:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.paymentMethod}</span></div>
+                  <div><span style={{ color: '#958c55' }}>Status:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>{selectedBooking.paymentStatus}</span></div>
+                  <div><span style={{ color: '#958c55' }}>Amount:</span> <span className="font-semibold" style={{ color: '#1a1a1a' }}>BWP {selectedBooking.totalAmount?.toFixed ? selectedBooking.totalAmount.toFixed(2) : selectedBooking.totalAmount}</span></div>
+                </div>
+              </section>
+
+              <section>
+                <h4 className="font-semibold mb-2" style={{ color: '#1a1a1a' }}>Actions</h4>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-xs sm:text-sm h-9"
+                    onClick={() => {
+                      setShowSendTicketModal(true);
+                      setShowBookingDetails(false);
+                    }}
+                    style={{ borderColor: '#009393', color: '#009393' }}
+                  >
+                    <Mail className="h-4 w-4 mr-1" />
+                    Send Ticket to Client
+                  </Button>
+                </div>
+              </section>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Ticket Modal */}
+      <Dialog open={showSendTicketModal} onOpenChange={setShowSendTicketModal}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md" style={{ backgroundColor: '#ffffff' }}>
+          <DialogHeader>
+            <DialogTitle className="text-sm sm:text-base" style={{ color: '#009393' }}>
+              Send Ticket
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm" style={{ color: '#958c55' }}>
+              Send the ticket PDF to the client email for booking {selectedBooking?.bookingRef}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: '#1a1a1a' }}>
+                Client Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full h-9 px-3 text-xs sm:text-sm border rounded-md bg-white"
+                style={{ borderColor: '#958c55' }}
+                placeholder="client@example.com"
+              />
+            </div>
+            {modalMessage && (
+              <div className={`p-2 rounded text-xs ${modalType === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {modalMessage}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSendTicketModal(false)}
+                style={{ borderColor: '#958c55', color: '#958c55' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSendTicket}
+                disabled={sendTicketLoading || !email}
+                style={{ backgroundColor: '#009393', color: '#ffffff' }}
+              >
+                {sendTicketLoading ? (
+                  <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block mr-1"></span>
+                ) : (
+                  <Mail className="h-4 w-4 mr-1" />
+                )}
+                Send Ticket
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-8">

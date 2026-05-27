@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock, Edit3, Utensils, Calendar } from "lucide-react";
+import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock, Edit3, Utensils, Calendar, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrintableTicket } from "@/components/printable-ticket";
 import * as XLSX from "xlsx";
@@ -817,6 +817,11 @@ export default function BookingsManagement() {
                             >
                               <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
                             </Button>
+                            {booking.returnTrip && (
+                              <div className="flex items-center justify-center px-1 text-blue-500 bg-blue-50 rounded-full" title="Round Trip">
+                                <Repeat className="h-3 w-3 sm:h-4 sm:w-4" />
+                              </div>
+                            )}
                             {hasMeal(booking) && (
                               <div className="flex items-center justify-center px-1 text-orange-500 bg-orange-50 rounded-full" title="Meal Included">
                                 <Utensils className="h-3 w-3 sm:h-4 sm:w-4" />

@@ -35,7 +35,7 @@ export const TicketEmail = ({ userName, orderId, route, date, time, seats, total
           <Text>Safe travels!</Text>
         </Section>
         <Section style={{ marginTop: 32, borderTop: '1px solid #e5e7eb', paddingTop: 16, textAlign: 'center', fontSize: 12, color: '#6b7280' }}>
-          <Text>For support, contact us at +26777655348 or tickets@reecatravel.co.bw</Text>
+          <Text>For support, WhatsApp us at +26776506348 or email tickets@reecatravel.co.bw</Text>
         </Section>
       </Container>
     </Body>

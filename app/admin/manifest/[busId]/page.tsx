@@ -100,6 +100,12 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
       }))
   );
 
+  // Raw passenger count (before grouping) — must match bus schedule count
+  const rawPassengerCount = rawPassengers.length;
+
+  // Revenue from all valid bookings (confirmed/completed/pending) — must match bus schedule
+  const totalRevenue = bookings.reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0);
+
   // Group neighbour-free companion seats: same name + same booking ref = merge into one row
   // This prevents the same person appearing twice when they bought a "neighbour-free" extra seat.
   const currentTripPassengers = (() => {
@@ -135,17 +141,18 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
   const occupiedSeatsList = tripData?.occupiedSeats ? JSON.parse(tripData.occupiedSeats) : [];
   const tempLockedList = tripData?.tempLockedSeats ? tripData.tempLockedSeats.split(',').filter(Boolean) : [];
   
-  // Get list of all booked seat numbers for this trip
-  const bookedSeatNumbers = currentTripPassengers.map(p => String(p.seat));
-  
+  // Get list of all booked seat numbers for this trip (split companion seats)
+  const bookedSeatNumbers = currentTripPassengers.flatMap(p =>
+    String(p.seat).split(',').map(s => s.trim())
+  );
+
   // Only count seats as "Blocked" if they are not already occupied by a passenger
   const blockedSeatsCount = Array.from(new Set([...occupiedSeatsList, ...tempLockedList]))
     .filter(seat => !bookedSeatNumbers.includes(String(seat))).length;
 
-  // Get confirmed and paid passengers
+  // Get valid passengers for exports (confirmed, completed, pending — matches bus schedule)
   const confirmedPassengers = currentTripPassengers.filter(p =>
-    String(p.paymentStatus || '').toLowerCase() === 'paid' &&
-    String(p.bookingStatus || '').toLowerCase() === 'confirmed'
+    ["confirmed", "completed", "pending"].includes(String(p.bookingStatus || '').toLowerCase())
   );
 
   // Create full passenger list: confirmed passengers + empty rows up to totalSeats
@@ -176,9 +183,9 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
     }))
   ];
 
-  // Show all passengers who have a confirmed or completed booking
+  // Show all passengers who have a confirmed, completed, or pending booking (matches bus schedule)
   const displayedPassengers = currentTripPassengers.filter(p =>
-    ["confirmed", "completed"].includes(String(p.bookingStatus || '').toLowerCase())
+    ["confirmed", "completed", "pending"].includes(String(p.bookingStatus || '').toLowerCase())
   );
 
   // PDF Export
@@ -520,7 +527,13 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
                   <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Time:</span> {time}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Passengers:</span> {currentTripPassengers.length}
+                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Passengers:</span> {rawPassengerCount}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Bookings:</span> {bookings.length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="font-semibold text-slate-400 uppercase text-[10px] tracking-wider">Revenue:</span> BWP {totalRevenue.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -604,6 +617,9 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
                           {(Array.isArray(passenger.addons) && passenger.addons.some((a: any) => a.name?.toLowerCase().includes('meal'))) && (
                             <Utensils className="h-3 w-3 text-orange-500" />
                           )}
+                          {String(passenger.bookingStatus || '').toLowerCase() === 'pending' && (
+                            <span className="text-[9px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-100 font-bold uppercase">Pending</span>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -686,10 +702,18 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
         {/* Summary Cards */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
           <h3 className="text-lg font-bold text-slate-900 mb-4">Trip Summary</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 md:gap-6">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all hover:shadow-md">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Booked Passengers</div>
-              <div className="mt-1 text-2xl md:text-3xl font-bold text-slate-900">{displayedPassengers.length}</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Passengers</div>
+              <div className="mt-1 text-2xl md:text-3xl font-bold text-slate-900">{rawPassengerCount}</div>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 transition-all hover:shadow-md">
+              <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Bookings</div>
+              <div className="mt-1 text-2xl md:text-3xl font-bold text-blue-700">{bookings.length}</div>
+            </div>
+            <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 transition-all hover:shadow-md">
+              <div className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Revenue</div>
+              <div className="mt-1 text-xl md:text-2xl font-bold text-teal-700">BWP {totalRevenue.toLocaleString()}</div>
             </div>
             <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 transition-all hover:shadow-md">
               <div className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Admin Blocked</div>
@@ -708,9 +732,9 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
               </div>
             </div>
           </div>
-          {(blockedSeatsCount + displayedPassengers.length) > 0 && (
+          {(blockedSeatsCount + rawPassengerCount) > 0 && (
             <div className="mt-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500 border border-slate-100">
-              Total Seats Taken: <span className="font-bold text-slate-700">{blockedSeatsCount + displayedPassengers.length}</span> (Includes {displayedPassengers.length} passengers and {blockedSeatsCount} seats blocked by admin)
+              Total Seats Taken: <span className="font-bold text-slate-700">{blockedSeatsCount + rawPassengerCount}</span> (Includes {rawPassengerCount} passengers and {blockedSeatsCount} seats blocked by admin)
             </div>
           )}
         </div>

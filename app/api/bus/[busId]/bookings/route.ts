@@ -11,7 +11,8 @@ export async function GET(req: NextRequest, context: { params: { busId: string }
       OR: [
         { tripId: busId },
         { returnTripId: busId }
-      ]
+      ],
+      bookingStatus: { in: ["confirmed", "completed", "pending"] }
     },
     include: { agent: true, passengers: true, trip: true, returnTrip: true },
     orderBy: { createdAt: "asc" },

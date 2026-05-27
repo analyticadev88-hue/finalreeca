@@ -562,6 +562,7 @@ export default function PassengerDetailsForm({
   }
 
   const baseTotal = departureTotal + returnTotal + infantTotal + getAddonsTotal();
+  const ticketOnlyTotal = departureTotal + returnTotal;
 
   // FIXED: Improved syncCompanionPassenger function
   const syncCompanionPassenger = (primaryPassenger: Passenger) => {
@@ -695,7 +696,7 @@ export default function PassengerDetailsForm({
       }
     }
   }
-  const agentDiscount: number = agent ? Math.round(baseTotal * ((agent.commissionRate ?? 10) / 100)) : 0;
+  const agentDiscount: number = agent ? Math.round(ticketOnlyTotal * ((agent.commissionRate ?? 10) / 100)) : 0;
   const finalTotal: number = baseTotal - agentDiscount - consultantDiscount;
 
   const getBoardingPoints = (key: string): BoardingPoint[] => {
@@ -1151,7 +1152,7 @@ export default function PassengerDetailsForm({
                 <p className="font-bold text-[rgb(0,153,153)] text-lg sm:text-xl">P {useFreeVoucher ? '0.00' : finalTotal.toFixed(2)}</p>
               </div>
 
-              {consultant && (
+              {consultant && !agent && (
                 <div className="border border-gray-200 rounded-lg overflow-hidden mt-6">
                   <button
                     type="button"

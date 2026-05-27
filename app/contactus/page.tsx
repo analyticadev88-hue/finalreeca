@@ -244,7 +244,7 @@ export default function ContactUs() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-teal-800">Emergency Line</h3>
-                    <a href="tel:+26777655348" className="hover:underline" style={{ color: 'rgb(148,138,84)' }}>
+                    <a href="tel:+26776506348" className="hover:underline" style={{ color: 'rgb(148,138,84)' }}>
                       +267 7765 5348
                     </a>
                   </div>

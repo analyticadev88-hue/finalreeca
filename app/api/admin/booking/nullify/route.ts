@@ -1,12 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAdminAuth } from '@/lib/adminAuth';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'changeme-in-production';
+
+async function verifyConsultantAuth(request: NextRequest) {
+  const token = request.cookies.get('consultant_token')?.value;
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    if (!payload?.id) return null;
+    const consultant = await prisma.consultant.findUnique({
+      where: { id: payload.id },
+      select: { id: true, name: true, email: true },
+    });
+    return consultant;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
-  // Verify admin authentication
+  // Verify admin or consultant authentication
   const auth = await verifyAdminAuth();
-  if (!auth.authorized) {
-    return auth.response;
+  const consultant = !auth.authorized ? await verifyConsultantAuth(req) : null;
+  if (!auth.authorized && !consultant) {
+    return NextResponse.json(
+      { error: 'Unauthorized. Admin or consultant authentication required.' },
+      { status: 401 }
+    );
   }
 
   try {

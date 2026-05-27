@@ -13,12 +13,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create date range for the selected date
-    const startDate = new Date(dateStr);
-    startDate.setHours(0, 0, 0, 0);
-    
-    const endDate = new Date(dateStr);
-    endDate.setHours(23, 59, 59, 999);
+    // Create date range for the selected date (UTC to avoid timezone shifts)
+    const startDate = new Date(dateStr + 'T00:00:00.000Z');
+    const endDate = new Date(dateStr + 'T23:59:59.999Z');
 
     // Fetch trips with detailed booking and passenger information
     const trips = await prisma.trip.findMany({

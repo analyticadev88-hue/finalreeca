@@ -384,7 +384,7 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
               <Text style={{ textTransform: 'uppercase' }}>MOGOBE PLAZA</Text>{'\n'}
               <Text style={{ textTransform: 'uppercase' }}>GABORONE SOUTH-EAST</Text>{'\n'}
               <Text style={{ textTransform: 'uppercase' }}>BOTSWANA</Text>{'\n'}
-              +26773061124{'\n'}
+              +26773061124 / WhatsApp +26776506348{'\n'}
               tickets@reecatravel.co.bw{'\n'}
               www.reecabus.co.bw
             </Text>
@@ -431,6 +431,24 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
               <Text style={styles.summaryLabel}>Booking Status:</Text>
               <Text style={[styles.summaryValue, { color: '#059669', textTransform: 'uppercase' }]}>{booking.bookingStatus}</Text>
             </View>
+            {booking.agent && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Booked by:</Text>
+                <Text style={[styles.summaryValue, { color: '#0d9488', textTransform: 'uppercase' }]}>
+                  Agent: {booking.agent.name}
+                  {booking.agent.organization ? ` (${booking.agent.organization})` : ''}
+                </Text>
+              </View>
+            )}
+            {booking.consultant && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Booked by:</Text>
+                <Text style={[styles.summaryValue, { color: '#0d9488', textTransform: 'uppercase' }]}>
+                  Consultant: {booking.consultant.name}
+                  {booking.consultant.organization ? ` (${booking.consultant.organization})` : ''}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
         
@@ -543,7 +561,7 @@ export const TicketPdf = ({ booking, departureTrip, returnTrip, qrBase64 }: any)
       </View>
       <View style={styles.footer}>
         <Text>Thank you for choosing REECA TRAVEL for your journey!</Text>
-        <Text>For support, contact us at +26777655348 or tickets@reecatravel.co.bw</Text>
+        <Text>For support, WhatsApp us at +26776506348 or email tickets@reecatravel.co.bw</Text>
       </View>
     </Page>
   </Document>

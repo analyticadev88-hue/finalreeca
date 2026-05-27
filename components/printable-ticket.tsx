@@ -312,8 +312,6 @@ export const PrintableTicket: React.FC<PrintableTicketProps> = ({ bookingData })
               <span className="text-gray-600">Total Paid:</span>
               <span className="font-bold text-teal-700 ml-2 uppercase">
                 BWP {bookingData.totalAmount?.toLocaleString() || '0.00'}
-                {bookingData.agent && " (Agent)"}
-                {bookingData.consultant && " (Consultant)"}
               </span>
             </div>
             <div>
@@ -329,12 +327,30 @@ export const PrintableTicket: React.FC<PrintableTicketProps> = ({ bookingData })
             </div>
           </div>
           <div>
-            <div>
+            <div className="mb-2">
               <span className="text-gray-600">Booking Status:</span>
               <span className="font-bold text-green-600 ml-2 uppercase">
                 {bookingData.bookingStatus}
               </span>
             </div>
+            {bookingData.agent && (
+              <div className="mb-2">
+                <span className="text-gray-600">Booked by:</span>
+                <span className="font-bold text-teal-700 ml-2 uppercase">
+                  Agent: {bookingData.agent.name}
+                  {bookingData.agent.organization && ` (${bookingData.agent.organization})`}
+                </span>
+              </div>
+            )}
+            {bookingData.consultant && (
+              <div className="mb-2">
+                <span className="text-gray-600">Booked by:</span>
+                <span className="font-bold text-teal-700 ml-2 uppercase">
+                  Consultant: {bookingData.consultant.name}
+                  {bookingData.consultant.organization && ` (${bookingData.consultant.organization})`}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -472,7 +488,7 @@ export const PrintableTicket: React.FC<PrintableTicketProps> = ({ bookingData })
 
       <div className="mt-8 pt-6 border-t border-gray-300 text-center text-xs text-gray-600">
         <p>Thank you for choosing REECA TRAVEL for your journey!</p>
-        <p>For support, contact us at +26777655348 or tickets@reecatravel.co.bw</p>
+        <p>For support, WhatsApp us at +26776506348 or email tickets@reecatravel.co.bw</p>
       </div>
     </div>
   );

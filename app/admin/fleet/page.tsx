@@ -622,11 +622,13 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
               <Input
                 name="departureDate"
                 type="date"
-                value={new Date(formData.departureDate).toISOString().split('T')[0]}
+                value={new Date(formData.departureDate).toLocaleDateString('en-CA')}
                 onChange={(e) => {
+                  const [year, month, day] = e.target.value.split('-').map(Number);
+                  const localDate = new Date(year, month - 1, day);
                   setFormData({
                     ...formData,
-                    departureDate: new Date(e.target.value).toISOString()
+                    departureDate: localDate.toISOString()
                   });
                 }}
                 className="pl-10 border-gray-200 focus:ring-[rgb(0,147,147)]"
@@ -1309,13 +1311,20 @@ const FleetManagementPage = () => {
   };
 
   const filteredTrips = trips.filter(trip => {
-    const tripDate = new Date(trip.departureDate);
-    const selectedDateStart = new Date(selectedDate);
-    selectedDateStart.setHours(0, 0, 0, 0);
-    const selectedDateEnd = new Date(selectedDate);
-    selectedDateEnd.setHours(23, 59, 59, 999);
-    return tripDate >= selectedDateStart && tripDate <= selectedDateEnd;
+    // Compare dates using local date strings to avoid timezone mismatches
+    const tripDateStr = format(new Date(trip.departureDate), 'yyyy-MM-dd');
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    return tripDateStr === selectedDateStr;
   });
+
+  // Quick info / summary stats for selected date
+  const totalTrips = filteredTrips.length;
+  const totalSeats = filteredTrips.reduce((sum, t) => sum + (t.totalSeats || 0), 0);
+  const totalAvailable = filteredTrips.reduce((sum, t) => sum + (t.availableSeats || 0), 0);
+  const totalBooked = totalSeats - totalAvailable;
+  const totalReserved = filteredTrips.reduce((sum, t) => sum + (t.reservedSeatsCount || 0), 0);
+  const scheduledCount = filteredTrips.filter(t => !t.hasDeparted).length;
+  const departedCount = filteredTrips.filter(t => t.hasDeparted).length;
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: colors.muted }}>
@@ -1391,7 +1400,53 @@ const FleetManagementPage = () => {
           {isLoading ? (
             <LoadingSpinner />
           ) : (
-            <Tabs defaultValue="schedule">
+            <>
+              {/* Quick Info / Summary Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                <Card style={{ backgroundColor: colors.light, borderLeft: `4px solid ${colors.primary}` }}>
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium" style={{ color: colors.accent }}>TOTAL TRIPS</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.dark }}>{totalTrips}</div>
+                  </CardContent>
+                </Card>
+                <Card style={{ backgroundColor: colors.light, borderLeft: `4px solid ${colors.secondary}` }}>
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium" style={{ color: colors.accent }}>TOTAL SEATS</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.dark }}>{totalSeats}</div>
+                  </CardContent>
+                </Card>
+                <Card style={{ backgroundColor: colors.light, borderLeft: `4px solid green` }}>
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium" style={{ color: colors.accent }}>AVAILABLE</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.dark }}>{totalAvailable}</div>
+                  </CardContent>
+                </Card>
+                <Card style={{ backgroundColor: colors.light, borderLeft: `4px solid ${colors.destructive}` }}>
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium" style={{ color: colors.accent }}>BOOKED</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.dark }}>{totalBooked}</div>
+                  </CardContent>
+                </Card>
+                <Card style={{ backgroundColor: colors.light, borderLeft: `4px solid ${colors.accent}` }}>
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium" style={{ color: colors.accent }}>RESERVED</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.dark }}>{totalReserved}</div>
+                  </CardContent>
+                </Card>
+                <Card style={{ backgroundColor: colors.light, borderLeft: `4px solid #6b7280` }}>
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium" style={{ color: colors.accent }}>STATUS</div>
+                    <div className="text-lg font-bold" style={{ color: colors.dark }}>
+                      <span style={{ color: colors.primary }}>{scheduledCount}</span>
+                      <span className="text-gray-400 mx-1">/</span>
+                      <span style={{ color: colors.accent }}>{departedCount}</span>
+                    </div>
+                    <div className="text-[10px]" style={{ color: colors.accent }}>Scheduled / Departed</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Tabs defaultValue="schedule">
               <TabsList className="grid w-full grid-cols-2 max-w-md" style={{ backgroundColor: colors.light }}>
                 <TabsTrigger value="schedule" style={{ color: colors.dark }}>
                   <ClockIcon className="mr-2 h-4 w-4" />
@@ -1678,6 +1733,7 @@ const FleetManagementPage = () => {
                 )}
               </TabsContent>
             </Tabs>
+            </>
           )}
         </main>
       </div>
