@@ -25,10 +25,15 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
 
   const fetchManifestData = () => {
     setLoading(true);
-    fetch(`/api/bus/${busId}/bookings`)
+    // Cache-buster to ensure fresh data after walk-in additions
+    fetch(`/api/bus/${busId}/bookings?t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
-        setBookings(data.bookings || []);
+        // Sort bookings newest first so walk-ins appear at the top
+        const sortedBookings = (data.bookings || []).sort((a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setBookings(sortedBookings);
         if (data.trip) {
             setTripData(data.trip);
         }
