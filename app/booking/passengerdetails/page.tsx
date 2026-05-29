@@ -913,12 +913,15 @@ export default function PassengerDetailsForm({
       return "Please provide the contact mobile number";
     }
 
-    // 7. Emergency contact
-    if (!emergencyContact.name.trim()) {
-      return "Please provide an emergency contact name";
-    }
-    if (!emergencyContact.phone.trim()) {
-      return "Please provide an emergency contact phone number";
+    // 7. Next of kin (only shown when there's exactly 1 passenger)
+    if (primaryPassengers.length === 1) {
+      const solePassenger = primaryPassengers[0];
+      if (!solePassenger.nextOfKinName?.trim()) {
+        return "Please provide a next of kin name";
+      }
+      if (!solePassenger.nextOfKinPhone?.trim()) {
+        return "Please provide a next of kin phone number";
+      }
     }
 
     // 8. Boarding / dropping points
