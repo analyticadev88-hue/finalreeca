@@ -14,6 +14,12 @@ export async function GET(req: Request, context: { params: Promise<{ agentId: st
       userEmail: true,
       seatCount: true,
       totalPrice: true,
+      passengers: {
+        select: {
+          id: true,
+          isReturn: true,
+        }
+      },
       trip: {
         select: {
           routeName: true,
@@ -30,5 +36,10 @@ export async function GET(req: Request, context: { params: Promise<{ agentId: st
     console.log("[API] First booking sample:", bookings[0]);
   }
 
-  return NextResponse.json({ bookings });
+  const formattedBookings = bookings.map((b) => ({
+    ...b,
+    passengerCount: b.passengers?.filter((p) => !p.isReturn).length || 0,
+  }));
+
+  return NextResponse.json({ bookings: formattedBookings });
 }

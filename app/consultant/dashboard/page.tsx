@@ -108,7 +108,7 @@ export default function ConsultantDashboard() {
       "Trip": b.trip?.routeName,
       "Date": new Date(b.trip?.departureDate).toLocaleDateString(),
       "Time": b.trip?.departureTime,
-      "Seats": b.seatCount,
+      "Passengers": b.passengerCount ?? b.seatCount,
       "Amount": b.totalPrice,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -427,7 +427,7 @@ export default function ConsultantDashboard() {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-[#009393]">#{b.orderId}</div>
                               <div className="text-xs text-gray-500 mt-1">
-                                <span className="px-2 py-1 bg-gray-100 rounded-full">{b.seatCount} {b.seatCount === 1 ? 'seat' : 'seats'}</span>
+                                <span className="px-2 py-1 bg-gray-100 rounded-full">{b.passengerCount ?? b.seatCount} {(b.passengerCount ?? b.seatCount) === 1 ? 'passenger' : 'passengers'}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">

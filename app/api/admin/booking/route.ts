@@ -60,11 +60,14 @@ export async function GET(req: NextRequest) {
         isReturn: p.isReturn,
       }));
 
+      // Count actual unique passengers (non-return, excluding neighbour-free seats)
+      const actualPassengers = booking.passengers?.filter(p => !p.isReturn).length || 0;
+
       // Build a display name: first passenger name, or purchaser name if no passengers
-      const firstPassenger = passengerList.find((p) => p.name);
+      const firstPassenger = passengerList.find((p) => p.name && !p.isReturn);
       const passengerDisplayName = firstPassenger
-        ? passengerList.length > 1
-          ? `${firstPassenger.name} +${passengerList.length - 1}`
+        ? actualPassengers > 1
+          ? `${firstPassenger.name} +${actualPassengers - 1}`
           : firstPassenger.name
         : booking.userName;
 
@@ -75,7 +78,7 @@ export async function GET(req: NextRequest) {
         purchaserName: booking.userName,
         email: booking.userEmail,
         phone: booking.userPhone || '',
-        passengers: booking.seatCount,
+        passengers: booking.passengers?.filter(p => !p.isReturn).length || 0,
         passengerList,
         route: `${booking.trip?.routeOrigin} to ${booking.trip?.routeDestination}`,
         date: booking.trip?.departureDate || new Date(),

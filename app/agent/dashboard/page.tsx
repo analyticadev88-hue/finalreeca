@@ -78,7 +78,7 @@ export default function AgentDashboard() {
       "Trip": b.trip?.routeName,
       "Date": new Date(b.trip?.departureDate).toLocaleDateString(),
       "Time": b.trip?.departureTime,
-      "Seats": b.seatCount,
+      "Passengers": b.passengerCount ?? b.seatCount,
       "Amount": b.totalPrice,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -354,7 +354,7 @@ export default function AgentDashboard() {
                         Date
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Seats
+                        Passengers
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Amount
@@ -396,7 +396,7 @@ export default function AgentDashboard() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-[#009393]/10 text-[#009393]">
-                            {b.seatCount} {b.seatCount === 1 ? 'seat' : 'seats'}
+                            {b.passengerCount ?? b.seatCount} {(b.passengerCount ?? b.seatCount) === 1 ? 'passenger' : 'passengers'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
