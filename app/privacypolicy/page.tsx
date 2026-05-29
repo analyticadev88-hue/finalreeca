@@ -32,7 +32,9 @@ const sections = [
   { id: "rights", label: "6. Your Rights" },
   { id: "cookies", label: "7. Cookies and Website Usage" },
   { id: "contact", label: "8. Contact Us" },
-  { id: "updates", label: "9. Policy Updates" },
+  { id: "media", label: "9. Images and Video Recordings" },
+  { id: "incidental", label: "10. Incidental Appearance in Media" },
+  { id: "updates", label: "11. Policy Updates" },
 ];
 
 export default function PrivacyPolicy() {
@@ -474,6 +476,41 @@ export default function PrivacyPolicy() {
               </div>
             </div>
           </section>
+          {/* Images and Video Recordings */}
+          <section
+            id="media"
+            ref={el => { sectionRefs.current["media"] = el; }}
+            className="bg-white p-6 md:p-8 rounded-xl shadow-md border border-teal-200 mb-8"
+          >
+            <h2 className="text-2xl font-bold text-teal-800 mb-6 flex items-center gap-3">
+              <Shield className="text-teal-600" size={24} />
+              9. Images and Video Recordings
+            </h2>
+            <div className="space-y-4 text-gray-700">
+              <p>We may capture images and video in and around our vehicles for safety, security, and promotional purposes. This may include incidental recording of passengers or their personal items.</p>
+              <p>Where individuals are not identifiable (e.g., only the back of a head / body or non-distinct features are visible), such recordings are generally not treated as personal data.</p>
+              <p>We do not use incidental footage to identify individuals or to suggest endorsement of our services.</p>
+              <p>If identifiable images are used, we will seek appropriate consent where required by applicable law.</p>
+            </div>
+          </section>
+
+          {/* Incidental Appearance in Media */}
+          <section
+            id="incidental"
+            ref={el => { sectionRefs.current["incidental"] = el; }}
+            className="bg-white p-6 md:p-8 rounded-xl shadow-md border border-amber-200 mb-8"
+          >
+            <h2 className="text-2xl font-bold text-amber-800 mb-6 flex items-center gap-3">
+              <ShieldCheck className="text-amber-600" size={24} />
+              10. Incidental Appearance in Media
+            </h2>
+            <div className="space-y-4 text-gray-700">
+              <p>By using our transport services, you acknowledge that photos and videos may be recorded for operational, safety, and promotional purposes (including publication on platforms such as TikTok and similar channels).</p>
+              <p>Passengers may be captured incidentally in the background. Where individuals are not identifiable (for example, where faces are not visible), such appearances are not considered featured participation.</p>
+              <p>We do not intentionally identify individuals without consent, nor imply endorsement by any person whose likeness or personal belongings (e.g., bags or clothing) appear incidentally.</p>
+            </div>
+          </section>
+
           {/* Updates */}
           <section
             id="updates"
@@ -482,7 +519,7 @@ export default function PrivacyPolicy() {
           >
             <h2 className="text-2xl font-bold text-amber-800 mb-6 flex items-center gap-3">
               <AlertCircle className="text-amber-600" size={24} />
-              9. Policy Updates
+              11. Policy Updates
             </h2>
             <div className="space-y-4 text-gray-700">
               <p>We may update this Privacy Policy occasionally. Updates will be posted on our website and take effect immediately upon publication.</p>

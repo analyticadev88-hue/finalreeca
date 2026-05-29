@@ -10,6 +10,7 @@ const TicketPage = () => {
   const [bookingData, setBookingData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [userType, setUserType] = useState<'agent' | 'consultant' | null>(null);
 
   useEffect(() => {
     if (!orderId) return;
@@ -49,15 +50,23 @@ const TicketPage = () => {
         }),
       });
 
-      // Check if agent is logged in and redirect after 8 seconds
-      fetch("/api/agent/me")
-        .then(async res => {
-          if (res.ok) {
-            setTimeout(() => {
-              router.push("/agent/dashboard");
-            }, 9000); // 8 seconds to view ticket
-          }
-        });
+      // Check if agent or consultant is logged in
+      Promise.allSettled([
+        fetch("/api/agent/me"),
+        fetch("/api/consultant/me"),
+      ]).then(async ([agentRes, consultantRes]) => {
+        if (agentRes.status === 'fulfilled' && agentRes.value.ok) {
+          setUserType('agent');
+          setTimeout(() => {
+            router.push("/agent/dashboard");
+          }, 9000);
+        } else if (consultantRes.status === 'fulfilled' && consultantRes.value.ok) {
+          setUserType('consultant');
+          setTimeout(() => {
+            router.push("/consultant/dashboard");
+          }, 9000);
+        }
+      });
     }
   }, [bookingData]);
 
@@ -102,12 +111,30 @@ const TicketPage = () => {
     <div className="bg-gray-50 min-h-screen py-8">
       {bookingData && (
         <div className="max-w-5xl mx-auto px-4">
-          <button
-            className="mb-4 px-4 py-2 bg-teal-700 text-white rounded hover:bg-teal-800 print:hidden"
-            onClick={() => window.print()}
-          >
-            Download Ticket (PDF)
-          </button>
+          <div className="flex flex-wrap gap-3 mb-4 print:hidden">
+            <button
+              className="px-4 py-2 bg-teal-700 text-white rounded hover:bg-teal-800"
+              onClick={() => window.print()}
+            >
+              Download Ticket (PDF)
+            </button>
+            {userType === 'agent' && (
+              <button
+                className="px-4 py-2 bg-[#009393] text-white rounded hover:bg-[#007a7a]"
+                onClick={() => router.push('/agent/dashboard')}
+              >
+                Back to Agent Dashboard
+              </button>
+            )}
+            {userType === 'consultant' && (
+              <button
+                className="px-4 py-2 bg-[#009393] text-white rounded hover:bg-[#007a7a]"
+                onClick={() => router.push('/consultant/dashboard')}
+              >
+                Back to Consultant Dashboard
+              </button>
+            )}
+          </div>
           <PrintableTicket bookingData={bookingData} />
         </div>
       )}

@@ -683,20 +683,20 @@ export default function PassengerDetailsForm({
   let consultantDiscount = 0;
   if (consultant && consultantDiscountType !== "none") {
     if (consultantDiscountType === "student") {
-      consultantDiscount = Math.round(baseTotal * 0.05);
+      consultantDiscount = Math.round(baseTotal * 0.05 * 100) / 100;
     } else if (consultantDiscountType === "senior") {
-      consultantDiscount = Math.round(baseTotal * 0.15);
+      consultantDiscount = Math.round(baseTotal * 0.15 * 100) / 100;
     } else if (consultantDiscountType === "family") {
       if (passengers.length >= 5) {
-        consultantDiscount = Math.round((baseTotal / passengers.length) * 0.2);
+        consultantDiscount = Math.round((baseTotal / passengers.length) * 0.2 * 100) / 100;
       }
     } else if (consultantDiscountType === "group") {
       if (passengers.length >= 10) {
-        consultantDiscount = Math.round(baseTotal * 0.1);
+        consultantDiscount = Math.round(baseTotal * 0.1 * 100) / 100;
       }
     }
   }
-  const agentDiscount: number = agent ? Math.round(ticketOnlyTotal * ((agent.commissionRate ?? 10) / 100)) : 0;
+  const agentDiscount: number = agent ? Math.round(ticketOnlyTotal * ((agent.commissionRate ?? 10) / 100) * 100) / 100 : 0;
   const finalTotal: number = baseTotal - agentDiscount - consultantDiscount;
 
   const getBoardingPoints = (key: string): BoardingPoint[] => {
@@ -857,6 +857,109 @@ export default function PassengerDetailsForm({
     };
   };
 
+  const formatSeat = (seatId: string) => {
+    return seatId.replace(/^V\d+-/, '');
+  };
+
+  const validateBookingForm = (): string | null => {
+    const primaryPassengers = passengers.filter((p) => !p.isNeighbourFreeSeat);
+
+    // 1. Passenger names
+    const missingName = primaryPassengers.find((p) => !p.firstName.trim() || !p.lastName.trim());
+    if (missingName) {
+      return `Please provide first and last names for passenger in seat ${formatSeat(missingName.seatNumber)}`;
+    }
+
+    // 2. Passenger title
+    const missingTitle = primaryPassengers.find((p) => !p.title);
+    if (missingTitle) {
+      return `Please select a title for passenger in seat ${formatSeat(missingTitle.seatNumber)}`;
+    }
+
+    // 3. Passport numbers (skip for companion/neighbour free seats)
+    const missingPassport = primaryPassengers.find((p) => !p.passportNumber.trim());
+    if (missingPassport) {
+      return `Please provide a passport/ID number for passenger in seat ${formatSeat(missingPassport.seatNumber)}`;
+    }
+
+    // 4. Child birthdates
+    const missingChildBirthdate = primaryPassengers.find(
+      (p) => p.type === "child" && !p.birthdate.trim()
+    );
+    if (missingChildBirthdate) {
+      return `Please provide a birthdate for child passenger in seat ${formatSeat(missingChildBirthdate.seatNumber)}`;
+    }
+
+    // 5. Infant details
+    const missingInfant = primaryPassengers.find(
+      (p) => p.hasInfant && (!p.infantName?.trim() || !p.infantBirthdate?.trim() || !p.infantPassportNumber?.trim())
+    );
+    if (missingInfant) {
+      return `Please provide infant name, birthdate and passport number for passenger in seat ${formatSeat(missingInfant.seatNumber)}`;
+    }
+
+    // 6. Contact details
+    if (!contactDetails.name.trim()) {
+      return "Please provide the contact person name";
+    }
+    if (!contactDetails.email.trim()) {
+      return "Please provide the contact email";
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(contactDetails.email.trim())) {
+      return "Please provide a valid email address";
+    }
+    if (!contactDetails.mobile.trim()) {
+      return "Please provide the contact mobile number";
+    }
+
+    // 7. Emergency contact
+    if (!emergencyContact.name.trim()) {
+      return "Please provide an emergency contact name";
+    }
+    if (!emergencyContact.phone.trim()) {
+      return "Please provide an emergency contact phone number";
+    }
+
+    // 8. Boarding / dropping points
+    if (!departureBoardingPoint.trim()) {
+      return "Please select a departure boarding point";
+    }
+    if (!departureDroppingPoint.trim()) {
+      return "Please select a departure dropping point";
+    }
+    if (isRoundTrip && !returnBoardingPoint.trim()) {
+      return "Please select a return boarding point";
+    }
+    if (isRoundTrip && !returnDroppingPoint.trim()) {
+      return "Please select a return dropping point";
+    }
+
+    // 9. Terms
+    if (!agreedToTerms) {
+      return "Please agree to the terms and conditions";
+    }
+    if (!policyAccepted) {
+      return "Please accept the policy";
+    }
+
+    // 10. Child/infant age validation
+    const invalidChild = primaryPassengers.find(
+      (p) => p.type === "child" && p.birthdate.trim() && !isValidChild(p.birthdate)
+    );
+    if (invalidChild) {
+      return "Children must be 2-11 years old";
+    }
+    const invalidInfant = primaryPassengers.find(
+      (p) => p.hasInfant && p.infantBirthdate?.trim() && !isValidInfant(p.infantBirthdate)
+    );
+    if (invalidInfant) {
+      return "Infants must be under 2 years old";
+    }
+
+    return null;
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) {
       console.log("[Submit] Request already in progress, skipping duplicate submission");
@@ -867,43 +970,9 @@ export default function PassengerDetailsForm({
       return;
     }
 
-    // Check primary passengers (non-companion seats)
-    const primaryPassengers = passengers.filter((p) => !p.isNeighbourFreeSeat);
-    if (primaryPassengers.some((p) => !p.firstName.trim() || !p.lastName.trim())) {
-      alert("Please provide first and last names for all passengers");
-      return;
-    }
-
-    if (!contactDetails.name || !contactDetails.email || !contactDetails.mobile) {
-      alert("Please provide your name, email and mobile number");
-      return;
-    }
-
-
-
-    if (!departureBoardingPoint || !departureDroppingPoint) {
-      alert("Please select departure boarding and dropping points");
-      return;
-    }
-
-    if (isRoundTrip && (!returnBoardingPoint || !returnDroppingPoint)) {
-      alert("Please select return boarding and dropping points");
-      return;
-    }
-
-    if (!agreedToTerms) {
-      alert("Please agree to the terms and conditions");
-      return;
-    }
-
-    if (
-      primaryPassengers.some(
-        (p) =>
-          (p.type === "child" && !isValidChild(p.birthdate)) ||
-          (p.hasInfant && !isValidInfant(p.infantBirthdate || ""))
-      )
-    ) {
-      alert("Children must be 2-11 years old. Infants must be under 2 years old.");
+    const error = validateBookingForm();
+    if (error) {
+      alert(error);
       return;
     }
 
@@ -2066,10 +2135,27 @@ export default function PassengerDetailsForm({
           {/* Submit Button */}
           <Button
             className="w-full h-12 sm:h-14 bg-[#FFD700] hover:bg-[rgb(0,123,123)] text-white font-semibold rounded-xl text-base sm:text-lg transition-all transform hover:scale-[1.02] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            disabled={isProcessing || !agreedToTerms || !policyAccepted || !contactDetails.name || !contactDetails.email || !contactDetails.mobile}
+            disabled={
+              isProcessing ||
+              !agreedToTerms ||
+              !policyAccepted ||
+              !contactDetails.name.trim() ||
+              !contactDetails.email.trim() ||
+              !contactDetails.mobile.trim() ||
+              !departureBoardingPoint.trim() ||
+              !departureDroppingPoint.trim() ||
+              (isRoundTrip && (!returnBoardingPoint.trim() || !returnDroppingPoint.trim())) ||
+              passengers.filter((p) => !p.isNeighbourFreeSeat).some((p) => !p.firstName.trim() || !p.lastName.trim())
+            }
             onClick={async () => {
               if (!policyAccepted) {
                 setShowPolicyModal(true);
+                return;
+              }
+
+              const validationError = validateBookingForm();
+              if (validationError) {
+                alert(validationError);
                 return;
               }
 

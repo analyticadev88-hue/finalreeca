@@ -74,7 +74,9 @@ export default function TermsAndConditions() {
     { id: "conduct", title: "13. Conduct & Safety" },
     { id: "liability", title: "14. Liability" },
     { id: "privacy", title: "15. Privacy" },
-    { id: "law", title: "16. Governing Law" },
+    { id: "alternative-vehicle", title: "16. Alternative/Substitute Vehicle" },
+    { id: "complimentary-services", title: "17. Complimentary Services" },
+    { id: "law", title: "18. Governing Law" },
   ];
 
   return (
@@ -340,11 +342,30 @@ export default function TermsAndConditions() {
                 </div>
               </section>
 
+              {/* Alternative/Substitute Vehicle */}
+              <section id="alternative-vehicle" className="mb-12">
+                <h2 className="text-2xl font-bold text-teal-800 mb-4">16. Alternative/Substitute Vehicle</h2>
+                <div className="space-y-4 text-gray-700">
+                  <p><strong>16.1.</strong> We may, at our discretion, provide an alternative vehicle or transport arrangement where necessary, including but not limited to low passenger numbers, operational requirements, maintenance issues, or breakdowns.</p>
+                  <p><strong>16.2.</strong> Alternative transport may include smaller vehicles, third-party vehicles, or shared transport arrangements. By booking or using our service, you consent to such reasonable substitutions, provided that safety and applicable regulatory standards are maintained.</p>
+                  <p><strong>16.3.</strong> We will make reasonable efforts to ensure that any substitute vehicle is suitable for the journey.</p>
+                </div>
+              </section>
+
+              {/* Complimentary Services */}
+              <section id="complimentary-services" className="mb-12">
+                <h2 className="text-2xl font-bold text-teal-800 mb-4">17. Complimentary Services</h2>
+                <div className="space-y-4 text-gray-700">
+                  <p><strong>17.1.</strong> We may, from time to time, provide complimentary services or amenities, including but not limited to Wi-Fi, snacks, and onboard entertainment. These services are offered at no additional charge and are provided on an "as available" basis.</p>
+                  <p><strong>17.2.</strong> We do not guarantee the availability, quality, or uninterrupted provision of such complimentary services. Their unavailability, interruption, or variation shall not constitute a breach of contract and shall not give rise to compensation, refunds, or claims.</p>
+                </div>
+              </section>
+
               {/* Governing Law */}
               <section id="law">
-                <h2 className="text-2xl font-bold text-teal-800 mb-4">16. Governing Law</h2>
+                <h2 className="text-2xl font-bold text-teal-800 mb-4">18. Governing Law</h2>
                 <div className="space-y-4 text-gray-700">
-                  <p><strong>16.1.</strong> These Terms shall be governed by the laws of the Republic of Botswana.</p>
+                  <p><strong>18.1.</strong> These Terms shall be governed by the laws of the Republic of Botswana.</p>
                 </div>
               </section>
 

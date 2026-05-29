@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
       include: {
         trip: true, // Include trip details
         returnTrip: true, // Include return trip details if applicable
+        passengers: true, // Include actual passenger records
       },
       orderBy: {
         createdAt: 'desc', // Order by creation date, newest first
@@ -46,36 +47,60 @@ export async function GET(req: NextRequest) {
     });
 
     // Transform the bookings data to match the expected frontend structure
-    const formattedBookings = bookings.map((booking) => ({
-      id: booking.id,
-      bookingRef: booking.orderId,
-      passengerName: booking.userName,
-      email: booking.userEmail,
-      phone: booking.userPhone || '', // Handle optional phone
-      passengers: booking.seatCount,
-      route: `${booking.trip?.routeOrigin} to ${booking.trip?.routeDestination}`,
-      date: booking.trip?.departureDate || new Date(),
-      time: booking.trip?.departureTime || '',
-      bus: booking.trip?.routeName || '',
-      boardingPoint: booking.boardingPoint,
-      droppingPoint: booking.droppingPoint,
-      seats: booking.seats.split(','), // Assuming seats are stored as comma-separated values
-      totalAmount: booking.totalPrice,
-      paymentMethod: booking.paymentMode, // Use actual payment mode from DB
-      paymentStatus: booking.paymentStatus,
-      bookingStatus: booking.bookingStatus,
-      specialRequests: '', // Placeholder for special requests, adjust as needed
-      addons: booking.addons,
-      returnTrip: booking.returnTrip ? {
-        route: `${booking.returnTrip.routeOrigin} to ${booking.returnTrip.routeDestination}`,
-        date: booking.returnTrip.departureDate || new Date(),
-        time: booking.returnTrip.departureTime || '',
-        bus: booking.returnTrip.routeName || '',
-        boardingPoint: booking.returnBoardingPoint || '',
-        droppingPoint: booking.returnDroppingPoint || '',
-        seats: booking.returnSeats ? booking.returnSeats.split(',') : [],
-      } : undefined,
-    }));
+    const formattedBookings = bookings.map((booking) => {
+      const passengerList = (booking.passengers || []).map((p) => ({
+        name: `${p.title || ''} ${p.firstName || ''} ${p.lastName || ''}`.trim(),
+        seat: p.seatNumber || '',
+        type: p.type || 'adult',
+        passportNumber: p.passportNumber || '',
+        hasInfant: p.hasInfant,
+        infantName: p.infantName || '',
+        infantBirthdate: p.infantBirthdate || '',
+        infantPassportNumber: p.infantPassportNumber || '',
+        isReturn: p.isReturn,
+      }));
+
+      // Build a display name: first passenger name, or purchaser name if no passengers
+      const firstPassenger = passengerList.find((p) => p.name);
+      const passengerDisplayName = firstPassenger
+        ? passengerList.length > 1
+          ? `${firstPassenger.name} +${passengerList.length - 1}`
+          : firstPassenger.name
+        : booking.userName;
+
+      return {
+        id: booking.id,
+        bookingRef: booking.orderId,
+        passengerName: passengerDisplayName,
+        purchaserName: booking.userName,
+        email: booking.userEmail,
+        phone: booking.userPhone || '',
+        passengers: booking.seatCount,
+        passengerList,
+        route: `${booking.trip?.routeOrigin} to ${booking.trip?.routeDestination}`,
+        date: booking.trip?.departureDate || new Date(),
+        time: booking.trip?.departureTime || '',
+        bus: booking.trip?.routeName || '',
+        boardingPoint: booking.boardingPoint,
+        droppingPoint: booking.droppingPoint,
+        seats: booking.seats.split(','),
+        totalAmount: booking.totalPrice,
+        paymentMethod: booking.paymentMode,
+        paymentStatus: booking.paymentStatus,
+        bookingStatus: booking.bookingStatus,
+        specialRequests: '',
+        addons: booking.addons,
+        returnTrip: booking.returnTrip ? {
+          route: `${booking.returnTrip.routeOrigin} to ${booking.returnTrip.routeDestination}`,
+          date: booking.returnTrip.departureDate || new Date(),
+          time: booking.returnTrip.departureTime || '',
+          bus: booking.returnTrip.routeName || '',
+          boardingPoint: booking.returnBoardingPoint || '',
+          droppingPoint: booking.returnDroppingPoint || '',
+          seats: booking.returnSeats ? booking.returnSeats.split(',') : [],
+        } : undefined,
+      };
+    });
 
     return NextResponse.json(formattedBookings);
   } catch (error) {

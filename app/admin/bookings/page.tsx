@@ -52,6 +52,7 @@ interface Booking {
   id: string;
   bookingRef: string;
   passengerName: string;
+  purchaserName: string;
   email: string;
   phone: string;
   passengers: number;
@@ -204,6 +205,8 @@ export default function BookingsManagement() {
   const filteredBookings = bookings.filter((booking) => {
     const matchesSearch =
       booking.passengerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      booking.purchaserName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (booking.passengerList || []).some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       booking.bookingRef.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.route.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -273,7 +276,7 @@ export default function BookingsManagement() {
       // Fallback to basic data if API fails
       setSelectedBookingData({
         bookingRef: booking.bookingRef,
-        userName: booking.passengerName,
+        userName: booking.purchaserName,
         userEmail: booking.email,
         userPhone: booking.phone,
         totalAmount: booking.totalAmount,
@@ -385,6 +388,7 @@ export default function BookingsManagement() {
     const exportData = filteredBookings.map((booking) => ({
       'Booking Ref': booking.bookingRef,
       'Passenger Name': booking.passengerName,
+      'Purchaser Name': booking.purchaserName,
       'Email': booking.email,
       'Phone': booking.phone,
       'Passengers': booking.passengers,
@@ -781,6 +785,11 @@ export default function BookingsManagement() {
                         <td className="px-3 py-2 hidden sm:table-cell">
                           <div className="text-xs sm:text-sm font-medium" style={{ color: colors.dark }}>{booking.passengerName}</div>
                           <div className="text-xs" style={{ color: colors.accent }}>{booking.email}</div>
+                          <div className="text-xs mt-0.5">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {booking.passengers} {booking.passengers === 1 ? 'passenger' : 'passengers'}
+                            </Badge>
+                          </div>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-xs sm:text-sm" style={{ color: colors.dark }}>{booking.route}</div>
@@ -951,9 +960,10 @@ export default function BookingsManagement() {
               <section>
                 <h4 className="font-semibold mb-2 text-xs sm:text-sm" style={{ color: colors.dark }}>Booking Information</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
-                  <div><span style={{ color: colors.accent }}>Passenger:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.passengerName}</span></div>
+                  <div><span style={{ color: colors.accent }}>Contact:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.purchaserName}</span></div>
                   <div><span style={{ color: colors.accent }}>Email:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.email}</span></div>
                   <div><span style={{ color: colors.accent }}>Phone:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.phone}</span></div>
+                  <div><span style={{ color: colors.accent }}>Passengers:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.passengers}</span></div>
                   <div><span style={{ color: colors.accent }}>Status:</span> <Badge>{selectedBooking.bookingStatus}</Badge></div>
                 </div>
               </section>

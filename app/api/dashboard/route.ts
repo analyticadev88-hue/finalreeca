@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { enrichTripsWithAvailability } from '@/lib/tripAvailability';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 export async function GET(req: NextRequest) {
@@ -16,7 +17,6 @@ export async function GET(req: NextRequest) {
       allTimeRevenue,
       monthlyBookings,
       monthlyRevenue,
-      todayDepartures
     ] = await Promise.all([
       // 1. All-time confirmed bookings
       prisma.booking.count({
@@ -46,12 +46,6 @@ export async function GET(req: NextRequest) {
           bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
         }
       }),
-      // 5. Today's departures
-      prisma.trip.count({
-        where: {
-          departureDate: { gte: dayStart, lte: dayEnd }
-        }
-      })
     ]);
 
     // Get recent bookings
@@ -69,35 +63,31 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Get today's trips with bookings
+    // Get today's trips with full booking data for accurate seat parsing
     const todaysTrips = await prisma.trip.findMany({
       where: {
         departureDate: { gte: dayStart, lte: dayEnd }
       },
       include: {
         bookings: {
-          select: { seatCount: true, bookingStatus: true }
+          select: { id: true, seats: true, bookingStatus: true }
         },
         returnBookings: {
-          select: { seatCount: true, bookingStatus: true }
+          select: { id: true, seats: true, returnSeats: true, bookingStatus: true }
         }
       }
     });
+
+    // Use shared availability calculation for consistency with Fleet Management
+    const enrichedTrips = await enrichTripsWithAvailability(todaysTrips);
+    const todayDepartures = enrichedTrips.length;
 
     // Categorize trips into morning and afternoon
     const morningOccupancy = [];
     const afternoonOccupancy = [];
 
-    for (const trip of todaysTrips) {
-      const outboundSeats = trip.bookings
-        .filter((b: any) => ["confirmed", "completed", "pending"].includes(b.bookingStatus?.toLowerCase()))
-        .reduce((sum, booking) => sum + booking.seatCount, 0);
-      
-      const returnSeats = (trip as any).returnBookings
-        .filter((b: any) => ["confirmed", "completed", "pending"].includes(b.bookingStatus?.toLowerCase()))
-        .reduce((sum: number, booking: any) => sum + booking.seatCount, 0);
-      
-      const bookedSeats = outboundSeats + returnSeats;
+    for (const trip of enrichedTrips) {
+      const bookedSeats = trip.computedBookedSeats;
       
       // Parse time to determine if it's morning or afternoon
       let hours;
@@ -120,7 +110,7 @@ export async function GET(req: NextRequest) {
       const occupancyData = {
         bus: `Service Bus ${busLabel}`,
         route: `${trip.routeOrigin} to ${trip.routeDestination}`,
-        totalSeats: trip.totalSeats,
+        totalSeats: trip.computedTotalSeats,
         bookedSeats,
         departureTime: trip.departureTime
       };

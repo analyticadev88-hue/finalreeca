@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { enrichTripsWithAvailability } from "@/lib/tripAvailability";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +28,11 @@ export async function GET(request: NextRequest) {
       },
       include: {
         bookings: {
-          include: {
+          select: {
+            id: true,
+            seats: true,
+            bookingStatus: true,
+            totalPrice: true,
             passengers: true,
           },
           where: {
@@ -35,7 +40,12 @@ export async function GET(request: NextRequest) {
           }
         },
         returnBookings: {
-          include: {
+          select: {
+            id: true,
+            seats: true,
+            returnSeats: true,
+            bookingStatus: true,
+            totalPrice: true,
             passengers: true,
           },
           where: {
@@ -48,26 +58,21 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Use shared availability calculation for consistency with Fleet Management
+    const enrichedTrips = await enrichTripsWithAvailability(trips);
+
     // Transform the data to match the frontend requirements
-    const schedules = trips.map((trip) => {
-      const confirmedBookings = trip.bookings;
-      const returnBookings = (trip as any).returnBookings || [];
-      const allBookings = [...confirmedBookings, ...returnBookings];
+    const schedules = enrichedTrips.map((trip) => {
+      const allBookings = [
+        ...trip.bookings,
+        ...((trip as any).returnBookings || [])
+      ];
 
-      // Sum passengers for this specific trip
-      const passengerCount = (confirmedBookings || []).reduce((sum, b) => 
-        sum + (Array.isArray(b.passengers) ? b.passengers.filter((p: any) => !p.isReturn).length : 0), 0
-      ) + (returnBookings || []).reduce((sum: number, b: any) => 
-        sum + (Array.isArray(b.passengers) ? b.passengers.filter((p: any) => p.isReturn).length : 0), 0
+      const revenue = allBookings.reduce(
+        (sum, booking) => sum + (Number(booking.totalPrice) || 0),
+        0
       );
 
-      const revenue = allBookings.reduce((sum, booking) => 
-        sum + (Number(booking.totalPrice) || 0), 0
-      );
-      
-      // Parse occupied seats to get actual seat data
-      const occupiedSeatsArray = trip.occupiedSeats ? JSON.parse(trip.occupiedSeats) : [];
-      
       return {
         id: trip.id,
         busNumber: trip.serviceType, // Using serviceType as bus identifier
@@ -76,16 +81,16 @@ export async function GET(request: NextRequest) {
         routeDestination: trip.routeDestination,
         departureDate: trip.departureDate.toISOString(),
         departureTime: trip.departureTime,
-        totalSeats: trip.totalSeats,
-        bookedSeats: passengerCount,
-        availableSeats: trip.totalSeats - passengerCount,
-        occupiedSeats: occupiedSeatsArray,
+        totalSeats: trip.computedTotalSeats,
+        bookedSeats: trip.computedBookedSeats,
+        availableSeats: trip.computedAvailableSeats,
+        occupiedSeats: trip.computedOccupiedSeats,
         revenue: revenue,
-        status: trip.hasDeparted ? "Completed" : "Active",
-        hasDeparted: trip.hasDeparted,
-        passengerCount: passengerCount,
+        status: trip.computedHasDeparted ? "Completed" : "Active",
+        hasDeparted: trip.computedHasDeparted,
+        passengerCount: trip.computedBookedSeats,
         bookingCount: allBookings.length,
-        hasPassengers: passengerCount > 0,
+        hasPassengers: trip.computedBookedSeats > 0,
         tempLockedSeats: trip.tempLockedSeats ? trip.tempLockedSeats.split(',') : []
       };
     });

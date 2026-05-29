@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '@/lib/adminAuth';
 import { prisma } from '@/lib/prisma';
+import { enrichTripsWithAvailability } from '@/lib/tripAvailability';
 
 function isValidDate(date: any): date is Date | string {
   return date && !isNaN(new Date(date).getTime());
@@ -105,14 +106,6 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // Collect parent trip IDs for seat resolution
-    const parentIds = trips.filter(t => t.parentTripId).map(t => t.parentTripId!);
-    const parentTrips = parentIds.length > 0 ? await prisma.trip.findMany({
-      where: { id: { in: parentIds } },
-      select: { id: true, occupiedSeats: true, totalSeats: true, tempLockedSeats: true }
-    }) : [];
-    const parentMap = new Map(parentTrips.map(p => [p.id, p]));
-
     console.log('Found trips:', trips.map(t => ({
       id: t.id,
       date: t.departureDate,
@@ -120,97 +113,10 @@ export async function GET(request: NextRequest) {
       route: `${t.routeOrigin} → ${t.routeDestination}`
     })));
 
-    // Fetch all seat reservations for these trips (so reserved seats count toward unavailable seats)
-    const tripIds = trips.map(t => t.id);
-    const seatReservationsAll = tripIds.length > 0 ? await prisma.seatReservation.findMany({ where: { tripId: { in: tripIds } } }) : [];
-    const seatReservationMap = new Map<string, string[]>();
-    for (const r of seatReservationsAll) {
-      if (!seatReservationMap.has(r.tripId)) seatReservationMap.set(r.tripId, []);
-      seatReservationMap.get(r.tripId)!.push(r.seatNumber);
-    }
+    // Use shared availability calculation for consistency across Dashboard and Fleet Ops
+    const enrichedTrips = await enrichTripsWithAvailability(trips);
 
-    const tripsWithAvailability = trips.map(trip => {
-      // For child trips, read seat data from parent
-      const seatSource = trip.parentTripId ? parentMap.get(trip.parentTripId) : trip;
-      const effectiveOccupiedSeats = seatSource?.occupiedSeats || trip.occupiedSeats;
-      const effectiveTotalSeats = seatSource?.totalSeats || trip.totalSeats;
-      const effectiveTempLocked = seatSource?.tempLockedSeats || trip.tempLockedSeats;
-
-      // Parse occupiedSeats from seat source
-      let occupiedSeats: string[] = [];
-      if (effectiveOccupiedSeats) {
-        try {
-          occupiedSeats = JSON.parse(effectiveOccupiedSeats);
-        } catch {
-          occupiedSeats = [];
-        }
-      }
-
-      // Collect all booked seats from bookings on THIS trip and its parent
-      const bookedSeats: string[] = [];
-      const tripsToCheck = [trip, ...(trip.parentTripId && parentMap.get(trip.parentTripId) ? [{ id: trip.parentTripId, bookings: (trip as any).bookings, returnBookings: (trip as any).returnBookings }] : [])];
-      
-      for (const t of tripsToCheck) {
-        // Outbound bookings
-        for (const booking of (t as any).bookings || []) {
-          if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
-            try {
-              let seats: string[] = [];
-              if (booking.seats.startsWith('[')) {
-                seats = JSON.parse(booking.seats);
-              } else {
-                seats = booking.seats.split(',').filter(Boolean);
-              }
-              if (Array.isArray(seats)) {
-                bookedSeats.push(...seats);
-              }
-            } catch (e) {
-              console.error('Error parsing booking seats:', e);
-            }
-          }
-        }
-
-        // Return bookings
-        for (const booking of (t as any).returnBookings || []) {
-          if (["confirmed", "completed", "pending"].includes(booking.bookingStatus?.toLowerCase())) {
-            try {
-              const rSeats = booking.returnSeats || booking.seats;
-              let seats: string[] = [];
-              if (rSeats.startsWith('[')) {
-                seats = JSON.parse(rSeats);
-              } else {
-                seats = rSeats.split(',').filter(Boolean);
-              }
-              if (Array.isArray(seats)) {
-                bookedSeats.push(...seats);
-              }
-            } catch (e) {
-              console.error('Error parsing return booking seats:', e);
-            }
-          }
-        }
-      }
-
-      // Parse tempLockedSeats from seat source
-      const tempLockedSeats = effectiveTempLocked ? effectiveTempLocked.split(',').filter(Boolean) : [];
-
-      // Collect reserved seats from seatReservationMap for THIS trip and parent
-      const reservedSeatsFromMap = seatReservationMap.get(trip.id) || [];
-      const parentReservedSeats = trip.parentTripId ? (seatReservationMap.get(trip.parentTripId) || []) : [];
-
-      // Combine and deduplicate
-      const unavailableSeats = Array.from(new Set([...occupiedSeats, ...bookedSeats, ...reservedSeatsFromMap, ...parentReservedSeats, ...tempLockedSeats]));
-      const availableSeats = Math.max(0, effectiveTotalSeats - unavailableSeats.length);
-
-      // Calculate hasDeparted
-      let hasDeparted = false;
-      if (trip.departureDate && trip.departureTime) {
-        const depDate = new Date(trip.departureDate);
-        const [hours, minutes] = trip.departureTime.split(":").map(Number);
-        depDate.setHours(hours, minutes, 0, 0);
-        hasDeparted = depDate < new Date();
-      }
-
+    const tripsWithAvailability = enrichedTrips.map(trip => {
       let departureDateISO = "";
       if (isValidDate(trip.departureDate)) {
         departureDateISO = new Date(trip.departureDate).toISOString();
@@ -220,12 +126,12 @@ export async function GET(request: NextRequest) {
 
       return {
         ...trip,
-        totalSeats: effectiveTotalSeats,
-        availableSeats,
-        occupiedSeats: effectiveOccupiedSeats || '[]',
-        tempLockedSeats: effectiveTempLocked || '',
+        totalSeats: trip.computedTotalSeats,
+        availableSeats: trip.computedAvailableSeats,
+        occupiedSeats: JSON.stringify(trip.computedOccupiedSeats),
+        tempLockedSeats: trip.tempLockedSeats || '',
         departureDate: departureDateISO,
-        hasDeparted,
+        hasDeparted: trip.computedHasDeparted,
         reservedSeatsCount: 0,
         parentTripId: trip.parentTripId,
       } as any;
