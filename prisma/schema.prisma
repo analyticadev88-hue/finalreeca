@@ -47,6 +47,9 @@ model Trip {
   returnBookings Booking[]   @relation("ReturnTripBooking")
   passengers     Passenger[]
   reservations   TripReservation[]
+
+  // Prevent duplicate trips for the same route, date, time and service
+  @@unique([routeOrigin, routeDestination, departureDate, departureTime, serviceType])
 }
 
 model Booking {

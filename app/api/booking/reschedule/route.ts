@@ -12,6 +12,11 @@ function parseSeats(seatsStr: string | null): string[] {
   return seatsStr.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+function toISODateString(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toISOString().split('T')[0];
+}
+
 function cloneTripFields(trip: any) {
   return {
     serviceType: trip.serviceType,
@@ -68,6 +73,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Booking has no associated trip" }, { status: 400 });
     }
 
+    // Idempotency guard: if this booking is already on the target trips, no-op
+    const currentTrip = booking.trip;
+    const currentReturnTrip = booking.returnTrip;
+    const sameDeparture = !newDepartureDate || !newDepartureTime || (
+      currentTrip &&
+      toISODateString(currentTrip.departureDate) === newDepartureDate &&
+      currentTrip.departureTime === newDepartureTime
+    );
+    const sameReturn = !booking.returnTripId || !newReturnDate || !newReturnTime || (
+      currentReturnTrip &&
+      toISODateString(currentReturnTrip.departureDate) === newReturnDate &&
+      currentReturnTrip.departureTime === newReturnTime
+    );
+    if (sameDeparture && sameReturn) {
+      return NextResponse.json({ success: true, booking, message: 'Booking already on the requested date/time' });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       let newTripId = booking.tripId;
       let newReturnTripId = booking.returnTripId;
@@ -80,25 +102,50 @@ export async function POST(req: NextRequest) {
         const oldTrip = await tx.trip.findUnique({ where: { id: booking.tripId } });
         if (!oldTrip) throw new Error("Original departure trip not found");
 
-        // Create new trip for this booking
-        const newTrip = await tx.trip.create({
-          data: {
-            ...cloneTripFields(oldTrip),
+        // Check if a matching trip already exists before creating
+        const existingNewTrip = await tx.trip.findFirst({
+          where: {
+            routeOrigin: newRouteOrigin || oldTrip.routeOrigin,
+            routeDestination: newRouteDestination || oldTrip.routeDestination,
             departureDate: new Date(newDepartureDate),
             departureTime: newDepartureTime,
-            occupiedSeats: JSON.stringify(departureSeats),
-            availableSeats:
-              oldTrip.totalSeats -
-              departureSeats.length -
-              (oldTrip.tempLockedSeats ? oldTrip.tempLockedSeats.split(",").filter(Boolean).length : 0),
-            ...(newRouteName ? { routeName: newRouteName } : {}),
-            ...(newRouteOrigin ? { routeOrigin: newRouteOrigin } : {}),
-            ...(newRouteDestination ? { routeDestination: newRouteDestination } : {}),
-            ...(newBoardingPoint ? { boardingPoint: newBoardingPoint } : {}),
-            ...(newDroppingPoint ? { droppingPoint: newDroppingPoint } : {}),
-            ...(newFare !== undefined ? { fare: Number(newFare) } : {}),
-          },
+            serviceType: oldTrip.serviceType,
+          }
         });
+
+        let newTrip;
+        if (existingNewTrip) {
+          newTrip = existingNewTrip;
+          // Merge seats into existing trip
+          const existingOccupied = parseSeats(existingNewTrip.occupiedSeats || '[]');
+          const mergedOccupied = Array.from(new Set([...existingOccupied, ...departureSeats]));
+          await tx.trip.update({
+            where: { id: existingNewTrip.id },
+            data: {
+              occupiedSeats: JSON.stringify(mergedOccupied),
+              availableSeats: existingNewTrip.totalSeats - mergedOccupied.length - (existingNewTrip.tempLockedSeats ? existingNewTrip.tempLockedSeats.split(',').filter(Boolean).length : 0),
+            }
+          });
+        } else {
+          newTrip = await tx.trip.create({
+            data: {
+              ...cloneTripFields(oldTrip),
+              departureDate: new Date(newDepartureDate),
+              departureTime: newDepartureTime,
+              occupiedSeats: JSON.stringify(departureSeats),
+              availableSeats:
+                oldTrip.totalSeats -
+                departureSeats.length -
+                (oldTrip.tempLockedSeats ? oldTrip.tempLockedSeats.split(",").filter(Boolean).length : 0),
+              ...(newRouteName ? { routeName: newRouteName } : {}),
+              ...(newRouteOrigin ? { routeOrigin: newRouteOrigin } : {}),
+              ...(newRouteDestination ? { routeDestination: newRouteDestination } : {}),
+              ...(newBoardingPoint ? { boardingPoint: newBoardingPoint } : {}),
+              ...(newDroppingPoint ? { droppingPoint: newDroppingPoint } : {}),
+              ...(newFare !== undefined ? { fare: Number(newFare) } : {}),
+            },
+          });
+        }
         newTripId = newTrip.id;
 
         // Remove this booking's seats from the old trip (or its parent)
@@ -123,24 +170,50 @@ export async function POST(req: NextRequest) {
         const oldReturnTrip = await tx.trip.findUnique({ where: { id: booking.returnTripId } });
         if (!oldReturnTrip) throw new Error("Original return trip not found");
 
-        const newReturnTrip = await tx.trip.create({
-          data: {
-            ...cloneTripFields(oldReturnTrip),
+        // Check if a matching return trip already exists before creating
+        const existingNewReturnTrip = await tx.trip.findFirst({
+          where: {
+            routeOrigin: newRouteOrigin || oldReturnTrip.routeOrigin,
+            routeDestination: newRouteDestination || oldReturnTrip.routeDestination,
             departureDate: new Date(newReturnDate),
             departureTime: newReturnTime,
-            occupiedSeats: JSON.stringify(returnSeats),
-            availableSeats:
-              oldReturnTrip.totalSeats -
-              returnSeats.length -
-              (oldReturnTrip.tempLockedSeats ? oldReturnTrip.tempLockedSeats.split(",").filter(Boolean).length : 0),
-            ...(newRouteName ? { routeName: newRouteName } : {}),
-            ...(newRouteOrigin ? { routeOrigin: newRouteOrigin } : {}),
-            ...(newRouteDestination ? { routeDestination: newRouteDestination } : {}),
-            ...(newBoardingPoint ? { boardingPoint: newBoardingPoint } : {}),
-            ...(newDroppingPoint ? { droppingPoint: newDroppingPoint } : {}),
-            ...(newFare !== undefined ? { fare: Number(newFare) } : {}),
-          },
+            serviceType: oldReturnTrip.serviceType,
+          }
         });
+
+        let newReturnTrip;
+        if (existingNewReturnTrip) {
+          newReturnTrip = existingNewReturnTrip;
+          // Merge seats into existing trip
+          const existingOccupied = parseSeats(existingNewReturnTrip.occupiedSeats || '[]');
+          const mergedOccupied = Array.from(new Set([...existingOccupied, ...returnSeats]));
+          await tx.trip.update({
+            where: { id: existingNewReturnTrip.id },
+            data: {
+              occupiedSeats: JSON.stringify(mergedOccupied),
+              availableSeats: existingNewReturnTrip.totalSeats - mergedOccupied.length - (existingNewReturnTrip.tempLockedSeats ? existingNewReturnTrip.tempLockedSeats.split(',').filter(Boolean).length : 0),
+            }
+          });
+        } else {
+          newReturnTrip = await tx.trip.create({
+            data: {
+              ...cloneTripFields(oldReturnTrip),
+              departureDate: new Date(newReturnDate),
+              departureTime: newReturnTime,
+              occupiedSeats: JSON.stringify(returnSeats),
+              availableSeats:
+                oldReturnTrip.totalSeats -
+                returnSeats.length -
+                (oldReturnTrip.tempLockedSeats ? oldReturnTrip.tempLockedSeats.split(",").filter(Boolean).length : 0),
+              ...(newRouteName ? { routeName: newRouteName } : {}),
+              ...(newRouteOrigin ? { routeOrigin: newRouteOrigin } : {}),
+              ...(newRouteDestination ? { routeDestination: newRouteDestination } : {}),
+              ...(newBoardingPoint ? { boardingPoint: newBoardingPoint } : {}),
+              ...(newDroppingPoint ? { droppingPoint: newDroppingPoint } : {}),
+              ...(newFare !== undefined ? { fare: Number(newFare) } : {}),
+            },
+          });
+        }
         newReturnTripId = newReturnTrip.id;
 
         const oldReturnSeatSourceId = oldReturnTrip.parentTripId || oldReturnTrip.id;
@@ -163,7 +236,7 @@ export async function POST(req: NextRequest) {
       const bookingUpdateData: any = {
         tripId: newTripId,
         returnTripId: newReturnTripId,
-        bookingStatus: "rescheduled",
+        bookingStatus: "confirmed",
       };
       if (newTotalPrice !== undefined) {
         bookingUpdateData.totalPrice = Number(newTotalPrice);

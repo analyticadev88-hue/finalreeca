@@ -182,6 +182,20 @@ export async function POST(request: NextRequest) {
       departureDate: new Date(data.departureDate)
     };
 
+    // Duplicate guard
+    const existing = await prisma.trip.findFirst({
+      where: {
+        routeOrigin: tripData.routeOrigin,
+        routeDestination: tripData.routeDestination,
+        departureDate: tripData.departureDate,
+        departureTime: tripData.departureTime || '00:00',
+        serviceType: tripData.serviceType || 'Standard',
+      }
+    });
+    if (existing) {
+      return NextResponse.json({ message: 'Trip already exists for this route, date and time', trip: existing }, { status: 409 });
+    }
+
     const newTrip = await prisma.trip.create({
       data: tripData
     });

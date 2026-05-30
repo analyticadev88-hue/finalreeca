@@ -21,15 +21,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // De-duplicate against existing trips in the database
+    const existingTrips = await prisma.trip.findMany({
+      where: {
+        OR: trips.map((trip: any) => ({
+          routeOrigin: trip.routeOrigin,
+          routeDestination: trip.routeDestination,
+          departureDate: new Date(trip.departureDate),
+          departureTime: trip.departureTime,
+          serviceType: trip.serviceType,
+        })),
+      },
+      select: {
+        routeOrigin: true,
+        routeDestination: true,
+        departureDate: true,
+        departureTime: true,
+        serviceType: true,
+      },
+    });
+
+    const existingKeys = new Set(
+      existingTrips.map(
+        (t) => `${t.routeOrigin}|${t.routeDestination}|${t.departureDate.toISOString()}|${t.departureTime}|${t.serviceType}`
+      )
+    );
+
+    const newTrips = trips.filter((trip: any) => {
+      const key = `${trip.routeOrigin}|${trip.routeDestination}|${new Date(trip.departureDate).toISOString()}|${trip.departureTime}|${trip.serviceType}`;
+      return !existingKeys.has(key);
+    });
+
     // Create trips in batches to avoid memory issues with large datasets
     const batchSize = 100;
     let createdCount = 0;
 
-    for (let i = 0; i < trips.length; i += batchSize) {
-      const batch = trips.slice(i, i + batchSize);
+    for (let i = 0; i < newTrips.length; i += batchSize) {
+      const batch = newTrips.slice(i, i + batchSize);
       
       const createdTrips = await prisma.trip.createMany({
-        data: batch.map(trip => ({
+        data: batch.map((trip: any) => ({
           serviceType: trip.serviceType,
           routeName: trip.routeName,
           routeOrigin: trip.routeOrigin,
@@ -45,7 +76,6 @@ export async function POST(request: NextRequest) {
           promoActive: Boolean(trip.promoActive),
           hasDeparted: Boolean(trip.hasDeparted),
         })),
-        skipDuplicates: true, // Skip if duplicate exists
       });
 
       createdCount += createdTrips.count;

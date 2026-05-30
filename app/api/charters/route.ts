@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma, executeWithRetry } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
 import { getRouteDescriptors } from '@/lib/busRoutes';
 import { requireAdminAuth } from '@/lib/adminAuth';
@@ -45,7 +45,34 @@ export async function POST(request: NextRequest) {
     const charterStartDate = new Date(startDate);
     const charterEndDate = new Date(endDate);
 
-    const txResult = await executeWithRetry(() => prisma.$transaction(async (tx) => {
+    // Idempotency: check if this exact charter already exists
+    const existingCharter = await prisma.trip.findFirst({
+      where: {
+        isChartered: true,
+        charterCompany: company,
+        charterStartDate: charterStartDate,
+        charterEndDate: charterEndDate,
+        routeName: customRoute,
+      }
+    });
+
+    if (existingCharter) {
+      const existingReservation = await prisma.tripReservation.findFirst({
+        where: { tripId: existingCharter.id },
+        include: { reservationLinks: true }
+      });
+      return NextResponse.json({
+        ok: true,
+        reservationId: existingReservation?.id,
+        link: { token: existingReservation?.reservationLinks[0]?.token },
+        conflictReport: [],
+        totalMarked: 0,
+        replacementTripsCreated: 0,
+        message: 'Charter already exists for this company and date range',
+      });
+    }
+
+    const txResult = await prisma.$transaction(async (tx) => {
       // Create charter trip
       const charterTrip = await tx.trip.create({
         data: {
@@ -238,7 +265,7 @@ export async function POST(request: NextRequest) {
         totalMarked,
         replacementTripsCreated: replacementTrips.length,
       };
-    }, { maxWait: 15000, timeout: 45000 }), 3, 500);
+    }, { maxWait: 15000, timeout: 45000 });
 
     return NextResponse.json({
       ok: true,

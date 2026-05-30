@@ -16,12 +16,29 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const { serviceType, routeName, totalSeats, fare, departureDate, departureTime, durationMinutes, promoActive } = await request.json();
+    const routeOrigin = routeName.split('→')[0]?.trim() || routeName;
+    const routeDestination = routeName.split('→')[1]?.trim() || routeName;
+
+    // Duplicate guard
+    const existing = await prisma.trip.findFirst({
+      where: {
+        routeOrigin,
+        routeDestination,
+        departureDate: new Date(departureDate),
+        departureTime: departureTime || '00:00',
+        serviceType: serviceType || 'Standard',
+      }
+    });
+    if (existing) {
+      return NextResponse.json({ message: 'Trip already exists for this route, date and time', trip: existing }, { status: 409 });
+    }
+
     const newTrip = await prisma.trip.create({
       data: {
-        serviceType,
+        serviceType: serviceType || 'Standard',
         routeName,
-        routeOrigin: routeName.split('→')[0]?.trim() || routeName,
-        routeDestination: routeName.split('→')[1]?.trim() || routeName,
+        routeOrigin,
+        routeDestination,
         departureDate: new Date(departureDate),
         departureTime: departureTime || '00:00',
         totalSeats: Number(totalSeats) || 0,
