@@ -108,8 +108,26 @@ export default function ManifestPage({ params: paramsPromise, onBack }: { params
   // Raw passenger count (before grouping) — must match bus schedule count
   const rawPassengerCount = rawPassengers.length;
 
-  // Revenue from all valid bookings (confirmed/completed/pending) — must match bus schedule
-  const totalRevenue = bookings.reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0);
+  // Revenue from all valid bookings — split round-trip price by leg to avoid double counting
+  const totalRevenue = bookings.reduce((sum, b) => {
+    const price = Number(b.totalPrice) || 0;
+    if (!b.returnTripId || !b.returnTrip) {
+      // One-way booking: full price
+      return sum + price;
+    }
+    // Round-trip: split proportionally by passenger count on each leg
+    const outboundCount = (b.passengers || []).filter((p: any) => !p.isReturn).length;
+    const returnCount = (b.passengers || []).filter((p: any) => p.isReturn).length;
+    const totalCount = outboundCount + returnCount;
+    if (totalCount === 0) return sum + price;
+
+    const isViewingReturnTrip = b.returnTripId === busId;
+    if (isViewingReturnTrip) {
+      return sum + price * (returnCount / totalCount);
+    } else {
+      return sum + price * (outboundCount / totalCount);
+    }
+  }, 0);
 
   // Group neighbour-free companion seats: same name + same booking ref = merge into one row
   // This prevents the same person appearing twice when they bought a "neighbour-free" extra seat.

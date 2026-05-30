@@ -60,8 +60,10 @@ export async function GET(req: NextRequest) {
         isReturn: p.isReturn,
       }));
 
-      // Count actual unique passengers (non-return, excluding neighbour-free seats)
-      const actualPassengers = booking.passengers?.filter(p => !p.isReturn).length || 0;
+      // Count passengers by leg
+      const outboundPassengers = booking.passengers?.filter(p => !p.isReturn) || [];
+      const returnPassengers = booking.passengers?.filter(p => p.isReturn) || [];
+      const actualPassengers = outboundPassengers.length;
 
       // Build a display name: first passenger name, or purchaser name if no passengers
       const firstPassenger = passengerList.find((p) => p.name && !p.isReturn);
@@ -71,6 +73,19 @@ export async function GET(req: NextRequest) {
           : firstPassenger.name
         : booking.userName;
 
+      // Build return trip passenger list
+      const returnPassengerList = returnPassengers.map((p) => ({
+        name: `${p.title || ''} ${p.firstName || ''} ${p.lastName || ''}`.trim(),
+        seat: p.seatNumber || '',
+        type: p.type || 'adult',
+        passportNumber: p.passportNumber || '',
+        hasInfant: p.hasInfant,
+        infantName: p.infantName || '',
+        infantBirthdate: p.infantBirthdate || '',
+        infantPassportNumber: p.infantPassportNumber || '',
+        isReturn: p.isReturn,
+      }));
+
       return {
         id: booking.id,
         bookingRef: booking.orderId,
@@ -78,7 +93,9 @@ export async function GET(req: NextRequest) {
         purchaserName: booking.userName,
         email: booking.userEmail,
         phone: booking.userPhone || '',
-        passengers: booking.passengers?.filter(p => !p.isReturn).length || 0,
+        passengers: outboundPassengers.length,
+        returnPassengers: returnPassengers.length,
+        totalPassengers: outboundPassengers.length + returnPassengers.length,
         passengerList,
         route: `${booking.trip?.routeOrigin} to ${booking.trip?.routeDestination}`,
         date: booking.trip?.departureDate || new Date(),
@@ -101,6 +118,7 @@ export async function GET(req: NextRequest) {
           boardingPoint: booking.returnBoardingPoint || '',
           droppingPoint: booking.returnDroppingPoint || '',
           seats: booking.returnSeats ? booking.returnSeats.split(',') : [],
+          passengers: returnPassengerList,
         } : undefined,
       };
     });

@@ -63,15 +63,30 @@ export async function GET(request: NextRequest) {
 
     // Transform the data to match the frontend requirements
     const schedules = enrichedTrips.map((trip) => {
-      const allBookings = [
-        ...trip.bookings,
-        ...((trip as any).returnBookings || [])
-      ];
+      // Split revenue by leg so round-trip bookings don't inflate both trips
+      const outboundBookings = trip.bookings || [];
+      const returnBookings = (trip as any).returnBookings || [];
 
-      const revenue = allBookings.reduce(
-        (sum, booking) => sum + (Number(booking.totalPrice) || 0),
-        0
-      );
+      const outboundRevenue = outboundBookings.reduce((sum, booking) => {
+        const price = Number(booking.totalPrice) || 0;
+        const returnBookingsCount = (booking.passengers || []).filter((p: any) => p.isReturn).length;
+        if (returnBookingsCount === 0 || !booking.returnTripId) return sum + price;
+        const outboundCount = (booking.passengers || []).filter((p: any) => !p.isReturn).length;
+        const totalCount = outboundCount + returnBookingsCount;
+        return sum + price * (outboundCount / totalCount);
+      }, 0);
+
+      const returnRevenue = returnBookings.reduce((sum, booking) => {
+        const price = Number(booking.totalPrice) || 0;
+        const outboundCount = (booking.passengers || []).filter((p: any) => !p.isReturn).length;
+        if (outboundCount === 0 || !booking.returnTripId) return sum + price;
+        const returnCount = (booking.passengers || []).filter((p: any) => p.isReturn).length;
+        const totalCount = outboundCount + returnCount;
+        return sum + price * (returnCount / totalCount);
+      }, 0);
+
+      const revenue = outboundRevenue + returnRevenue;
+      const allBookings = [...outboundBookings, ...returnBookings];
 
       return {
         id: trip.id,

@@ -56,6 +56,8 @@ interface Booking {
   email: string;
   phone: string;
   passengers: number;
+  returnPassengers?: number;
+  totalPassengers?: number;
   route: string;
   date: Date | string;
   time: string;
@@ -116,7 +118,7 @@ export default function BookingsManagement() {
   const uniqueRoutes = Array.from(new Set(bookings.map(b => b.route).filter(Boolean))).sort();
   const uniqueTimes = Array.from(new Set(bookings.map(b => b.time).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
-  // Today's route summary for quick focus
+  // Today's route summary for quick focus (includes outbound AND return trips for today)
   const todaySummary = (() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -124,10 +126,22 @@ export default function BookingsManagement() {
     bookings.forEach(b => {
       const bDate = new Date(b.date);
       bDate.setHours(0, 0, 0, 0);
-      if (bDate.getTime() === today.getTime()) {
+      const rDate = b.returnTrip ? new Date(b.returnTrip.date) : null;
+      if (rDate) rDate.setHours(0, 0, 0, 0);
+
+      const isOutboundToday = bDate.getTime() === today.getTime();
+      const isReturnToday = rDate?.getTime() === today.getTime();
+
+      if (isOutboundToday) {
         if (!summary[b.route]) summary[b.route] = { count: 0, times: {} };
         summary[b.route].count += 1;
         summary[b.route].times[b.time] = (summary[b.route].times[b.time] || 0) + 1;
+      }
+      if (isReturnToday && b.returnTrip) {
+        const returnRoute = b.returnTrip.route;
+        if (!summary[returnRoute]) summary[returnRoute] = { count: 0, times: {} };
+        summary[returnRoute].count += 1;
+        summary[returnRoute].times[b.returnTrip.time] = (summary[returnRoute].times[b.returnTrip.time] || 0) + 1;
       }
     });
     return summary;
@@ -224,8 +238,9 @@ export default function BookingsManagement() {
     const matchesTime = timeFilter === "all" ||
       booking.time === timeFilter;
 
-    // Date filtering
+    // Date filtering - checks BOTH outbound and return trip dates
     const bookingDate = new Date(booking.date);
+    const returnDate = booking.returnTrip ? new Date(booking.returnTrip.date) : null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -233,16 +248,18 @@ export default function BookingsManagement() {
 
     const bDate = new Date(bookingDate);
     bDate.setHours(0, 0, 0, 0);
+    const rDate = returnDate ? new Date(returnDate) : null;
+    if (rDate) rDate.setHours(0, 0, 0, 0);
 
     let matchesDate = true;
     if (dateFilter === "today") {
-      matchesDate = bDate.getTime() === today.getTime();
+      matchesDate = bDate.getTime() === today.getTime() || (rDate?.getTime() === today.getTime());
     } else if (dateFilter === "tomorrow") {
-      matchesDate = bDate.getTime() === tomorrow.getTime();
+      matchesDate = bDate.getTime() === tomorrow.getTime() || (rDate?.getTime() === tomorrow.getTime());
     } else if (dateFilter === "custom" && customDate) {
       const cDate = new Date(customDate);
       cDate.setHours(0, 0, 0, 0);
-      matchesDate = bDate.getTime() === cDate.getTime();
+      matchesDate = bDate.getTime() === cDate.getTime() || (rDate?.getTime() === cDate.getTime());
     }
 
     return matchesSearch && matchesStatus && matchesPaymentMethod && matchesDate && matchesRoute && matchesTime;
@@ -320,6 +337,30 @@ export default function BookingsManagement() {
     } catch (e) {
       return false;
     }
+  };
+
+  // Detect neighbour-free companion seats using same heuristic as manifest
+  // (same normalized name in same booking = companion)
+  const getPassengersWithNeighbourFree = (passengers?: Passenger[]) => {
+    if (!passengers || passengers.length === 0) return [];
+    const seen = new Set<string>();
+    const result: (Passenger & { isNeighbourFree?: boolean; companionSeat?: string })[] = [];
+
+    for (const p of passengers) {
+      const normName = p.name.toLowerCase().trim();
+      const key = `${normName}`;
+      if (seen.has(key)) {
+        const existing = result.find(r => r.name.toLowerCase().trim() === normName);
+        if (existing) {
+          existing.companionSeat = p.seat;
+          existing.seat = `${existing.seat}, ${p.seat}`;
+        }
+      } else {
+        seen.add(key);
+        result.push({ ...p });
+      }
+    }
+    return result;
   };
 
   // Update both paymentStatus and bookingStatus in bookings and selectedBooking
@@ -787,7 +828,10 @@ export default function BookingsManagement() {
                           <div className="text-xs" style={{ color: colors.accent }}>{booking.email}</div>
                           <div className="text-xs mt-0.5">
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                              {booking.passengers} {booking.passengers === 1 ? 'passenger' : 'passengers'}
+                              {booking.totalPassengers && booking.totalPassengers !== booking.passengers
+                                ? `${booking.passengers} out + ${booking.returnPassengers || 0} ret = ${booking.totalPassengers} pax`
+                                : `${booking.passengers} ${booking.passengers === 1 ? 'passenger' : 'passengers'}`
+                              }
                             </Badge>
                           </div>
                         </td>
@@ -963,7 +1007,7 @@ export default function BookingsManagement() {
                   <div><span style={{ color: colors.accent }}>Contact:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.purchaserName}</span></div>
                   <div><span style={{ color: colors.accent }}>Email:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.email}</span></div>
                   <div><span style={{ color: colors.accent }}>Phone:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.phone}</span></div>
-                  <div><span style={{ color: colors.accent }}>Passengers:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.passengers}</span></div>
+                  <div><span style={{ color: colors.accent }}>Passengers:</span> <span className="font-semibold" style={{ color: colors.dark }}>{selectedBooking.totalPassengers || selectedBooking.passengers} total ({selectedBooking.passengers} outbound{selectedBooking.returnPassengers ? `, ${selectedBooking.returnPassengers} return` : ''})</span></div>
                   <div><span style={{ color: colors.accent }}>Status:</span> <Badge>{selectedBooking.bookingStatus}</Badge></div>
                 </div>
               </section>
@@ -972,41 +1016,118 @@ export default function BookingsManagement() {
               {selectedBooking.passengerList && (
                 <section>
                   <h4 className="font-semibold mb-2 text-xs sm:text-sm" style={{ color: colors.dark }}>Passenger List</h4>
-                  <div className="border rounded-lg overflow-hidden" style={{ borderColor: colors.accent }}>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs sm:text-sm">
-                        <thead style={{ backgroundColor: colors.muted }}>
-                          <tr>
-                            <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Name</th>
-                            <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Seat</th>
-                            <th className="px-2 py-1 sm:px-3 sm:py-2 text-left hidden sm:table-cell" style={{ color: colors.dark }}>Type</th>
-                            <th className="px-2 py-1 sm:px-3 sm:py-2 text-left hidden sm:table-cell" style={{ color: colors.dark }}>Passport</th>
-                            <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Infant</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedBooking.passengerList.map((p, idx) => (
-                            <tr key={idx} className={idx % 2 === 0 ? "" : "bg-gray-50"}>
-                              <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>{p.name}</td>
-                              <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>{p.seat}</td>
-                              <td className="px-2 py-1 sm:px-3 sm:py-2 hidden sm:table-cell" style={{ color: colors.dark }}>{p.type || "Adult"}</td>
-                              <td className="px-2 py-1 sm:px-3 sm:py-2 hidden sm:table-cell" style={{ color: colors.dark }}>{p.passportNumber || "-"}</td>
-                              <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>
-                                {p.hasInfant ? (
-                                  <>
-                                    Yes
-                                    {p.infantName && ` (${p.infantName})`}
-                                    {p.infantBirthdate && `, DOB: ${p.infantBirthdate}`}
-                                    {p.infantPassportNumber && `, Cert: ${p.infantPassportNumber}`}
-                                  </>
-                                ) : "No"}
-                              </td>
+                  {/* Outbound Passengers */}
+                  <div className="mb-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Outbound</div>
+                    <div className="border rounded-lg overflow-hidden" style={{ borderColor: colors.accent }}>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs sm:text-sm">
+                          <thead style={{ backgroundColor: colors.muted }}>
+                            <tr>
+                              <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Name</th>
+                              <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Seat</th>
+                              <th className="px-2 py-1 sm:px-3 sm:py-2 text-left hidden sm:table-cell" style={{ color: colors.dark }}>Type</th>
+                              <th className="px-2 py-1 sm:px-3 sm:py-2 text-left hidden sm:table-cell" style={{ color: colors.dark }}>Passport</th>
+                              <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Infant</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {getPassengersWithNeighbourFree(selectedBooking.passengerList?.filter(p => !p.isReturn)).map((p, idx) => (
+                              <tr key={`out-${idx}`} className={idx % 2 === 0 ? "" : "bg-gray-50"}>
+                                <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>
+                                  <div className="flex items-center gap-2">
+                                    {p.name}
+                                    {p.companionSeat && (
+                                      <span className="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-bold uppercase">Neighbour Free</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>
+                                  {p.companionSeat
+                                    ? p.seat.split(', ').map((s: string, i: number) => (
+                                        <span key={i} className={`inline-block mr-1 px-1.5 py-0.5 rounded text-xs font-bold ${i === 0 ? 'bg-slate-100 text-slate-700' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>{s}</span>
+                                      ))
+                                    : p.seat
+                                  }
+                                </td>
+                                <td className="px-2 py-1 sm:px-3 sm:py-2 hidden sm:table-cell" style={{ color: colors.dark }}>{p.type || "Adult"}</td>
+                                <td className="px-2 py-1 sm:px-3 sm:py-2 hidden sm:table-cell" style={{ color: colors.dark }}>{p.passportNumber || "-"}</td>
+                                <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>
+                                  {p.hasInfant ? (
+                                    <>
+                                      Yes
+                                      {p.infantName && ` (${p.infantName})`}
+                                      {p.infantBirthdate && `, DOB: ${p.infantBirthdate}`}
+                                      {p.infantPassportNumber && `, Cert: ${p.infantPassportNumber}`}
+                                    </>
+                                  ) : "No"}
+                                </td>
+                              </tr>
+                            ))}
+                            {(!selectedBooking.passengerList?.filter(p => !p.isReturn).length) && (
+                              <tr><td colSpan={5} className="px-2 py-2 text-xs text-gray-400">No outbound passengers</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Return Passengers */}
+                  {selectedBooking.returnTrip && selectedBooking.returnTrip.passengers && selectedBooking.returnTrip.passengers.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Return</div>
+                      <div className="border rounded-lg overflow-hidden" style={{ borderColor: colors.accent }}>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs sm:text-sm">
+                            <thead style={{ backgroundColor: colors.muted }}>
+                              <tr>
+                                <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Name</th>
+                                <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Seat</th>
+                                <th className="px-2 py-1 sm:px-3 sm:py-2 text-left hidden sm:table-cell" style={{ color: colors.dark }}>Type</th>
+                                <th className="px-2 py-1 sm:px-3 sm:py-2 text-left hidden sm:table-cell" style={{ color: colors.dark }}>Passport</th>
+                                <th className="px-2 py-1 sm:px-3 sm:py-2 text-left" style={{ color: colors.dark }}>Infant</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {getPassengersWithNeighbourFree(selectedBooking.returnTrip.passengers).map((p, idx) => (
+                                <tr key={`ret-${idx}`} className={idx % 2 === 0 ? "" : "bg-gray-50"}>
+                                  <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>
+                                    <div className="flex items-center gap-2">
+                                      {p.name}
+                                      {p.companionSeat && (
+                                        <span className="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-bold uppercase">Neighbour Free</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>
+                                    {p.companionSeat
+                                      ? p.seat.split(', ').map((s: string, i: number) => (
+                                          <span key={i} className={`inline-block mr-1 px-1.5 py-0.5 rounded text-xs font-bold ${i === 0 ? 'bg-slate-100 text-slate-700' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>{s}</span>
+                                        ))
+                                      : p.seat
+                                    }
+                                  </td>
+                                  <td className="px-2 py-1 sm:px-3 sm:py-2 hidden sm:table-cell" style={{ color: colors.dark }}>{p.type || "Adult"}</td>
+                                  <td className="px-2 py-1 sm:px-3 sm:py-2 hidden sm:table-cell" style={{ color: colors.dark }}>{p.passportNumber || "-"}</td>
+                                  <td className="px-2 py-1 sm:px-3 sm:py-2" style={{ color: colors.dark }}>
+                                    {p.hasInfant ? (
+                                      <>
+                                        Yes
+                                        {p.infantName && ` (${p.infantName})`}
+                                        {p.infantBirthdate && `, DOB: ${p.infantBirthdate}`}
+                                        {p.infantPassportNumber && `, Cert: ${p.infantPassportNumber}`}
+                                      </>
+                                    ) : "No"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </section>
               )}
 
