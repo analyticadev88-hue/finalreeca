@@ -97,6 +97,8 @@ export async function GET(req: NextRequest) {
         returnPassengers: returnPassengers.length,
         totalPassengers: outboundPassengers.length + returnPassengers.length,
         passengerList,
+        tripId: booking.tripId,
+        returnTripId: booking.returnTripId,
         route: `${booking.trip?.routeOrigin} to ${booking.trip?.routeDestination}`,
         date: booking.trip?.departureDate || new Date(),
         time: booking.trip?.departureTime || '',

@@ -12,6 +12,30 @@ function parseSeats(seatsStr: string | null): string[] {
   return seatsStr.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+// Convert old seat format (e.g., "3C") to new numeric format (1-57)
+const convertOldSeatToNew = (oldSeatId: string): string | null => {
+  const match = oldSeatId.match(/^(\d+)([A-D])$/);
+  if (!match) return null;
+  const row = parseInt(match[1]);
+  const letter = match[2];
+  let newId: number;
+  switch (letter) {
+    case 'A': newId = 4 * row - 1; break;
+    case 'B': newId = 4 * row; break;
+    case 'C': newId = 4 * row - 2; break;
+    case 'D': newId = 4 * row - 3; break;
+    default: return null;
+  }
+  return String(newId);
+};
+
+const convertOldSeatsToNew = (oldSeats: string[]): string[] => {
+  return oldSeats.map(seat => {
+    const converted = convertOldSeatToNew(seat);
+    return converted !== null ? converted : seat;
+  });
+};
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -46,12 +70,14 @@ export async function GET(req: NextRequest) {
       : [];
 
     const tripsWithAvailability = trips.map((trip) => {
-      const occupied = parseSeats(trip.occupiedSeats);
-      const tempLocked = trip.tempLockedSeats
-        ? trip.tempLockedSeats.split(",").map((s) => s.trim()).filter(Boolean)
-        : [];
+      const occupied = convertOldSeatsToNew(parseSeats(trip.occupiedSeats));
+      const tempLocked = convertOldSeatsToNew(
+        trip.tempLockedSeats
+          ? trip.tempLockedSeats.split(",").map((s) => s.trim()).filter(Boolean)
+          : []
+      );
       const blocked = Array.from(new Set([...occupied, ...tempLocked]));
-      const availableCount = trip.totalSeats - blocked.length;
+      const availableCount = Math.max(0, trip.totalSeats - blocked.length);
 
       // Check if all currently selected seats are available on this trip
       const seatConflicts = requestedSeats.filter((seat) => blocked.includes(seat));

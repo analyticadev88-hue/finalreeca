@@ -73,7 +73,8 @@ interface Booking {
   bookingStatus: string;
   specialRequests?: string;
   passengerList?: Passenger[];
-  trip?: { id?: string };
+  tripId?: string;
+  returnTripId?: string;
   returnTrip?: TripData;
   addons?: any;
 }
@@ -503,8 +504,8 @@ export default function BookingsManagement() {
     setFetchingTrips(true);
     try {
       const currentTripId = isReturn
-        ? selectedBooking?.returnTrip?.id
-        : selectedBooking?.trip?.id;
+        ? selectedBooking?.returnTripId
+        : selectedBooking?.tripId;
       const url = `/api/trips/available-for-reschedule?routeOrigin=${encodeURIComponent(routeOrigin)}&routeDestination=${encodeURIComponent(routeDestination)}&date=${date}&currentSeats=${encodeURIComponent(currentSeats.join(','))}&excludeTripId=${currentTripId || ''}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch trips');
@@ -528,39 +529,51 @@ export default function BookingsManagement() {
   // --- Reschedule Booking handler ---
   const handleRescheduleBooking = async () => {
     if (!selectedBooking) return;
-    if (!selectedDepartureTripId) {
-      alert('Please select a departure trip');
+
+    const currentDepartureTripId = selectedBooking.tripId || '';
+    const currentReturnTripId = selectedBooking.returnTripId || '';
+
+    const isChangingDeparture = selectedDepartureTripId && selectedDepartureTripId !== currentDepartureTripId;
+    const isChangingReturn = selectedReturnTripId && selectedReturnTripId !== currentReturnTripId;
+
+    if (!isChangingDeparture && !isChangingReturn) {
+      alert('Please select a new trip for at least one leg');
       return;
     }
-    if (selectedBooking.returnTrip && !selectedReturnTripId) {
-      alert('Please select a return trip');
-      return;
-    }
-    // Validate seat counts
+
+    // Validate seat counts for changed legs only
     const outboundCount = selectedBooking.passengers;
     const returnCount = selectedBooking.returnPassengers || 0;
-    if (selectedDepartureSeats.length !== outboundCount) {
+    if (isChangingDeparture && selectedDepartureSeats.length !== outboundCount) {
       alert(`Please select exactly ${outboundCount} seat${outboundCount !== 1 ? 's' : ''} for the departure trip`);
       return;
     }
-    if (selectedBooking.returnTrip && selectedReturnSeats.length !== returnCount) {
+    if (isChangingReturn && selectedReturnSeats.length !== returnCount) {
       alert(`Please select exactly ${returnCount} seat${returnCount !== 1 ? 's' : ''} for the return trip`);
       return;
     }
+
     setRescheduleLoading(true);
     try {
+      const body: any = {
+        orderId: selectedBooking.bookingRef,
+      };
+      if (isChangingDeparture) {
+        body.newTripId = selectedDepartureTripId;
+        body.newDepartureSeats = selectedDepartureSeats;
+      }
+      if (isChangingReturn) {
+        body.newReturnTripId = selectedReturnTripId;
+        body.newReturnSeats = selectedReturnSeats;
+      }
+      if (overridePrice && newTotalPrice) {
+        body.newTotalPrice = Number(newTotalPrice);
+      }
+
       const res = await fetch('/api/booking/reschedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: selectedBooking.bookingRef,
-          newTripId: selectedDepartureTripId,
-          newDepartureSeats: selectedDepartureSeats,
-          ...(selectedBooking.returnTrip && selectedReturnTripId
-            ? { newReturnTripId: selectedReturnTripId, newReturnSeats: selectedReturnSeats }
-            : {}),
-          ...(overridePrice && newTotalPrice ? { newTotalPrice: Number(newTotalPrice) } : {}),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -1615,9 +1628,18 @@ export default function BookingsManagement() {
               style={{ backgroundColor: colors.primary }}
               disabled={
                 rescheduleLoading ||
-                !selectedDepartureTripId ||
-                selectedDepartureSeats.length !== (selectedBooking?.passengers || 0) ||
-                !!(selectedBooking?.returnTrip && (!selectedReturnTripId || selectedReturnSeats.length !== (selectedBooking?.returnPassengers || 0)))
+                Boolean(
+                  (!selectedDepartureTripId || selectedDepartureTripId === selectedBooking?.tripId) &&
+                  (!selectedReturnTripId || selectedReturnTripId === selectedBooking?.returnTripId)
+                ) ||
+                Boolean(
+                  selectedDepartureTripId && selectedDepartureTripId !== selectedBooking?.tripId &&
+                  selectedDepartureSeats.length !== (selectedBooking?.passengers || 0)
+                ) ||
+                Boolean(
+                  selectedReturnTripId && selectedReturnTripId !== selectedBooking?.returnTripId &&
+                  selectedReturnSeats.length !== (selectedBooking?.returnPassengers || 0)
+                )
               }
             >
               {rescheduleLoading ? (
