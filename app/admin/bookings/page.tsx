@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { PrintableTicket } from "@/components/printable-ticket";
 import * as XLSX from "xlsx";
 import { AmendBookingModal } from "@/components/admin/AmendBookingModal";
+import { RescheduleSeatPicker } from "@/components/admin/RescheduleSeatPicker";
 
 // Define color scheme
 const colors = {
@@ -38,6 +39,7 @@ interface Passenger {
 }
 
 interface TripData {
+  id?: string;
   route: string;
   date: Date | string;
   time: string;
@@ -71,6 +73,7 @@ interface Booking {
   bookingStatus: string;
   specialRequests?: string;
   passengerList?: Passenger[];
+  trip?: { id?: string };
   returnTrip?: TripData;
   addons?: any;
 }
@@ -113,6 +116,19 @@ export default function BookingsManagement() {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [modalMessage, setModalMessage] = useState<string | null>(null);
   const [modalType, setModalType] = useState<'success' | 'error' | null>(null);
+
+  // Trip-selection reschedule state
+  const [departureDatePicker, setDepartureDatePicker] = useState("");
+  const [returnDatePicker, setReturnDatePicker] = useState("");
+  const [availableDepartureTrips, setAvailableDepartureTrips] = useState<any[]>([]);
+  const [availableReturnTrips, setAvailableReturnTrips] = useState<any[]>([]);
+  const [selectedDepartureTripId, setSelectedDepartureTripId] = useState<string>("");
+  const [selectedReturnTripId, setSelectedReturnTripId] = useState<string>("");
+  const [selectedDepartureSeats, setSelectedDepartureSeats] = useState<string[]>([]);
+  const [selectedReturnSeats, setSelectedReturnSeats] = useState<string[]>([]);
+  const [expandedDepartureTripId, setExpandedDepartureTripId] = useState<string>("");
+  const [expandedReturnTripId, setExpandedReturnTripId] = useState<string>("");
+  const [fetchingTrips, setFetchingTrips] = useState(false);
 
   // Compute unique routes and times from bookings for filter dropdowns
   const uniqueRoutes = Array.from(new Set(bookings.map(b => b.route).filter(Boolean))).sort();
@@ -196,15 +212,16 @@ export default function BookingsManagement() {
   // Pre-fill reschedule form with current booking data when modal opens
   useEffect(() => {
     if (showRescheduleModal && selectedBooking) {
-      setNewDepartureDate(toInputDate(selectedBooking.date));
-      setNewDepartureTime(selectedBooking.time);
-      if (selectedBooking.returnTrip) {
-        setNewReturnDate(toInputDate(selectedBooking.returnTrip.date));
-        setNewReturnTime(selectedBooking.returnTrip.time);
-      } else {
-        setNewReturnDate('');
-        setNewReturnTime('');
-      }
+      setDepartureDatePicker(toInputDate(selectedBooking.date));
+      setReturnDatePicker(selectedBooking.returnTrip ? toInputDate(selectedBooking.returnTrip.date) : "");
+      setSelectedDepartureTripId("");
+      setSelectedReturnTripId("");
+      setSelectedDepartureSeats([]);
+      setSelectedReturnSeats([]);
+      setExpandedDepartureTripId("");
+      setExpandedReturnTripId("");
+      setAvailableDepartureTrips([]);
+      setAvailableReturnTrips([]);
       setChangeRoute(false);
       setNewRouteOrigin('');
       setNewRouteDestination('');
@@ -474,9 +491,62 @@ export default function BookingsManagement() {
     }
   };
 
+  // --- Fetch available trips for reschedule ---
+  const fetchAvailableTrips = async (
+    routeOrigin: string,
+    routeDestination: string,
+    date: string,
+    currentSeats: string[],
+    isReturn: boolean
+  ) => {
+    if (!date || !routeOrigin || !routeDestination) return;
+    setFetchingTrips(true);
+    try {
+      const currentTripId = isReturn
+        ? selectedBooking?.returnTrip?.id
+        : selectedBooking?.trip?.id;
+      const url = `/api/trips/available-for-reschedule?routeOrigin=${encodeURIComponent(routeOrigin)}&routeDestination=${encodeURIComponent(routeDestination)}&date=${date}&currentSeats=${encodeURIComponent(currentSeats.join(','))}&excludeTripId=${currentTripId || ''}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch trips');
+      const data = await res.json();
+      if (isReturn) {
+        setAvailableReturnTrips(data.trips || []);
+        setSelectedReturnSeats([]);
+        setExpandedReturnTripId("");
+      } else {
+        setAvailableDepartureTrips(data.trips || []);
+        setSelectedDepartureSeats([]);
+        setExpandedDepartureTripId("");
+      }
+    } catch (err) {
+      console.error('Error fetching available trips:', err);
+    } finally {
+      setFetchingTrips(false);
+    }
+  };
+
   // --- Reschedule Booking handler ---
   const handleRescheduleBooking = async () => {
     if (!selectedBooking) return;
+    if (!selectedDepartureTripId) {
+      alert('Please select a departure trip');
+      return;
+    }
+    if (selectedBooking.returnTrip && !selectedReturnTripId) {
+      alert('Please select a return trip');
+      return;
+    }
+    // Validate seat counts
+    const outboundCount = selectedBooking.passengers;
+    const returnCount = selectedBooking.returnPassengers || 0;
+    if (selectedDepartureSeats.length !== outboundCount) {
+      alert(`Please select exactly ${outboundCount} seat${outboundCount !== 1 ? 's' : ''} for the departure trip`);
+      return;
+    }
+    if (selectedBooking.returnTrip && selectedReturnSeats.length !== returnCount) {
+      alert(`Please select exactly ${returnCount} seat${returnCount !== 1 ? 's' : ''} for the return trip`);
+      return;
+    }
     setRescheduleLoading(true);
     try {
       const res = await fetch('/api/booking/reschedule', {
@@ -484,17 +554,11 @@ export default function BookingsManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: selectedBooking.bookingRef,
-          newDepartureDate: newDepartureDate,
-          newDepartureTime: newDepartureTime,
-          newReturnDate: selectedBooking.returnTrip ? newReturnDate : undefined,
-          newReturnTime: selectedBooking.returnTrip ? newReturnTime : undefined,
-          ...(changeRoute ? {
-            newRouteOrigin: newRouteOrigin || undefined,
-            newRouteDestination: newRouteDestination || undefined,
-            newRouteName: newRouteName && newRouteName !== '__custom__' ? newRouteName : undefined,
-            newBoardingPoint: newBoardingPoint || undefined,
-            newDroppingPoint: newDroppingPoint || undefined,
-          } : {}),
+          newTripId: selectedDepartureTripId,
+          newDepartureSeats: selectedDepartureSeats,
+          ...(selectedBooking.returnTrip && selectedReturnTripId
+            ? { newReturnTripId: selectedReturnTripId, newReturnSeats: selectedReturnSeats }
+            : {}),
           ...(overridePrice && newTotalPrice ? { newTotalPrice: Number(newTotalPrice) } : {}),
         }),
       });
@@ -507,16 +571,16 @@ export default function BookingsManagement() {
       await fetchBookings();
       alert('Booking rescheduled successfully!');
       setShowRescheduleModal(false);
-      setNewDepartureDate('');
-      setNewDepartureTime('');
-      setNewReturnDate('');
-      setNewReturnTime('');
-      setChangeRoute(false);
-      setNewRouteOrigin('');
-      setNewRouteDestination('');
-      setNewRouteName('');
-      setNewBoardingPoint('');
-      setNewDroppingPoint('');
+      setDepartureDatePicker('');
+      setReturnDatePicker('');
+      setSelectedDepartureTripId('');
+      setSelectedReturnTripId('');
+      setSelectedDepartureSeats([]);
+      setSelectedReturnSeats([]);
+      setExpandedDepartureTripId('');
+      setExpandedReturnTripId('');
+      setAvailableDepartureTrips([]);
+      setAvailableReturnTrips([]);
       setOverridePrice(false);
       setNewTotalPrice('');
     } catch (err: any) {
@@ -1244,11 +1308,11 @@ export default function BookingsManagement() {
 
       {/* Reschedule Modal */}
       <Dialog open={showRescheduleModal} onOpenChange={setShowRescheduleModal}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md" style={{ backgroundColor: colors.light }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg" style={{ backgroundColor: colors.light }}>
           <DialogHeader>
             <DialogTitle className="text-sm sm:text-base" style={{ color: colors.primary }}>Reschedule Booking</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm" style={{ color: colors.accent }}>
-              Update the travel dates for booking {selectedBooking?.bookingRef}
+              Select an existing trip for booking {selectedBooking?.bookingRef}
               {selectedBooking?.returnTrip && (
                 <span className="block mt-1 text-xs sm:text-sm font-medium" style={{ color: colors.secondary }}>
                   (Round Trip Booking)
@@ -1263,196 +1327,249 @@ export default function BookingsManagement() {
                 <div><span style={{ color: colors.accent }}>Current Route:</span> <span className="font-medium">{selectedBooking.route}</span></div>
                 <div><span style={{ color: colors.accent }}>Current Date:</span> <span className="font-medium">{formatDate(selectedBooking.date, 'yyyy-MM-dd')}</span></div>
                 <div><span style={{ color: colors.accent }}>Current Time:</span> <span className="font-medium">{selectedBooking.time}</span></div>
-                <div><span style={{ color: colors.accent }}>Current Price:</span> <span className="font-medium">P {selectedBooking.totalAmount?.toFixed ? selectedBooking.totalAmount.toFixed(2) : selectedBooking.totalAmount}</span></div>
+                <div><span style={{ color: colors.accent }}>Seats:</span> <span className="font-medium">{selectedBooking.seats?.join?.(', ') || selectedBooking.seats}</span></div>
+                {selectedBooking.returnTrip && (
+                  <>
+                    <div className="pt-1 border-t border-gray-200 mt-1"><span style={{ color: colors.secondary }}>Return Date:</span> <span className="font-medium">{formatDate(selectedBooking.returnTrip.date, 'yyyy-MM-dd')}</span></div>
+                    <div><span style={{ color: colors.secondary }}>Return Time:</span> <span className="font-medium">{selectedBooking.returnTrip.time}</span></div>
+                    <div><span style={{ color: colors.secondary }}>Return Seats:</span> <span className="font-medium">{selectedBooking.returnTrip.seats?.join?.(', ') || selectedBooking.returnTrip.seats}</span></div>
+                  </>
+                )}
               </div>
             )}
 
-            <div>
-              <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
-                New Departure Date
-              </label>
-              <Input
-                type="date"
-                value={newDepartureDate}
-                onChange={(e) => setNewDepartureDate(e.target.value)}
-                className="text-xs sm:text-sm h-9"
-                style={{ borderColor: colors.accent }}
-                min={formatDate(new Date(), 'yyyy-MM-dd')}
-              />
-            </div>
-            <div>
-              <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
-                New Departure Time
-              </label>
-              <Input
-                type="time"
-                value={newDepartureTime}
-                onChange={(e) => setNewDepartureTime(e.target.value)}
-                className="text-xs sm:text-sm h-9"
-                style={{ borderColor: colors.accent }}
-              />
-            </div>
-
-            {/* Conditional Return Trip Fields */}
-            {selectedBooking?.returnTrip && (
-              <>
-                <div className="pt-3 border-t border-gray-200">
-                  <h4 className="text-xs sm:text-sm font-medium mb-2" style={{ color: colors.secondary }}>
-                    Return Trip Details
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
-                        New Return Date
-                      </label>
-                      <Input
-                        type="date"
-                        value={newReturnDate}
-                        onChange={(e) => setNewReturnDate(e.target.value)}
-                        className="text-xs sm:text-sm h-9"
-                        style={{ borderColor: colors.accent }}
-                        min={newDepartureDate || formatDate(new Date(), 'yyyy-MM-dd')}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>
-                        New Return Time
-                      </label>
-                      <Input
-                        type="time"
-                        value={newReturnTime}
-                        onChange={(e) => setNewReturnTime(e.target.value)}
-                        className="text-xs sm:text-sm h-9"
-                        style={{ borderColor: colors.accent }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {newDepartureDate && newReturnDate && newDepartureDate > newReturnDate && (
-                  <div className="text-xs sm:text-sm p-2 rounded-md" style={{ backgroundColor: colors.destructive + '10', color: colors.destructive }}>
-                    Return date cannot be before departure date
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Route Change Section */}
-            <div className="pt-3 border-t border-gray-200">
-              <label className="flex items-center gap-2 text-xs sm:text-sm font-medium mb-2" style={{ color: colors.dark }}>
-                <input
-                  type="checkbox"
-                  checked={changeRoute}
-                  onChange={(e) => setChangeRoute(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300"
+            {/* Departure Trip Selection */}
+            <div className="pt-2">
+              <h4 className="text-xs sm:text-sm font-semibold mb-2" style={{ color: colors.primary }}>Select New Departure Trip</h4>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={departureDatePicker}
+                  onChange={(e) => {
+                    setDepartureDatePicker(e.target.value);
+                    setSelectedDepartureTripId('');
+                    setAvailableDepartureTrips([]);
+                  }}
+                  className="text-xs sm:text-sm h-9 flex-1"
+                  style={{ borderColor: colors.accent }}
+                  min={formatDate(new Date(), 'yyyy-MM-dd')}
                 />
-                Change Route / Stops
-              </label>
+                <Button
+                  size="sm"
+                  className="h-9 text-xs"
+                  style={{ backgroundColor: colors.primary }}
+                  disabled={!departureDatePicker || fetchingTrips}
+                  onClick={() => {
+                    if (!selectedBooking) return;
+                    const routeParts = selectedBooking.route.split(/ to | → |->| - /);
+                    const origin = routeParts[0]?.trim() || '';
+                    const dest = routeParts[1]?.trim() || '';
+                    fetchAvailableTrips(origin, dest, departureDatePicker, selectedBooking.seats as string[] || [], false);
+                  }}
+                >
+                  {fetchingTrips ? <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span> : 'Find Trips'}
+                </Button>
+              </div>
 
-              {changeRoute && (
-                <div className="space-y-3 pl-1">
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Select Route</label>
-                    <select
-                      value={newRouteName}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setNewRouteName(val);
-                        if (val && val !== '__custom__') {
-                          // Auto-parse origin/destination from route string
-                          const seps = [' to ', ' → ', '->', ' - '];
-                          let origin = '';
-                          let destination = '';
-                          for (const sep of seps) {
-                            const idx = val.indexOf(sep);
-                            if (idx !== -1) {
-                              origin = val.substring(0, idx).trim();
-                              destination = val.substring(idx + sep.length).trim();
-                              break;
+              {availableDepartureTrips.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {availableDepartureTrips.map((trip) => {
+                    const isExpanded = expandedDepartureTripId === trip.id;
+                    const isSelected = selectedDepartureTripId === trip.id;
+                    const seatsOk = selectedDepartureSeats.length === selectedBooking?.passengers;
+                    return (
+                      <div
+                        key={trip.id}
+                        className={`rounded-lg border transition-all ${
+                          isSelected
+                            ? 'border-teal-500 bg-teal-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div
+                          onClick={() => {
+                            if (isExpanded) {
+                              setExpandedDepartureTripId('');
+                            } else {
+                              setExpandedDepartureTripId(trip.id);
+                              setSelectedDepartureTripId(trip.id);
+                              if (trip.allSeatsAvailable && selectedBooking?.seats) {
+                                setSelectedDepartureSeats(selectedBooking.seats as string[]);
+                              } else {
+                                setSelectedDepartureSeats([]);
+                              }
                             }
-                          }
-                          setNewRouteOrigin(origin);
-                          setNewRouteDestination(destination);
-                        } else if (val === '__custom__') {
-                          setNewRouteOrigin('');
-                          setNewRouteDestination('');
-                        }
-                      }}
-                      className="w-full h-9 px-2 text-xs sm:text-sm border rounded-md bg-white"
-                      style={{ borderColor: colors.accent }}
-                    >
-                      <option value="">-- Choose a route --</option>
-                      {uniqueRoutes.map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                      <option value="__custom__">✎ Custom route</option>
-                    </select>
-                  </div>
+                          }}
+                          className="p-2 cursor-pointer"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="text-xs sm:text-sm font-medium" style={{ color: colors.dark }}>
+                              {trip.departureTime} — {trip.serviceType}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {isSelected && seatsOk && (
+                                <span className="text-[10px] text-green-600 font-bold">✓ Seats OK</span>
+                              )}
+                              <div className="text-[10px] sm:text-xs font-bold" style={{ color: trip.availableSeats > 5 ? colors.primary : colors.destructive }}>
+                                {trip.availableSeats} left
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-[10px] sm:text-xs mt-1" style={{ color: colors.accent }}>
+                            {trip.routeName}
+                          </div>
+                          {!isExpanded && trip.seatConflicts?.length > 0 && (
+                            <div className="text-[10px] text-amber-600 font-medium mt-1">
+                              ⚠ Seats {trip.seatConflicts.join(', ')} taken — click to pick new seats
+                            </div>
+                          )}
+                          {!isExpanded && trip.allSeatsAvailable && (
+                            <div className="text-[10px] text-green-600 font-medium mt-1">✓ Current seats free — click to keep or change</div>
+                          )}
+                        </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Origin</label>
-                      <Input
-                        type="text"
-                        placeholder="e.g. Gaborone"
-                        value={newRouteOrigin}
-                        onChange={(e) => setNewRouteOrigin(e.target.value)}
-                        className="text-xs sm:text-sm h-9"
-                        style={{ borderColor: colors.accent }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Destination</label>
-                      <Input
-                        type="text"
-                        placeholder="e.g. OR Tambo Airport"
-                        value={newRouteDestination}
-                        onChange={(e) => setNewRouteDestination(e.target.value)}
-                        className="text-xs sm:text-sm h-9"
-                        style={{ borderColor: colors.accent }}
-                      />
-                    </div>
-                  </div>
-
-                  {newRouteName === '__custom__' && (
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>Custom Route Name</label>
-                      <Input
-                        type="text"
-                        placeholder="e.g. Gaborone → OR Tambo Airport"
-                        value={newRouteName === '__custom__' ? '' : newRouteName}
-                        onChange={(e) => setNewRouteName(e.target.value)}
-                        className="text-xs sm:text-sm h-9"
-                        style={{ borderColor: colors.accent }}
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>New Boarding Point</label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. Mogobe Plaza"
-                      value={newBoardingPoint}
-                      onChange={(e) => setNewBoardingPoint(e.target.value)}
-                      className="text-xs sm:text-sm h-9"
-                      style={{ borderColor: colors.accent }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1" style={{ color: colors.dark }}>New Dropping Point</label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. OR Tambo Airport Terminal A"
-                      value={newDroppingPoint}
-                      onChange={(e) => setNewDroppingPoint(e.target.value)}
-                      className="text-xs sm:text-sm h-9"
-                      style={{ borderColor: colors.accent }}
-                    />
-                  </div>
+                        {isExpanded && selectedBooking && (
+                          <div className="px-2 pb-3">
+                            <div className="border-t border-gray-200 pt-2">
+                              <RescheduleSeatPicker
+                                totalSeats={trip.totalSeats}
+                                occupiedSeats={trip.occupiedSeats}
+                                tempLockedSeats={trip.tempLockedSeats}
+                                requiredCount={selectedBooking.passengers}
+                                selectedSeats={selectedDepartureSeats}
+                                onSelectionChange={setSelectedDepartureSeats}
+                                label="Departure Seats"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+              {availableDepartureTrips.length === 0 && departureDatePicker && !fetchingTrips && (
+                <div className="text-xs text-gray-400 mt-2">No trips found for this date. Click Find Trips to search.</div>
+              )}
             </div>
+
+            {/* Return Trip Selection */}
+            {selectedBooking?.returnTrip && (
+              <div className="pt-3 border-t border-gray-200">
+                <h4 className="text-xs sm:text-sm font-semibold mb-2" style={{ color: colors.secondary }}>Select New Return Trip</h4>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={returnDatePicker}
+                    onChange={(e) => {
+                      setReturnDatePicker(e.target.value);
+                      setSelectedReturnTripId('');
+                      setAvailableReturnTrips([]);
+                    }}
+                    className="text-xs sm:text-sm h-9 flex-1"
+                    style={{ borderColor: colors.accent }}
+                    min={departureDatePicker || formatDate(new Date(), 'yyyy-MM-dd')}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-9 text-xs"
+                    style={{ backgroundColor: colors.secondary }}
+                    disabled={!returnDatePicker || fetchingTrips}
+                    onClick={() => {
+                      if (!selectedBooking?.returnTrip) return;
+                      const routeParts = selectedBooking.returnTrip.route.split(/ to | → |->| - /);
+                      const origin = routeParts[0]?.trim() || '';
+                      const dest = routeParts[1]?.trim() || '';
+                      fetchAvailableTrips(origin, dest, returnDatePicker, selectedBooking.returnTrip.seats as string[] || [], true);
+                    }}
+                  >
+                    {fetchingTrips ? <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span> : 'Find Trips'}
+                  </Button>
+                </div>
+
+                {availableReturnTrips.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {availableReturnTrips.map((trip) => {
+                      const isExpanded = expandedReturnTripId === trip.id;
+                      const isSelected = selectedReturnTripId === trip.id;
+                      const returnCount = selectedBooking?.returnPassengers || 0;
+                      const seatsOk = selectedReturnSeats.length === returnCount;
+                      return (
+                        <div
+                          key={trip.id}
+                          className={`rounded-lg border transition-all ${
+                            isSelected
+                              ? 'border-teal-500 bg-teal-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <div
+                            onClick={() => {
+                              if (isExpanded) {
+                                setExpandedReturnTripId('');
+                              } else {
+                                setExpandedReturnTripId(trip.id);
+                                setSelectedReturnTripId(trip.id);
+                                if (trip.allSeatsAvailable && selectedBooking?.returnTrip?.seats) {
+                                  setSelectedReturnSeats(selectedBooking.returnTrip.seats as string[]);
+                                } else {
+                                  setSelectedReturnSeats([]);
+                                }
+                              }
+                            }}
+                            className="p-2 cursor-pointer"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="text-xs sm:text-sm font-medium" style={{ color: colors.dark }}>
+                                {trip.departureTime} — {trip.serviceType}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {isSelected && seatsOk && (
+                                  <span className="text-[10px] text-green-600 font-bold">✓ Seats OK</span>
+                                )}
+                                <div className="text-[10px] sm:text-xs font-bold" style={{ color: trip.availableSeats > 5 ? colors.primary : colors.destructive }}>
+                                  {trip.availableSeats} left
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-[10px] sm:text-xs mt-1" style={{ color: colors.accent }}>
+                              {trip.routeName}
+                            </div>
+                            {!isExpanded && trip.seatConflicts?.length > 0 && (
+                              <div className="text-[10px] text-amber-600 font-medium mt-1">
+                                ⚠ Seats {trip.seatConflicts.join(', ')} taken — click to pick new seats
+                              </div>
+                            )}
+                            {!isExpanded && trip.allSeatsAvailable && (
+                              <div className="text-[10px] text-green-600 font-medium mt-1">✓ Current seats free — click to keep or change</div>
+                            )}
+                          </div>
+
+                          {isExpanded && selectedBooking && (
+                            <div className="px-2 pb-3">
+                              <div className="border-t border-gray-200 pt-2">
+                                <RescheduleSeatPicker
+                                  totalSeats={trip.totalSeats}
+                                  occupiedSeats={trip.occupiedSeats}
+                                  tempLockedSeats={trip.tempLockedSeats}
+                                  requiredCount={returnCount}
+                                  selectedSeats={selectedReturnSeats}
+                                  onSelectionChange={setSelectedReturnSeats}
+                                  label="Return Seats"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {availableReturnTrips.length === 0 && returnDatePicker && !fetchingTrips && (
+                  <div className="text-xs text-gray-400 mt-2">No trips found for this date. Click Find Trips to search.</div>
+                )}
+              </div>
+            )}
 
             {/* Pricing Override Section */}
             <div className="pt-3 border-t border-gray-200">
@@ -1498,12 +1615,9 @@ export default function BookingsManagement() {
               style={{ backgroundColor: colors.primary }}
               disabled={
                 rescheduleLoading ||
-                !!(
-                  selectedBooking?.returnTrip &&
-                  newDepartureDate &&
-                  newReturnDate &&
-                  newDepartureDate > newReturnDate
-                )
+                !selectedDepartureTripId ||
+                selectedDepartureSeats.length !== (selectedBooking?.passengers || 0) ||
+                !!(selectedBooking?.returnTrip && (!selectedReturnTripId || selectedReturnSeats.length !== (selectedBooking?.returnPassengers || 0)))
               }
             >
               {rescheduleLoading ? (
