@@ -7,6 +7,17 @@ import jwt from 'jsonwebtoken';
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme-in-production';
 
+function parseSeats(seatsStr: string | null): string[] {
+  if (!seatsStr) return [];
+  try {
+    const parsed = JSON.parse(seatsStr);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // fall through to comma-separated
+  }
+  return seatsStr.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 async function verifyConsultantAuth(req: NextRequest) {
   const token = req.cookies.get('consultant_token')?.value;
   if (!token) return null;
@@ -105,7 +116,7 @@ export async function GET(req: NextRequest) {
         bus: booking.trip?.routeName || '',
         boardingPoint: booking.boardingPoint,
         droppingPoint: booking.droppingPoint,
-        seats: booking.seats.split(','),
+        seats: parseSeats(booking.seats),
         totalAmount: booking.totalPrice,
         paymentMethod: booking.paymentMode,
         paymentStatus: booking.paymentStatus,
@@ -119,7 +130,7 @@ export async function GET(req: NextRequest) {
           bus: booking.returnTrip.routeName || '',
           boardingPoint: booking.returnBoardingPoint || '',
           droppingPoint: booking.returnDroppingPoint || '',
-          seats: booking.returnSeats ? booking.returnSeats.split(',') : [],
+          seats: parseSeats(booking.returnSeats),
           passengers: returnPassengerList,
         } : undefined,
       };
