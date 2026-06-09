@@ -1,11 +1,11 @@
 "use client";
-import dynamic from "next/dynamic";
+import { use } from "react";
 import { useRouter } from "next/navigation";
+import ManifestContent from "@/components/manifest/ManifestContent";
 
-const AdminManifestPage = dynamic(() => import("@/app/admin/manifest/[busId]/page"), { ssr: false });
-
-export default function ConsultantManifestPage(props: any) {
+export default function ConsultantManifestPage({ params: paramsPromise }: { params: Promise<{ busId: string }> }) {
+  const params = use(paramsPromise);
+  const busId = params.busId;
   const router = useRouter();
-  // reuse admin manifest page but override Back button to stay in consultant area
-  return <AdminManifestPage {...props} onBack={() => router.push("/consultant/busschedule")} />;
+  return <ManifestContent busId={busId} onBack={() => router.push("/consultant/busschedule")} allowWalkIn={false} />;
 }

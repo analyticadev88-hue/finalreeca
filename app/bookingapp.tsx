@@ -6,7 +6,7 @@ import { Booking, SearchData, BoardingPoint } from "@/lib/types";
 import { boardingPoints } from "@/lib/data";
 import SeatSelection from "./booking/seatselection";
 import ThemeToggle from "@/components/theme-toggle";
-import RequestForm from "./booking/requestform";
+import InquirySidebar from "@/components/InquirySidebar";
 import BusSchedules from "./booking/busschedule";
 import PassengerPassengerDetailsForm from "./booking/passengerdetails/page";
 import HireBusModal from "./booking/hirebusmodal";
@@ -48,7 +48,7 @@ export default function BookingApp() {
   const [selectedReturnSeats, setSelectedReturnSeats] = useState<string[]>([]);
   const [showPayment, setShowPayment] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
-  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [showInquirySidebar, setShowInquirySidebar] = useState(false);
   const [showHireModal, setShowHireModal] = useState(false);
   const [agent, setAgent] = useState<{ id: string; name: string; email: string } | null>(null);
   const [consultant, setConsultant] = useState<{ id: string; name: string; email: string } | null>(null);
@@ -149,14 +149,14 @@ export default function BookingApp() {
     if (isReturnTrip) {
       setSelectedReturnBus(bus);
       if (bus.isRequest) {
-        setShowRequestForm(true);
+        setShowInquirySidebar(true);
       } else {
         setCurrentStep("return-seats");
       }
     } else {
       setSelectedDepartureBus(bus);
       if (bus.isRequest) {
-        setShowRequestForm(true);
+        setShowInquirySidebar(true);
       } else {
         setCurrentStep("departure-seats");
       }
@@ -201,9 +201,8 @@ export default function BookingApp() {
     setBookingComplete(true);
   };
 
-  const handleRequestSubmit = () => {
-    setShowRequestForm(false);
-    setBookingComplete(true);
+  const handleInquiryClose = () => {
+    setShowInquirySidebar(false);
   };
 
   const handleLogout = async () => {
@@ -301,56 +300,7 @@ export default function BookingApp() {
     );
   }
 
-  if (showRequestForm && (selectedDepartureBus || selectedReturnBus)) {
-    const bus = selectedDepartureBus || selectedReturnBus;
-    return (
-      <div className="bg-gradient-to-br from-amber-50 to-teal-50 min-h-screen">
-        <header className="bg-white border-b shadow-sm">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div
-                  className="bg-white rounded-lg flex items-center justify-center p-1"
-                  style={{ width: 180, height: 72 }}
-                >
-                  <Image
-                    src="/images/reeca-travel-logo.png"
-                    alt="Reeca Travel"
-                    width={900}
-                    height={360}
-                    style={{ width: "100%", height: "auto" }}
-                    priority
-                  />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-teal-900">
-                    Reeca Travel
-                  </h1>
-                  <p className="text-xs text-amber-600">
-                    Tour Vehicle Request
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowRequestForm(false);
-                  setCurrentStep("schedules");
-                }}
-                className="text-teal-600 border-teal-600 hover:bg-teal-50"
-              >
-                Back to Schedule
-              </Button>
-            </div>
-          </div>
-        </header>
-        <RequestForm
-          selectedBus={bus}
-          onSubmitRequest={handleRequestSubmit}
-        />
-      </div>
-    );
-  }
+
 
   const NavLinks = () => (
     <>
@@ -895,6 +845,12 @@ export default function BookingApp() {
           </div>
         )}
       </main>
+
+      <InquirySidebar
+        isOpen={showInquirySidebar}
+        onClose={handleInquiryClose}
+        bus={selectedDepartureBus || selectedReturnBus}
+      />
     </div>
   );
 }

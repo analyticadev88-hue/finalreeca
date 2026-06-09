@@ -13,11 +13,10 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import * as XLSX from "xlsx";
 
-// Inline manifest panel for consultant
-const AdminManifestPage = dynamic(() => import("@/app/admin/manifest/[busId]/page"), { ssr: false });
+import ManifestContent from "@/components/manifest/ManifestContent";
 
 function ManifestPanel({ busId, onBack }: { busId: string, onBack: () => void }) {
-  return <AdminManifestPage params={{ busId }} onBack={onBack} />;
+  return <ManifestContent busId={busId} onBack={onBack} allowWalkIn={false} />;
 }
 
 export default function ConsultantDashboard() {

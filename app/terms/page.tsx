@@ -186,7 +186,7 @@ export default function TermsAndConditions() {
               <section id="pricing" className="mb-12">
                 <h2 className="text-2xl font-bold text-teal-800 mb-4">2. Pricing and Payments</h2>
                 <div className="space-y-4 text-gray-700">
-                  <p><strong>2.1.</strong> All fares are quoted in Botswana Pula.</p>
+                  <p><strong>2.1.</strong> All quotes are quoted in Botswana pula and are subject to change without prior notice.</p>
                   <p><strong>2.2.</strong> Payment must be made in full at the time of booking, online or bank deposit to secure a booking.</p>
                   <p><strong>2.3.</strong> Bank deposit should be made within a hour of booking and proof of payment emailed to secure seat.</p>
                   <p><strong>2.4.</strong> Discounts and promotions are subject to availability and may be withdrawn without notice.</p>
@@ -200,10 +200,10 @@ export default function TermsAndConditions() {
               <section id="cancellations" className="mb-12">
                 <h2 className="text-2xl font-bold text-teal-800 mb-4">3. Cancellations, Rescheduling and Refunds</h2>
                 <div className="space-y-4 text-gray-700">
-                  <p><strong>3.1.</strong> Cancellations made at least 24 hours before departure are eligible for a refund minus a service fee of 10%.</p>
+                  <p><strong>3.1.</strong> Cancellations made at least 24 hours before departure are eligible for a refund minus a service fee of 10% and 5% bank surcharge.</p>
                   <p><strong>3.2.</strong> No refunds are given for cancellations made within 24 hours of departure or for no-shows or after departure.</p>
                   <p><strong>3.3.</strong> Notify the office for any cancellation at tickets@reecatravel.co.bw or call 267 73061124.</p>
-                  <p><strong>3.4.</strong> Refunds will be processed within 7–14 business days.</p>
+                  <p><strong>3.4.</strong> Refunds will be processed within 7–14 business working days.</p>
                   <p><strong>3.5.</strong> Rescheduling a ticket can only be done once by notifying us at least 12 hours before departure time or manage your booking online to rescheduled. Once a ticket is rescheduled, it cannot be cancelled or refunded.</p>
                 </div>
               </section>
