@@ -7,12 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock, Edit3, Utensils, Calendar, Repeat } from "lucide-react";
+import { Eye, Search, CheckCircle, XCircle, QrCode, Download, Users, ChevronLeft, ChevronRight, Mail, CalendarClock, Edit3, Utensils, Calendar, Repeat, Plus, Package, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PrintableTicket } from "@/components/printable-ticket";
 import * as XLSX from "xlsx";
 import { AmendBookingModal } from "@/components/admin/AmendBookingModal";
 import { RescheduleSeatPicker } from "@/components/admin/RescheduleSeatPicker";
+import { ADDON_CATALOG, normalizeAddons, hasMealAddon, type BookingAddonItem } from "@/lib/addons";
 
 // Define color scheme
 const colors = {
@@ -76,7 +77,7 @@ interface Booking {
   tripId?: string;
   returnTripId?: string;
   returnTrip?: TripData;
-  addons?: any;
+  addons?: BookingAddonItem[];
 }
 
 export default function BookingsManagement() {
@@ -117,6 +118,13 @@ export default function BookingsManagement() {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [modalMessage, setModalMessage] = useState<string | null>(null);
   const [modalType, setModalType] = useState<'success' | 'error' | null>(null);
+
+  // Addon modal state
+  const [showAddonModal, setShowAddonModal] = useState(false);
+  const [selectedAddonId, setSelectedAddonId] = useState("");
+  const [addonQuantity, setAddonQuantity] = useState(1);
+  const [addonNote, setAddonNote] = useState("");
+  const [addonLoading, setAddonLoading] = useState(false);
 
   // Trip-selection reschedule state
   const [departureDatePicker, setDepartureDatePicker] = useState("");
@@ -347,14 +355,7 @@ export default function BookingsManagement() {
 
   const hasMeal = (booking: Booking) => {
     if (booking.specialRequests?.toLowerCase().includes('meal')) return true;
-    if (!booking.addons) return false;
-    try {
-      const addons = typeof booking.addons === 'string' ? JSON.parse(booking.addons) : booking.addons;
-      return addons.wimpyMeal1?.departure || addons.wimpyMeal1?.return || 
-             addons.wimpyMeal2?.departure || addons.wimpyMeal2?.return;
-    } catch (e) {
-      return false;
-    }
+    return hasMealAddon(booking.addons);
   };
 
   // Detect neighbour-free companion seats using same heuristic as manifest
@@ -600,6 +601,89 @@ export default function BookingsManagement() {
       alert('Failed to reschedule booking: ' + (err.message || 'Unknown error'));
     } finally {
       setRescheduleLoading(false);
+    }
+  };
+
+  // --- Add Addon handler ---
+  const handleAddAddon = async () => {
+    if (!selectedBooking || !selectedAddonId) return;
+    setAddonLoading(true);
+    try {
+      const res = await fetch("/api/admin/booking/addons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: selectedBooking.id,
+          catalogId: selectedAddonId,
+          quantity: addonQuantity,
+          note: addonNote || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add addon");
+
+      // Update local state
+      const added = data.addon as BookingAddonItem;
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id
+            ? {
+                ...b,
+                addons: [...(b.addons || []), added],
+                totalAmount: data.newTotalPrice,
+              }
+            : b
+        )
+      );
+      setSelectedBooking((prev) =>
+        prev
+          ? {
+              ...prev,
+              addons: [...(prev.addons || []), added],
+              totalAmount: data.newTotalPrice,
+            }
+          : prev
+      );
+
+      // Reset modal
+      setShowAddonModal(false);
+      setSelectedAddonId("");
+      setAddonQuantity(1);
+      setAddonNote("");
+    } catch (err: any) {
+      alert(err.message || "Failed to add addon");
+    } finally {
+      setAddonLoading(false);
+    }
+  };
+
+  // --- Remove Addon handler ---
+  const handleRemoveAddon = async (index: number) => {
+    if (!selectedBooking) return;
+    if (!confirm("Remove this addon? The total price will be reduced.")) return;
+    try {
+      const res = await fetch(
+        `/api/admin/booking/addons?bookingId=${selectedBooking.id}&index=${index}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to remove addon");
+
+      const updatedAddons = normalizeAddons(data.addons);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBooking.id
+            ? { ...b, addons: updatedAddons, totalAmount: data.newTotalPrice }
+            : b
+        )
+      );
+      setSelectedBooking((prev) =>
+        prev
+          ? { ...prev, addons: updatedAddons, totalAmount: data.newTotalPrice }
+          : prev
+      );
+    } catch (err: any) {
+      alert(err.message || "Failed to remove addon");
     }
   };
 
@@ -1261,6 +1345,71 @@ export default function BookingsManagement() {
                 </div>
               </section>
 
+              {/* Add-ons */}
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-xs sm:text-sm" style={{ color: colors.dark }}>Add-ons</h4>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    style={{ backgroundColor: colors.secondary, color: colors.dark }}
+                    onClick={() => {
+                      setSelectedAddonId("");
+                      setAddonQuantity(selectedBooking.totalPassengers || selectedBooking.passengers || 1);
+                      setAddonNote("");
+                      setShowAddonModal(true);
+                    }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Addon
+                  </Button>
+                </div>
+                {selectedBooking.addons && selectedBooking.addons.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedBooking.addons.map((addon, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 rounded-md border text-xs sm:text-sm"
+                        style={{ borderColor: colors.accent + '40', backgroundColor: colors.muted }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Package className="h-3.5 w-3.5" style={{ color: colors.primary }} />
+                          <div>
+                            <span className="font-medium" style={{ color: colors.dark }}>{addon.name}</span>
+                            <span className="text-gray-500 ml-2">
+                              {addon.quantity} × P{addon.pricePerPassenger?.toFixed?.(2) || addon.pricePerPassenger}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold" style={{ color: colors.primary }}>
+                            P{addon.totalPrice?.toFixed?.(2) || addon.totalPrice}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveAddon(idx)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-end pt-1">
+                      <span className="text-xs font-semibold" style={{ color: colors.dark }}>
+                        Add-ons Total: P
+                        {selectedBooking.addons
+                          .reduce((sum, a) => sum + (a.totalPrice || 0), 0)
+                          .toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">No add-ons on this booking.</p>
+                )}
+              </section>
+
               {/* Actions */}
               <section>
                 <h4 className="font-semibold mb-2 text-xs sm:text-sm" style={{ color: colors.dark }}>Actions</h4>
@@ -1760,6 +1909,152 @@ export default function BookingsManagement() {
         booking={selectedBooking}
         onSuccess={() => fetchBookings()}
       />
+
+      {/* Add Addon Modal */}
+      <Dialog open={showAddonModal} onOpenChange={setShowAddonModal}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md" style={{ backgroundColor: colors.light }}>
+          <DialogHeader>
+            <DialogTitle className="text-sm sm:text-base flex items-center gap-2" style={{ color: colors.primary }}>
+              <Package className="h-4 w-4" />
+              Add Addon
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm" style={{ color: colors.accent }}>
+              {selectedBooking && (
+                <span>
+                  Booking {selectedBooking.bookingRef} — {selectedBooking.totalPassengers || selectedBooking.passengers} passenger{(selectedBooking.totalPassengers || selectedBooking.passengers) !== 1 ? 's' : ''}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Addon selection */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium" style={{ color: colors.dark }}>Select Addon</label>
+              <Select value={selectedAddonId} onValueChange={setSelectedAddonId}>
+                <SelectTrigger className="w-full text-xs sm:text-sm h-9" style={{ borderColor: colors.accent }}>
+                  <SelectValue placeholder="Choose an addon..." />
+                </SelectTrigger>
+                <SelectContent style={{ backgroundColor: colors.light }}>
+                  {ADDON_CATALOG.map((addon) => (
+                    <SelectItem key={addon.id} value={addon.id} className="text-xs sm:text-sm">
+                      <div className="flex flex-col">
+                        <span>{addon.name}</span>
+                        <span className="text-[10px] text-gray-500">
+                          P{addon.pricePerPassenger} per passenger — {addon.description}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Quantity */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium" style={{ color: colors.dark }}>
+                Quantity (passengers)
+              </label>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setAddonQuantity((q) => Math.max(1, q - 1))}
+                  disabled={addonQuantity <= 1}
+                >
+                  -
+                </Button>
+                <span className="text-sm font-semibold w-6 text-center" style={{ color: colors.dark }}>
+                  {addonQuantity}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setAddonQuantity((q) => q + 1)}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+
+            {/* Note */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium" style={{ color: colors.dark }}>
+                Note <span className="text-gray-400">(optional)</span>
+              </label>
+              <Input
+                value={addonNote}
+                onChange={(e) => setAddonNote(e.target.value)}
+                placeholder="e.g., Only for outbound leg, vegetarian, etc."
+                className="text-xs sm:text-sm h-9"
+                style={{ borderColor: colors.accent }}
+              />
+            </div>
+
+            {/* Price summary */}
+            {selectedAddonId && (
+              <div className="p-3 rounded-md border" style={{ borderColor: colors.secondary, backgroundColor: colors.secondary + '15' }}>
+                <div className="flex justify-between items-center text-xs sm:text-sm">
+                  <span style={{ color: colors.accent }}>
+                    {ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.name}
+                  </span>
+                  <span className="font-semibold" style={{ color: colors.dark }}>
+                    {addonQuantity} × P{ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.pricePerPassenger}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm font-bold mt-1 pt-1 border-t" style={{ borderColor: colors.secondary + '40' }}>
+                  <span style={{ color: colors.dark }}>Addon Total</span>
+                  <span style={{ color: colors.primary }}>
+                    P{(
+                      (ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.pricePerPassenger || 0) *
+                      addonQuantity
+                    ).toFixed(2)}
+                  </span>
+                </div>
+                {selectedBooking && (
+                  <div className="flex justify-between items-center text-xs mt-1" style={{ color: colors.accent }}>
+                    <span>New Booking Total</span>
+                    <span>
+                      P{(
+                        (selectedBooking.totalAmount || 0) +
+                        (ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.pricePerPassenger || 0) *
+                          addonQuantity
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddonModal(false);
+                setSelectedAddonId("");
+                setAddonQuantity(1);
+                setAddonNote("");
+              }}
+              className="text-xs sm:text-sm h-9"
+              style={{ borderColor: colors.primary, color: colors.primary }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddAddon}
+              disabled={!selectedAddonId || addonLoading}
+              className="text-xs sm:text-sm h-9"
+              style={{ backgroundColor: colors.primary }}
+            >
+              {addonLoading ? (
+                <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block mr-2"></span>
+              ) : null}
+              Add to Booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enrichTripsWithAvailability } from "@/lib/tripAvailability";
 
+// Case-insensitive status matching to handle both "confirmed" and "Confirmed"
+const VALID_BOOKING_STATUSES = [
+  "confirmed", "Confirmed",
+  "completed", "Completed",
+  "pending", "Pending",
+];
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -36,7 +43,7 @@ export async function GET(request: NextRequest) {
             passengers: true,
           },
           where: {
-            bookingStatus: { in: ["confirmed", "completed", "pending"] }
+            bookingStatus: { in: VALID_BOOKING_STATUSES }
           }
         },
         returnBookings: {
@@ -49,7 +56,7 @@ export async function GET(request: NextRequest) {
             passengers: true,
           },
           where: {
-            bookingStatus: { in: ["confirmed", "completed", "pending"] }
+            bookingStatus: { in: VALID_BOOKING_STATUSES }
           }
         }
       },

@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/adminAuth';
 import jwt from 'jsonwebtoken';
+import { normalizeAddons } from '@/lib/addons';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme-in-production';
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest) {
         paymentStatus: booking.paymentStatus,
         bookingStatus: booking.bookingStatus,
         specialRequests: '',
-        addons: booking.addons,
+        addons: normalizeAddons(booking.addons),
         returnTrip: booking.returnTrip ? {
           route: `${booking.returnTrip.routeOrigin} to ${booking.returnTrip.routeDestination}`,
           date: booking.returnTrip.departureDate || new Date(),

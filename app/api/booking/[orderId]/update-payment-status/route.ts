@@ -13,11 +13,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Update booking paymentStatus and bookingStatus using orderId (booking reference)
+    // Use lowercase "confirmed" for consistency across the system
     const booking = await prisma.booking.update({
       where: { orderId },
       data: {
         paymentStatus,
-        bookingStatus: paymentStatus === 'Paid' ? 'Confirmed' : undefined,
+        bookingStatus: paymentStatus === 'Paid' ? 'confirmed' : undefined,
       },
     });
 

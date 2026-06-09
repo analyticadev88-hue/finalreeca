@@ -53,7 +53,11 @@ export async function POST(request: Request) {
     }
 
     const bookings = await prisma.booking.findMany({
-      where: { tripId: seatSourceId, bookingStatus: 'confirmed', paymentStatus: 'paid' },
+      where: {
+        tripId: seatSourceId,
+        bookingStatus: { equals: 'confirmed', mode: 'insensitive' },
+        paymentStatus: { equals: 'paid', mode: 'insensitive' },
+      },
       include: { passengers: true }
     });
     const bookedSeatsFromBookings = bookings.flatMap(b => b.passengers.map(p => p.seatNumber));
@@ -61,7 +65,11 @@ export async function POST(request: Request) {
     // Also check bookings on the child trip itself
     const childBookings = tripId !== seatSourceId
       ? await prisma.booking.findMany({
-          where: { tripId, bookingStatus: 'confirmed', paymentStatus: 'paid' },
+          where: {
+            tripId,
+            bookingStatus: { equals: 'confirmed', mode: 'insensitive' },
+            paymentStatus: { equals: 'paid', mode: 'insensitive' },
+          },
           include: { passengers: true }
         })
       : [];
@@ -102,7 +110,14 @@ export async function POST(request: Request) {
       createdReservations.push(created);
     }
 
-    const allBookings = await prisma.booking.findMany({ where: { tripId: seatSourceId, bookingStatus: 'confirmed', paymentStatus: 'paid' }, include: { passengers: true } });
+    const allBookings = await prisma.booking.findMany({
+      where: {
+        tripId: seatSourceId,
+        bookingStatus: { equals: 'confirmed', mode: 'insensitive' },
+        paymentStatus: { equals: 'paid', mode: 'insensitive' },
+      },
+      include: { passengers: true }
+    });
     const bookedSeatsFromAllBookings = allBookings.flatMap(b => b.passengers.map(p => p.seatNumber));
     const currentReservations = await prisma.seatReservation.findMany({ where: { tripId: seatSourceId } });
     const currentReservedSeats = currentReservations.map(r => r.seatNumber);

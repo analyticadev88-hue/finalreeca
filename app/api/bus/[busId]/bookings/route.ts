@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Case-insensitive status matching to handle both "confirmed" and "Confirmed"
+const VALID_MANIFEST_STATUSES = [
+  "confirmed", "Confirmed",
+  "completed", "Completed",
+  "pending", "Pending",
+];
+
 export async function GET(req: NextRequest, context: { params: { busId: string } }) {
   // Await params as required by Next.js App Router
   const params = await context.params;
@@ -12,7 +19,7 @@ export async function GET(req: NextRequest, context: { params: { busId: string }
         { tripId: busId },
         { returnTripId: busId }
       ],
-      bookingStatus: { in: ["confirmed", "completed", "pending"] }
+      bookingStatus: { in: VALID_MANIFEST_STATUSES }
     },
     include: { agent: true, passengers: true, trip: true, returnTrip: true },
     orderBy: { createdAt: "asc" },

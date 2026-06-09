@@ -17,7 +17,7 @@ export async function GET() {
     const tripsWithAvailability = trips.map(trip => {
       // Only count confirmed, paid, non-return passengers for this trip
       const bookedSeats = trip.bookings
-        .filter(b => b.bookingStatus === 'confirmed' && b.paymentStatus === 'paid')
+        .filter(b => b.bookingStatus?.toLowerCase() === 'confirmed' && b.paymentStatus?.toLowerCase() === 'paid')
         .reduce(
           (total, b) =>
             total +

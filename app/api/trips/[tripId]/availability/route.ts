@@ -24,7 +24,7 @@ export async function GET(request: Request, context: any) {
     const tripsToCheck = [trip, ...(seatSource && seatSource.id !== trip.id ? [seatSource] : [])];
     for (const t of tripsToCheck) {
       for (const booking of t.bookings || []) {
-        if (booking.bookingStatus === 'confirmed' && booking.paymentStatus === 'paid') {
+        if (booking.bookingStatus?.toLowerCase() === 'confirmed' && booking.paymentStatus?.toLowerCase() === 'paid') {
           try {
             const seats = JSON.parse(booking.seats);
             if (Array.isArray(seats)) {
