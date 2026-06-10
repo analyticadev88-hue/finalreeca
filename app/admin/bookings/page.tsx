@@ -1377,7 +1377,7 @@ export default function BookingsManagement() {
                           <div>
                             <span className="font-medium" style={{ color: colors.dark }}>{addon.name}</span>
                             <span className="text-gray-500 ml-2">
-                              {addon.quantity} × P{addon.pricePerPassenger?.toFixed?.(2) || addon.pricePerPassenger}
+                              {addon.quantity} × P{addon.pricePerUnit?.toFixed?.(2) || addon.pricePerUnit}
                             </span>
                           </div>
                         </div>
@@ -1940,7 +1940,7 @@ export default function BookingsManagement() {
                       <div className="flex flex-col">
                         <span>{addon.name}</span>
                         <span className="text-[10px] text-gray-500">
-                          P{addon.pricePerPassenger} per passenger — {addon.description}
+                          P{addon.price} {addon.unitLabel} — {addon.description}
                         </span>
                       </div>
                     </SelectItem>
@@ -2000,14 +2000,14 @@ export default function BookingsManagement() {
                     {ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.name}
                   </span>
                   <span className="font-semibold" style={{ color: colors.dark }}>
-                    {addonQuantity} × P{ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.pricePerPassenger}
+                    {addonQuantity} × P{ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.price} ({ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.unitLabel})
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm font-bold mt-1 pt-1 border-t" style={{ borderColor: colors.secondary + '40' }}>
                   <span style={{ color: colors.dark }}>Addon Total</span>
                   <span style={{ color: colors.primary }}>
                     P{(
-                      (ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.pricePerPassenger || 0) *
+                      (ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.price || 0) *
                       addonQuantity
                     ).toFixed(2)}
                   </span>
@@ -2018,7 +2018,7 @@ export default function BookingsManagement() {
                     <span>
                       P{(
                         (selectedBooking.totalAmount || 0) +
-                        (ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.pricePerPassenger || 0) *
+                        (ADDON_CATALOG.find((a) => a.id === selectedAddonId)?.price || 0) *
                           addonQuantity
                       ).toFixed(2)}
                     </span>

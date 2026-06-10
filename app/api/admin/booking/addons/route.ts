@@ -13,6 +13,12 @@ import {
   type BookingAddonItem,
 } from "@/lib/addons";
 
+const VALID_STATUSES = [
+  "confirmed", "Confirmed",
+  "completed", "Completed",
+  "pending", "Pending",
+];
+
 const JWT_SECRET = process.env.JWT_SECRET || "changeme-in-production";
 
 async function verifyConsultantAuth(req: NextRequest) {
@@ -63,19 +69,22 @@ export async function POST(req: NextRequest) {
     }
 
     const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
+      where: {
+        id: bookingId,
+        bookingStatus: { in: VALID_STATUSES },
+      },
     });
     if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
 
     const existingAddons = normalizeAddons(booking.addons);
-    const addonTotal = calculateAddonTotal(addonDef.pricePerPassenger, quantity);
+    const addonTotal = calculateAddonTotal(addonDef.price, quantity);
 
     const newAddon: BookingAddonItem = {
       catalogId: addonDef.id,
       name: note ? `${addonDef.name} — ${note}` : addonDef.name,
-      pricePerPassenger: addonDef.pricePerPassenger,
+      pricePerUnit: addonDef.price,
       quantity,
       totalPrice: addonTotal,
       addedAt: new Date().toISOString(),
