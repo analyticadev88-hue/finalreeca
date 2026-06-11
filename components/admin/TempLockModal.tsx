@@ -76,8 +76,11 @@ export function TempLockModal({ isOpen, onClose, trip, onSuccess }: TempLockModa
       fetch(`/api/trips/${trip.id}/bookings`)
         .then(res => res.json())
         .then(data => {
+          // Only count passengers actually on THIS trip (not return passengers on another trip)
           const booked = (data.bookings || []).flatMap((b: any) =>
-            (b.passengers || []).map((p: any) => normalizeSeat(p.seatNumber))
+            (b.passengers || [])
+              .filter((p: any) => p.tripId === trip.id)
+              .map((p: any) => normalizeSeat(p.seatNumber))
           );
           const reserved = (data.reservedSeatNumbers || []).map((s: string) => normalizeSeat(String(s)));
 
