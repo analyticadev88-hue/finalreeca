@@ -19,12 +19,14 @@ export interface TripInput {
     id?: string;
     seats: string;
     bookingStatus: string;
+    paymentStatus?: string;
   }>;
   returnBookings: Array<{
     id?: string;
     seats: string;
     returnSeats?: string | null;
     bookingStatus: string;
+    paymentStatus?: string;
   }>;
   [key: string]: any;
 }
@@ -77,6 +79,33 @@ export async function enrichTripsWithAvailability<T extends TripInput>(
     : [];
   const parentMap = new Map(parentTrips.map(p => [p.id, p]));
 
+  // Fetch parent trips WITH their bookings for accurate combined counts
+  const parentTripsWithBookings = parentIds.length > 0
+    ? await prisma.trip.findMany({
+        where: { id: { in: parentIds } },
+        include: {
+          bookings: {
+            select: {
+              id: true,
+              seats: true,
+              bookingStatus: true,
+              paymentStatus: true,
+            },
+          },
+          returnBookings: {
+            select: {
+              id: true,
+              seats: true,
+              returnSeats: true,
+              bookingStatus: true,
+              paymentStatus: true,
+            },
+          },
+        },
+      })
+    : [];
+  const parentBookingMap = new Map(parentTripsWithBookings.map(p => [p.id, p]));
+
   // Fetch seat reservations for all trips AND their parents
   const tripIds = trips.map(t => t.id);
   const allRelatedIds = [...new Set([...tripIds, ...parentIds])];
@@ -117,26 +146,24 @@ export async function enrichTripsWithAvailability<T extends TripInput>(
 
     // Collect booked seats from this trip AND its parent
     const bookedSeats: string[] = [];
+    const parentWithBookings = trip.parentTripId
+      ? parentBookingMap.get(trip.parentTripId)
+      : null;
     const tripsToCheck = [
       trip,
-      ...(trip.parentTripId && parentMap.get(trip.parentTripId)
-        ? [
-            {
-              id: trip.parentTripId,
-              bookings: (trip as any).bookings,
-              returnBookings: (trip as any).returnBookings,
-            },
-          ]
-        : []),
+      ...(parentWithBookings ? [parentWithBookings] : []),
     ];
 
     for (const t of tripsToCheck) {
       // Outbound bookings
       for (const booking of (t as any).bookings || []) {
+        const bStatus = booking.bookingStatus?.toLowerCase();
+        const pStatus = booking.paymentStatus?.toLowerCase();
         if (
-          ['confirmed', 'completed', 'pending'].includes(
-            booking.bookingStatus?.toLowerCase()
-          )
+          ['confirmed', 'completed', 'pending'].includes(bStatus) &&
+          // If paymentStatus is available, exclude failed/cancelled/timeout payments.
+          // If undefined (legacy callers), default to included for backward compat.
+          (pStatus === undefined || ['paid', 'pending'].includes(pStatus))
         ) {
           try {
             let seats: string[] = [];
@@ -156,10 +183,11 @@ export async function enrichTripsWithAvailability<T extends TripInput>(
 
       // Return bookings
       for (const booking of (t as any).returnBookings || []) {
+        const bStatus = booking.bookingStatus?.toLowerCase();
+        const pStatus = booking.paymentStatus?.toLowerCase();
         if (
-          ['confirmed', 'completed', 'pending'].includes(
-            booking.bookingStatus?.toLowerCase()
-          )
+          ['confirmed', 'completed', 'pending'].includes(bStatus) &&
+          (pStatus === undefined || ['paid', 'pending'].includes(pStatus))
         ) {
           try {
             const rSeats = booking.returnSeats || booking.seats;

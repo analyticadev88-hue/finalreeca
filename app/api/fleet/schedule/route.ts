@@ -9,6 +9,11 @@ const VALID_BOOKING_STATUSES = [
   "pending", "Pending",
 ];
 
+const VALID_PAYMENT_STATUSES = [
+  "paid", "Paid",
+  "pending", "Pending",
+];
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -39,11 +44,13 @@ export async function GET(request: NextRequest) {
             id: true,
             seats: true,
             bookingStatus: true,
+            paymentStatus: true,
             totalPrice: true,
             passengers: true,
           },
           where: {
-            bookingStatus: { in: VALID_BOOKING_STATUSES }
+            bookingStatus: { in: VALID_BOOKING_STATUSES },
+            paymentStatus: { in: VALID_PAYMENT_STATUSES },
           }
         },
         returnBookings: {
@@ -52,11 +59,13 @@ export async function GET(request: NextRequest) {
             seats: true,
             returnSeats: true,
             bookingStatus: true,
+            paymentStatus: true,
             totalPrice: true,
             passengers: true,
           },
           where: {
-            bookingStatus: { in: VALID_BOOKING_STATUSES }
+            bookingStatus: { in: VALID_BOOKING_STATUSES },
+            paymentStatus: { in: VALID_PAYMENT_STATUSES },
           }
         }
       },

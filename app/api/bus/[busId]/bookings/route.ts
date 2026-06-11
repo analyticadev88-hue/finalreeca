@@ -8,6 +8,11 @@ const VALID_MANIFEST_STATUSES = [
   "pending", "Pending",
 ];
 
+const VALID_MANIFEST_PAYMENT_STATUSES = [
+  "paid", "Paid",
+  "pending", "Pending",
+];
+
 export async function GET(req: NextRequest, context: { params: { busId: string } }) {
   // Await params as required by Next.js App Router
   const params = await context.params;
@@ -19,7 +24,8 @@ export async function GET(req: NextRequest, context: { params: { busId: string }
         { tripId: busId },
         { returnTripId: busId }
       ],
-      bookingStatus: { in: VALID_MANIFEST_STATUSES }
+      bookingStatus: { in: VALID_MANIFEST_STATUSES },
+      paymentStatus: { in: VALID_MANIFEST_PAYMENT_STATUSES }
     },
     include: { agent: true, passengers: true, trip: true, returnTrip: true },
     orderBy: { createdAt: "asc" },

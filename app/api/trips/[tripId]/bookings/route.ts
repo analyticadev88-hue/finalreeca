@@ -35,10 +35,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const bookings = await prisma.booking.findMany({
       where: {
         tripId: { in: relevantTripIds },
-        // Case-insensitive: match "confirmed", "Confirmed", "completed", "Completed"
+        // Case-insensitive: match confirmed, completed, pending
         OR: [
           { bookingStatus: { equals: 'confirmed', mode: 'insensitive' } },
           { bookingStatus: { equals: 'completed', mode: 'insensitive' } },
+          { bookingStatus: { equals: 'pending', mode: 'insensitive' } },
         ],
         paymentStatus: { in: ['paid', 'pending', 'Paid', 'Pending'] },
       },

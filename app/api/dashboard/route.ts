@@ -21,21 +21,24 @@ export async function GET(req: NextRequest) {
       // 1. All-time confirmed bookings
       prisma.booking.count({
         where: {
-          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
+          bookingStatus: { in: ["confirmed", "Confirmed", "completed", "Completed", "pending", "Pending"] },
+          paymentStatus: { in: ["paid", "Paid", "pending", "Pending"] }
         }
       }),
       // 2. All-time confirmed revenue
       prisma.booking.aggregate({
         _sum: { totalPrice: true },
         where: {
-          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
+          bookingStatus: { in: ["confirmed", "Confirmed", "completed", "Completed", "pending", "Pending"] },
+          paymentStatus: { in: ["paid", "Paid", "pending", "Pending"] }
         }
       }),
       // 3. Monthly confirmed bookings
       prisma.booking.count({
         where: {
           createdAt: { gte: monthStart, lte: monthEnd },
-          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
+          bookingStatus: { in: ["confirmed", "Confirmed", "completed", "Completed", "pending", "Pending"] },
+          paymentStatus: { in: ["paid", "Paid", "pending", "Pending"] }
         }
       }),
       // 4. Monthly confirmed revenue
@@ -43,7 +46,8 @@ export async function GET(req: NextRequest) {
         _sum: { totalPrice: true },
         where: {
           createdAt: { gte: monthStart, lte: monthEnd },
-          bookingStatus: { in: ["Confirmed", "Confirmed", "confirmed", "Completed", "completed"] }
+          bookingStatus: { in: ["confirmed", "Confirmed", "completed", "Completed", "pending", "Pending"] },
+          paymentStatus: { in: ["paid", "Paid", "pending", "Pending"] }
         }
       }),
     ]);
@@ -70,10 +74,10 @@ export async function GET(req: NextRequest) {
       },
       include: {
         bookings: {
-          select: { id: true, seats: true, bookingStatus: true }
+          select: { id: true, seats: true, bookingStatus: true, paymentStatus: true }
         },
         returnBookings: {
-          select: { id: true, seats: true, returnSeats: true, bookingStatus: true }
+          select: { id: true, seats: true, returnSeats: true, bookingStatus: true, paymentStatus: true }
         }
       }
     });

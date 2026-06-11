@@ -67,7 +67,7 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
             <SelectContent>
               <SelectItem value="Gaborone">Gaborone</SelectItem>
               <SelectItem value="Rustenburg">Rustenburg</SelectItem>
-              <SelectItem value="OR Tambo Airport">OR Tambo Airport</SelectItem>
+              <SelectItem value="OR Tambo Airport">Johannesburg (OR Tambo Airport)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -78,7 +78,7 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
               <SelectValue placeholder="Select destination" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="OR Tambo Airport">OR Tambo Airport</SelectItem>
+              <SelectItem value="OR Tambo Airport">Johannesburg (OR Tambo Airport)</SelectItem>
               <SelectItem value="Rustenburg">Rustenburg</SelectItem>
               <SelectItem value="Gaborone">Gaborone</SelectItem>
             </SelectContent>
