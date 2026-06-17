@@ -197,6 +197,14 @@ export default function BookingsManagement() {
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  const getDestinationOptions = (origin: string): string[] => {
+    const normalized = origin.toLowerCase().trim();
+    if (normalized.includes("gaborone")) return ["OR Tambo Airport", "Rustenburg"];
+    if (normalized.includes("tambo") || normalized.includes("airport")) return ["Gaborone", "Rustenburg"];
+    if (normalized.includes("rustenburg")) return ["Gaborone", "OR Tambo Airport"];
+    return [];
+  };
+
   // Helper to refetch bookings
   const fetchBookings = async () => {
     try {
@@ -570,6 +578,9 @@ export default function BookingsManagement() {
       if (overridePrice && newTotalPrice) {
         body.newTotalPrice = Number(newTotalPrice);
       }
+      if (changeRoute && newRouteDestination) {
+        body.newRouteDestination = newRouteDestination;
+      }
 
       const res = await fetch('/api/booking/reschedule', {
         method: 'POST',
@@ -597,6 +608,8 @@ export default function BookingsManagement() {
       setAvailableReturnTrips([]);
       setOverridePrice(false);
       setNewTotalPrice('');
+      setChangeRoute(false);
+      setNewRouteDestination('');
     } catch (err: any) {
       alert('Failed to reschedule booking: ' + (err.message || 'Unknown error'));
     } finally {
@@ -1503,6 +1516,51 @@ export default function BookingsManagement() {
             {/* Departure Trip Selection */}
             <div className="pt-2">
               <h4 className="text-xs sm:text-sm font-semibold mb-2" style={{ color: colors.primary }}>Select New Departure Trip</h4>
+
+              {/* Change Destination */}
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  type="checkbox"
+                  id="changeDestination"
+                  checked={changeRoute}
+                  onChange={(e) => {
+                    setChangeRoute(e.target.checked);
+                    if (!e.target.checked) {
+                      setNewRouteDestination('');
+                      setAvailableDepartureTrips([]);
+                      setSelectedDepartureTripId('');
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="changeDestination" className="text-xs sm:text-sm font-medium" style={{ color: colors.dark }}>
+                  Change Destination
+                </label>
+              </div>
+
+              {changeRoute && selectedBooking && (
+                <div className="mb-2">
+                  <Select value={newRouteDestination} onValueChange={(val) => {
+                    setNewRouteDestination(val);
+                    setAvailableDepartureTrips([]);
+                    setSelectedDepartureTripId('');
+                  }}>
+                    <SelectTrigger className="text-xs sm:text-sm h-9" style={{ borderColor: colors.accent }}>
+                      <SelectValue placeholder="Select new destination" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const routeParts = selectedBooking.route.split(/ to | → |->| - /);
+                        const origin = routeParts[0]?.trim() || '';
+                        return getDestinationOptions(origin).map(dest => (
+                          <SelectItem key={dest} value={dest} className="text-xs sm:text-sm">{dest}</SelectItem>
+                        ));
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <Input
                   type="date"
@@ -1520,12 +1578,14 @@ export default function BookingsManagement() {
                   size="sm"
                   className="h-9 text-xs"
                   style={{ backgroundColor: colors.primary }}
-                  disabled={!departureDatePicker || fetchingTrips}
+                  disabled={!departureDatePicker || fetchingTrips || (changeRoute && !newRouteDestination)}
                   onClick={() => {
                     if (!selectedBooking) return;
                     const routeParts = selectedBooking.route.split(/ to | → |->| - /);
                     const origin = routeParts[0]?.trim() || '';
-                    const dest = routeParts[1]?.trim() || '';
+                    const dest = changeRoute && newRouteDestination
+                      ? newRouteDestination
+                      : routeParts[1]?.trim() || '';
                     fetchAvailableTrips(origin, dest, departureDatePicker, selectedBooking.seats as string[] || [], false);
                   }}
                 >

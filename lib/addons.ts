@@ -85,6 +85,7 @@ export function normalizeAddons(raw: any): BookingAddonItem[] {
       }));
   }
   // Legacy object format: { extraBaggage: {departure: true}, wimpyMeal1: {...}, ... }
+  // FIXED: Now properly extracts quantity from stored data
   if (typeof raw === "object") {
     const legacyMap: Record<string, { name: string; price: number; category: string }> = {
       extraBaggage: { name: "Extra Baggage", price: 300, category: "luggage" },
@@ -96,10 +97,28 @@ export function normalizeAddons(raw: any): BookingAddonItem[] {
     Object.entries(raw).forEach(([key, selection]: [string, any]) => {
       const mapped = legacyMap[key];
       if (!mapped) return;
+      
+      // FIXED: Extract quantity from stored format
+      // New format: { departureQty: 3, returnQty: 0, departure: true, return: false }
+      // Legacy format: { departure: true, return: false }
       let qty = 0;
-      if (selection?.departure) qty++;
-      if (selection?.return) qty++;
+      
+      // First try to use explicit quantity fields if they exist
+      if (typeof selection?.departureQty === "number") {
+        qty += selection.departureQty;
+      } else if (selection?.departure) {
+        qty += 1; // fallback for very old format
+      }
+      
+      if (typeof selection?.returnQty === "number") {
+        qty += selection.returnQty;
+      } else if (selection?.return) {
+        qty += 1; // fallback for very old format
+      }
+      
+      // If still 0, default to 1 (shouldn't happen)
       if (qty === 0) qty = 1;
+      
       items.push({
         catalogId: key,
         name: mapped.name,

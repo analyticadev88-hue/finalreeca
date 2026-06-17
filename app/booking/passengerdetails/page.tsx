@@ -30,6 +30,7 @@ import {
   Clock,
 } from "lucide-react";
 import { SearchData, BoardingPoint } from "@/lib/types";
+import { type BookingAddonItem } from "@/lib/addons";
 import { format } from "date-fns";
 import { PolicyModal } from "@/components/PolicyModal";
 import PaymentGateway from "../paymentgateway";
@@ -273,7 +274,14 @@ export default function PassengerDetailsForm({
 }: PassengerDetailsFormProps) {
   const isRoundTrip = !!returnBus;
   const [selectedAddons, setSelectedAddons] = useState<{
-    [key: string]: { departure: boolean; return: boolean; departurePref?: string; returnPref?: string };
+    [key: string]: {
+      departure: boolean;
+      return: boolean;
+      departureQty?: number;
+      returnQty?: number;
+      departurePref?: string;
+      returnPref?: string;
+    };
   }>({});
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -448,10 +456,17 @@ export default function PassengerDetailsForm({
     }
   };
 
+  const departurePayingPassengers = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat);
+  const returnPayingPassengers = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat);
+
   const getAddonsTotal = () => {
-    let total = 0;
-    const departurePayingPassengers = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat);
-    const returnPayingPassengers = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat);
+    return buildAddonItems().reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+  };
+
+  /** Build the addon item array that is stored on the booking. This keeps the
+   *  stored addons total in sync with what the customer was charged. */
+  const buildAddonItems = (): BookingAddonItem[] => {
+    const items: BookingAddonItem[] = [];
     const isAgentBooking = !!agent;
     const departureDateObj = departureBus?.departureDate ? new Date(departureBus.departureDate) : undefined;
     const returnDateObj = returnBus?.departureDate ? new Date(returnBus.departureDate) : undefined;
@@ -459,26 +474,36 @@ export default function PassengerDetailsForm({
     ADDONS.forEach((addon) => {
       const depPrice = getAddonPrice(addon.key, departureBus?.routeOrigin, departureDateObj, isAgentBooking);
       const returnPrice = getAddonPrice(addon.key, returnBus?.routeOrigin, returnDateObj, isAgentBooking);
+      const selection = selectedAddons[addon.key];
+      if (!selection || (!selection.departure && !selection.return)) return;
 
-      if (selectedAddons[addon.key]?.departure) {
-        if (addon.key === "wimpyMeal2") {
-          // Scale by the number of pairs (e.g. 1 meal for 2 people, 2 meals for 4 people)
-          const pairs = Math.floor(departurePayingPassengers.length / 2);
-          total += depPrice * Math.max(1, pairs);
-        } else {
-          total += depPrice * departurePayingPassengers.length;
-        }
+      let quantity = 0;
+      let totalPrice = 0;
+
+      if (selection.departure) {
+        const qty = Math.max(0, Number(selection.departureQty) || defaultAddonQuantity(addon.key, "departure"));
+        quantity += qty;
+        totalPrice += depPrice * qty;
       }
-      if (isRoundTrip && selectedAddons[addon.key]?.return) {
-        if (addon.key === "wimpyMeal2") {
-          const pairs = Math.floor(returnPayingPassengers.length / 2);
-          total += returnPrice * Math.max(1, pairs);
-        } else {
-          total += returnPrice * returnPayingPassengers.length;
-        }
+      if (isRoundTrip && selection.return) {
+        const qty = Math.max(0, Number(selection.returnQty) || defaultAddonQuantity(addon.key, "return"));
+        quantity += qty;
+        totalPrice += returnPrice * qty;
+      }
+
+      if (quantity > 0) {
+        items.push({
+          catalogId: addon.key,
+          name: addon.label,
+          category: addon.key.startsWith("wimpyMeal") ? "meal" : addon.key === "extraBaggage" ? "luggage" : "service",
+          pricePerUnit: depPrice,
+          quantity,
+          totalPrice: Math.round(totalPrice * 100) / 100,
+          addedAt: new Date().toISOString(),
+        });
       }
     });
-    return total;
+    return items;
   };
 
   const openOnlySection = (section: keyof SectionState) => {
@@ -524,11 +549,12 @@ export default function PassengerDetailsForm({
     setPassengers(updatedPassengers);
   };
 
-  const departurePricePerSeat = departureBus?.fare || 0;
+  const departurePricePerSeat = Number(departureBus?.fare) || 0;
+  const returnPricePerSeat = Number(returnBus?.fare) || 0;
 
   const getPassengerFare = (p: Passenger) => {
-    if (p.type === "child") return childFare;
-    return departurePricePerSeat;
+    if (p.type === "child") return Number(childFare) || 0;
+    return p.isReturn ? returnPricePerSeat : departurePricePerSeat;
   };
 
   const infantCount = passengers.filter((p) => {
@@ -538,7 +564,7 @@ export default function PassengerDetailsForm({
     );
     return !isPrimaryWithCompanion;
   }).length;
-  const infantTotal = infantCount * infantFare;
+  const infantTotal = infantCount * (Number(infantFare) || 0);
 
   let departureTotal = 0;
   let returnTotal = 0;
@@ -561,8 +587,9 @@ export default function PassengerDetailsForm({
     returnTotal = passengers.filter((p) => p.isReturn).reduce((sum, p) => sum + getPassengerFare(p), 0);
   }
 
-  const baseTotal = departureTotal + returnTotal + infantTotal + getAddonsTotal();
-  const ticketOnlyTotal = departureTotal + returnTotal;
+  const addonsTotal = Number(getAddonsTotal()) || 0;
+  const baseTotal = Number(departureTotal) + Number(returnTotal) + Number(infantTotal) + addonsTotal;
+  const ticketOnlyTotal = Number(departureTotal) + Number(returnTotal);
 
   // FIXED: Improved syncCompanionPassenger function
   const syncCompanionPassenger = (primaryPassenger: Passenger) => {
@@ -764,14 +791,46 @@ export default function PassengerDetailsForm({
     setEmergencyContact((prev) => ({ ...prev, [field]: value }));
   };
 
+  const defaultAddonQuantity = (addonKey: string, tripType: "departure" | "return") => {
+    const payingCount = tripType === "departure"
+      ? departurePayingPassengers.length
+      : returnPayingPassengers.length;
+    if (addonKey === "wimpyMeal2") {
+      return Math.max(1, Math.floor(payingCount / 2));
+    }
+    return Math.max(1, payingCount);
+  };
+
   const handleAddonChange = (addonKey: string, tripType: "departure" | "return", checked: boolean) => {
-    setSelectedAddons((prev) => ({
-      ...prev,
-      [addonKey]: {
-        ...prev[addonKey] || { departure: false, return: false },
-        [tripType]: checked,
-      },
-    }));
+    setSelectedAddons((prev) => {
+      const current = prev[addonKey] || { departure: false, return: false };
+      const qtyKey = tripType === "departure" ? "departureQty" : "returnQty";
+      return {
+        ...prev,
+        [addonKey]: {
+          ...current,
+          [tripType]: checked,
+          [qtyKey]: checked ? (current[qtyKey as keyof typeof current] || defaultAddonQuantity(addonKey, tripType)) : 0,
+        },
+      };
+    });
+  };
+
+  const handleAddonQuantityChange = (addonKey: string, tripType: "departure" | "return", delta: number) => {
+    setSelectedAddons((prev) => {
+      const current = prev[addonKey] || { departure: false, return: false };
+      const qtyKey = tripType === "departure" ? "departureQty" : "returnQty";
+      const currentQty = Number(current[qtyKey as keyof typeof current]) || 0;
+      const newQty = Math.max(0, currentQty + delta);
+      return {
+        ...prev,
+        [addonKey]: {
+          ...current,
+          [tripType]: newQty > 0,
+          [qtyKey]: newQty,
+        },
+      };
+    });
   };
 
   const handleAddonPreference = (addonKey: string, tripType: "departure" | "return", pref: string) => {
@@ -808,10 +867,37 @@ export default function PassengerDetailsForm({
       isNeighbourFreeSeat: p.isNeighbourFreeSeat || false,
     }));
 
+    // FIXED: Build addon items and validate totals
+    const addonItems = buildAddonItems();
+    const addonItemsTotal = addonItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+    const calculatedAddonsTotal = getAddonsTotal();
+    
+    // Validation: Ensure addon totals match
+    if (Math.abs(addonItemsTotal - calculatedAddonsTotal) > 0.01) {
+      console.warn(`[ADDON MISMATCH] Items total (${addonItemsTotal}) vs Calculated (${calculatedAddonsTotal})`);
+    }
+
     // Debug logging
     console.log("DEBUG Booking Payload:", {
       seats: { departure: departureSeats.length, return: returnSeats.length },
       passengers: passengersForPayload.length,
+      pricing: {
+        departureTotal,
+        returnTotal,
+        infantTotal,
+        addonItemsTotal,
+        calculatedAddonsTotal,
+        baseTotal,
+        agentDiscount,
+        consultantDiscount,
+        finalTotal,
+      },
+      addonsDetail: addonItems.map(a => ({
+        name: a.name,
+        pricePerUnit: a.pricePerUnit,
+        quantity: a.quantity,
+        totalPrice: a.totalPrice,
+      })),
       passengerDetails: passengersForPayload.map(p => ({
         seat: p.seatNumber,
         isReturn: p.isReturn,
@@ -829,7 +915,7 @@ export default function PassengerDetailsForm({
       selectedSeats: [...departureSeats, ...returnSeats],
       departureSeats: departureSeats,
       returnSeats: returnSeats,
-      addons: selectedAddons,
+      addons: addonItems,
       passengers: passengersForPayload,
       userName: contactDetails.name.trim(),
       userEmail: contactDetails.email.trim(),
@@ -1167,28 +1253,19 @@ export default function PassengerDetailsForm({
                 </div>
               )}
 
-              {Object.entries(selectedAddons).map(([key, value]) => {
-                const addon = ADDONS.find((a) => a.key === key);
-                if (addon && (value.departure || value.return)) {
-                  const departurePayingCount = passengers.filter((p) => !p.isReturn && !p.isNeighbourFreeSeat).length;
-                  const returnPayingCount = passengers.filter((p) => p.isReturn && !p.isNeighbourFreeSeat).length;
-                  const isAgentBooking = !!agent;
-                  const departureDateObj = departureBus?.departureDate ? new Date(departureBus.departureDate) : undefined;
-                  const returnDateObj = returnBus?.departureDate ? new Date(returnBus.departureDate) : undefined;
-                  const depPrice = getAddonPrice(key, departureBus?.routeOrigin, departureDateObj, isAgentBooking);
-                  const returnPrice = getAddonPrice(key, returnBus?.routeOrigin, returnDateObj, isAgentBooking);
-                  const addonTotal = (value.departure ? depPrice * departurePayingCount : 0) + (isRoundTrip && value.return ? returnPrice * returnPayingCount : 0);
-                  return (
-                    <div key={key} className="flex justify-between pt-2">
-                      <p className="font-medium text-gray-700 text-sm sm:text-base">{addon.label}:</p>
-                      <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
-                        P {addonTotal.toFixed(2)}
-                      </p>
-                    </div>
-                  );
-                }
-                return null;
-              })}
+              {buildAddonItems().map((item) => (
+                <div key={item.catalogId} className="flex justify-between pt-2">
+                  <div>
+                    <p className="font-medium text-gray-700 text-sm sm:text-base">{item.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {item.quantity} × P {item.pricePerUnit?.toFixed(2) || '0.00'} = P {Number(item.totalPrice || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <p className="font-medium text-[rgb(0,153,153)] text-sm sm:text-base">
+                    P {Number(item.totalPrice || 0).toFixed(2)}
+                  </p>
+                </div>
+              ))}
 
               {agent && (
                 <div className="flex justify-between pt-2">
@@ -1915,7 +1992,24 @@ export default function PassengerDetailsForm({
                                       className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
                                       disabled={isWimpy && wimpyDisabled}
                                     />
-                                    <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Departure</span>
+                                    {!selectedAddons[addon.key]?.departure ? (
+                                      <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Departure</span>
+                                    ) : (
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-xs font-medium text-gray-600">Departure Qty</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.preventDefault(); handleAddonQuantityChange(addon.key, "departure", -1); }}
+                                          className="w-5 h-5 flex items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"
+                                        >-</button>
+                                        <span className="w-5 text-center text-xs font-semibold">{selectedAddons[addon.key]?.departureQty || defaultAddonQuantity(addon.key, "departure")}</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.preventDefault(); handleAddonQuantityChange(addon.key, "departure", 1); }}
+                                          className="w-5 h-5 flex items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"
+                                        >+</button>
+                                      </span>
+                                    )}
                                   </label>
                                   {isRoundTrip && addon.showOnReturn && (
                                     <label
@@ -1929,7 +2023,24 @@ export default function PassengerDetailsForm({
                                         className="border-[rgb(255,199,33)] data-[state=checked]:bg-[rgb(0,153,153)] data-[state=checked]:border-[rgb(0,153,153)]"
                                         disabled={isWimpy && wimpyDisabled}
                                       />
-                                      <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Return</span>
+                                      {!selectedAddons[addon.key]?.return ? (
+                                        <span className="text-xs sm:text-sm font-medium text-gray-600 group-hover:text-[rgb(0,153,153)]">Return</span>
+                                      ) : (
+                                        <span className="flex items-center gap-1">
+                                          <span className="text-xs font-medium text-gray-600">Return Qty</span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.preventDefault(); handleAddonQuantityChange(addon.key, "return", -1); }}
+                                            className="w-5 h-5 flex items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"
+                                          >-</button>
+                                          <span className="w-5 text-center text-xs font-semibold">{selectedAddons[addon.key]?.returnQty || defaultAddonQuantity(addon.key, "return")}</span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.preventDefault(); handleAddonQuantityChange(addon.key, "return", 1); }}
+                                            className="w-5 h-5 flex items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"
+                                          >+</button>
+                                        </span>
+                                      )}
                                     </label>
                                   )}
                                 </div>
@@ -2041,6 +2152,35 @@ export default function PassengerDetailsForm({
             )}
           </div>
 
+          {/* FIXED: Addon Summary - Shows clear breakdown of all addon charges */}
+          {buildAddonItems().length > 0 && (
+            <div className="border-2 border-blue-200 rounded-xl overflow-hidden mt-6 bg-blue-50">
+              <div className="p-4 bg-blue-100">
+                <h3 className="font-bold text-lg text-blue-900 flex items-center gap-2">
+                  <ShoppingBag className="h-5 w-5" />
+                  Add-on Charges Summary
+                </h3>
+              </div>
+              <div className="p-4 space-y-3">
+                {buildAddonItems().map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-2 border-b border-blue-100 last:border-0">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-800">{item.name}</div>
+                      <div className="text-xs text-gray-600">
+                        {item.quantity} × P{item.pricePerUnit.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="font-bold text-blue-900 text-lg">P{item.totalPrice.toFixed(2)}</div>
+                  </div>
+                ))}
+                <div className="pt-3 mt-3 border-t-2 border-blue-300 flex justify-between items-center bg-white p-3 rounded-lg">
+                  <div className="font-bold text-blue-900">Total Add-ons:</div>
+                  <div className="font-bold text-xl text-blue-900">P{getAddonsTotal().toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Payment Mode Section - Same as before */}
           <div className="border border-gray-200 rounded-lg p-4 sm:p-5 bg-gray-50">
             <h3 className="font-bold text-gray-800 mb-3 flex items-center text-base sm:text-lg">
@@ -2133,6 +2273,51 @@ export default function PassengerDetailsForm({
               </span>{" "}
               and Cancellation Policies
             </label>
+          </div>
+
+          {/* FIXED: Final Price Summary - Clear breakdown before checkout */}
+          <div className="border-2 border-[rgb(0,153,153)] rounded-xl overflow-hidden mt-6 bg-white">
+            <div className="p-4 bg-[rgb(0,153,153)]">
+              <h3 className="font-bold text-lg text-white">Final Quote</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Departure Tickets ({departureSeats.length}):</span>
+                <span className="font-semibold">P{departureTotal.toFixed(2)}</span>
+              </div>
+              {returnSeats.length > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Return Tickets ({returnSeats.length}):</span>
+                  <span className="font-semibold">P{returnTotal.toFixed(2)}</span>
+                </div>
+              )}
+              {infantTotal > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Infant Fares:</span>
+                  <span className="font-semibold">P{infantTotal.toFixed(2)}</span>
+                </div>
+              )}
+              {addonsTotal > 0 && (
+                <div className="flex justify-between text-sm border-t pt-3">
+                  <span className="text-gray-700">Add-ons Total:</span>
+                  <span className="font-semibold text-blue-600">P{addonsTotal.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm border-t pt-3">
+                <span className="text-gray-700">Subtotal:</span>
+                <span className="font-semibold">P{(baseTotal).toFixed(2)}</span>
+              </div>
+              {(agentDiscount > 0 || consultantDiscount > 0) && (
+                <div className="flex justify-between text-sm border-t pt-3">
+                  <span className="text-gray-700">Discount:</span>
+                  <span className="font-semibold text-green-600">-P{(agentDiscount + consultantDiscount).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-lg font-bold border-t-2 border-[rgb(0,153,153)] pt-3 mt-3 bg-[rgb(0,153,153)] bg-opacity-5 p-3 rounded-lg">
+                <span className="text-[rgb(0,153,153)]">Total Amount Due:</span>
+                <span className="text-[rgb(0,153,153)]">P{finalTotal.toFixed(2)}</span>
+              </div>
+            </div>
           </div>
 
           {/* Submit Button */}

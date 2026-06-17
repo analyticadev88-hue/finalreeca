@@ -32,9 +32,10 @@ export async function GET(request: NextRequest) {
 
     // If we have specific search criteria, use them
     if (from && to && departureDate) {
-      // Create date range for the entire day in UTC
-      const startDate = new Date(departureDate + 'T00:00:00.000Z');
-      const endDate = new Date(departureDate + 'T23:59:59.999Z');
+      // Create date range - add buffer for timezone offsets (±12 hours)
+      const date = new Date(departureDate);
+      const startDate = new Date(date.getTime() - 12 * 60 * 60 * 1000); // 12 hours earlier
+      const endDate = new Date(date.getTime() + 36 * 60 * 60 * 1000);   // 36 hours later (covers next day)
 
       console.log('Outbound date range:', { startDate, endDate });
 
@@ -50,8 +51,9 @@ export async function GET(request: NextRequest) {
 
       // If we also have return date, we need OR logic for both directions
       if (returnDate) {
-        const returnStartDate = new Date(returnDate + 'T00:00:00.000Z');
-        const returnEndDate = new Date(returnDate + 'T23:59:59.999Z');
+        const returnDateObj = new Date(returnDate);
+        const returnStartDate = new Date(returnDateObj.getTime() - 12 * 60 * 60 * 1000);
+        const returnEndDate = new Date(returnDateObj.getTime() + 36 * 60 * 60 * 1000);
 
         console.log('Return date range:', { returnStartDate, returnEndDate });
 
@@ -174,12 +176,21 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
 
+    // Filter out UI-only fields that shouldn't be saved to DB
+    const {
+      isRustenburgStopover,
+      rustenburgFare,
+      ...cleanData
+    } = data;
+
     const tripData = {
-      ...data,
+      ...cleanData,
       // Ensure totalSeats matches availableSeats for new trips
-      totalSeats: data.totalSeats || data.availableSeats,
+      totalSeats: cleanData.totalSeats || cleanData.availableSeats,
       // Properly format departure date
-      departureDate: new Date(data.departureDate)
+      departureDate: new Date(cleanData.departureDate),
+      // Remove empty parentTripId
+      parentTripId: cleanData.parentTripId && cleanData.parentTripId.trim() ? cleanData.parentTripId : null
     };
 
     // Duplicate guard

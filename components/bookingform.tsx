@@ -1,5 +1,5 @@
 // BookingForm.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +16,14 @@ interface BookingFormProps {
   onHireBus?: () => void;
 }
 
+interface Route {
+  id: string;
+  name: string;
+  origin: string;
+  destination: string;
+  active: boolean;
+}
+
 export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingFormProps) {
   const [fromLocation, setFromLocation] = useState("Gaborone");
   const [toLocation, setToLocation] = useState("OR Tambo Airport");
@@ -23,6 +31,64 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
   const [returnDate, setReturnDate] = useState<Date>();
   const [isReturnTrip, setIsReturnTrip] = useState(false);
   const [totalSeats, setTotalSeats] = useState("1");
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [loadingRoutes, setLoadingRoutes] = useState(true);
+
+  // Default hardcoded routes (always available)
+  const defaultRoutes: Route[] = [
+    { id: 'default-1', name: 'Gaborone to OR Tambo Airport', origin: 'Gaborone', destination: 'OR Tambo Airport', active: true },
+    { id: 'default-2', name: 'OR Tambo Airport to Gaborone', origin: 'OR Tambo Airport', destination: 'Gaborone', active: true },
+    { id: 'default-3', name: 'Gaborone to Rustenburg', origin: 'Gaborone', destination: 'Rustenburg', active: true },
+    { id: 'default-4', name: 'Rustenburg to Gaborone', origin: 'Rustenburg', destination: 'Gaborone', active: true },
+  ];
+
+  // Fetch available routes on mount
+  useEffect(() => {
+    const fetchRoutes = async () => {
+      try {
+        const response = await fetch('/api/admin/routes');
+        if (response.ok) {
+          const data = await response.json();
+          // Combine dynamic routes with defaults, removing duplicates
+          const combinedRoutes = [...defaultRoutes, ...data];
+          const uniqueRoutes = combinedRoutes.filter((route, index, self) =>
+            index === self.findIndex(r => r.name.toLowerCase() === route.name.toLowerCase())
+          );
+          setRoutes(uniqueRoutes);
+        } else {
+          // Use only defaults if API fails
+          setRoutes(defaultRoutes);
+        }
+      } catch (error) {
+        console.error('Failed to fetch routes:', error);
+        // Keep default hardcoded routes as fallback
+        setRoutes(defaultRoutes);
+      } finally {
+        setLoadingRoutes(false);
+      }
+    };
+
+    fetchRoutes();
+  }, []);
+
+  // Get unique origin cities (departure points)
+  const originCities = Array.from(new Set(routes.map(r => r.origin))).sort();
+
+  // Get destination cities based on selected origin
+  const destinationCities = Array.from(
+    new Set(
+      routes
+        .filter(r => r.origin.toLowerCase() === fromLocation.toLowerCase())
+        .map(r => r.destination)
+    )
+  ).sort();
+
+  // Auto-update destination if current selection is invalid
+  useEffect(() => {
+    if (toLocation && !destinationCities.includes(toLocation) && destinationCities.length > 0) {
+      setToLocation(destinationCities[0]);
+    }
+  }, [fromLocation, toLocation, destinationCities]);
 
   const getToday = () => {
     const today = new Date();
@@ -60,27 +126,27 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="space-y-2">
           <Label className="text-gray-700">From</Label>
-          <Select value={fromLocation} onValueChange={setFromLocation}>
+          <Select value={fromLocation} onValueChange={setFromLocation} disabled={loadingRoutes}>
             <SelectTrigger className="h-12 border border-gray-300 bg-white">
-              <SelectValue placeholder="Select origin" />
+              <SelectValue placeholder={loadingRoutes ? "Loading routes..." : "Select origin"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Gaborone">Gaborone</SelectItem>
-              <SelectItem value="Rustenburg">Rustenburg</SelectItem>
-              <SelectItem value="OR Tambo Airport">Johannesburg (OR Tambo Airport)</SelectItem>
+              {originCities.map((city) => (
+                <SelectItem key={city} value={city}>{city}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
           <Label className="text-gray-700">To</Label>
-          <Select value={toLocation} onValueChange={setToLocation}>
+          <Select value={toLocation} onValueChange={setToLocation} disabled={loadingRoutes || destinationCities.length === 0}>
             <SelectTrigger className="h-12 border border-gray-300 bg-white">
-              <SelectValue placeholder="Select destination" />
+              <SelectValue placeholder={loadingRoutes ? "Loading routes..." : "Select destination"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="OR Tambo Airport">Johannesburg (OR Tambo Airport)</SelectItem>
-              <SelectItem value="Rustenburg">Rustenburg</SelectItem>
-              <SelectItem value="Gaborone">Gaborone</SelectItem>
+              {destinationCities.map((city) => (
+                <SelectItem key={city} value={city}>{city}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

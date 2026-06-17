@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       newDepartureSeats,
       newReturnSeats,
       newTotalPrice,
+      newRouteDestination,
     } = await req.json();
 
     if (!orderId) {
@@ -219,6 +220,22 @@ export async function POST(req: NextRequest) {
       };
       if (newTotalPrice !== undefined) {
         bookingUpdateData.totalPrice = Number(newTotalPrice);
+      }
+
+      // Update boarding/dropping points when destination changes
+      if (newTripId && newTripId !== booking.tripId) {
+        const newTrip = await tx.trip.findUnique({ where: { id: finalTripId } });
+        if (newTrip) {
+          bookingUpdateData.boardingPoint = newTrip.routeOrigin;
+          bookingUpdateData.droppingPoint = newRouteDestination || newTrip.routeDestination;
+        }
+      }
+      if (newReturnTripId && newReturnTripId !== booking.returnTripId) {
+        const newReturnTrip = await tx.trip.findUnique({ where: { id: finalReturnTripId } });
+        if (newReturnTrip) {
+          bookingUpdateData.returnBoardingPoint = newReturnTrip.routeOrigin;
+          bookingUpdateData.returnDroppingPoint = newReturnTrip.routeDestination;
+        }
       }
 
       const updatedBooking = await tx.booking.update({

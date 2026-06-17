@@ -212,6 +212,27 @@ export async function createBookingWithRetry(data: any, maxRetries = 3) {
             }
           }
 
+          // CRITICAL: Ensure addons are stored in proper array format with quantities
+          // Never store legacy boolean format to avoid display/charge mismatches
+          const normalizedAddons = Array.isArray(data.addons) 
+            ? data.addons.filter((item: any) => 
+                item && typeof item === 'object' && 
+                typeof item.catalogId === 'string' &&
+                typeof item.totalPrice === 'number'
+              )
+            : [];
+          
+          // FIXED: Log addon validation
+          if (data.addons && normalizedAddons.length !== data.addons.length) {
+            console.warn(`[${orderId}] ADDON FORMAT WARNING: Received ${data.addons.length} addons, normalized to ${normalizedAddons.length}`, {
+              received: data.addons,
+              normalized: normalizedAddons,
+            });
+          }
+          
+          const addonTotal = normalizedAddons.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
+          console.log(`[${orderId}] Addons stored: ${normalizedAddons.length} items, total = ${addonTotal} BWP`, normalizedAddons);
+
           const created = await tx.booking.create({
             data: {
               tripId: data.tripId,
@@ -235,7 +256,7 @@ export async function createBookingWithRetry(data: any, maxRetries = 3) {
               discountAmount: data.discountAmount || 0,
               emergencyContactName: data.emergencyContact?.name || "",
               emergencyContactPhone: emergencyContactPhone,
-              addons: data.addons || null,
+              addons: normalizedAddons.length > 0 ? normalizedAddons : null,
               agentId: data.agentId || null,
               consultantId: validConsultantId,
               contactIdNumber: data.contactDetails?.idNumber || "",

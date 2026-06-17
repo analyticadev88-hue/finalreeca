@@ -79,20 +79,21 @@ export async function POST(req: NextRequest) {
     }
 
     const existingAddons = normalizeAddons(booking.addons);
-    const addonTotal = calculateAddonTotal(addonDef.price, quantity);
+    const addonQty = Math.max(1, Number(quantity) || 1);
+    const addonTotal = calculateAddonTotal(Number(addonDef.price) || 0, addonQty);
 
     const newAddon: BookingAddonItem = {
       catalogId: addonDef.id,
       name: note ? `${addonDef.name} — ${note}` : addonDef.name,
-      pricePerUnit: addonDef.price,
-      quantity,
+      pricePerUnit: Number(addonDef.price) || 0,
+      quantity: addonQty,
       totalPrice: addonTotal,
       addedAt: new Date().toISOString(),
       addedBy: consultant?.name || auth.session?.user?.email || "admin",
     };
 
     const updatedAddons = [...existingAddons, newAddon];
-    const newTotalPrice = booking.totalPrice + addonTotal;
+    const newTotalPrice = Number(booking.totalPrice || 0) + addonTotal;
 
     await prisma.booking.update({
       where: { id: bookingId },
@@ -150,7 +151,7 @@ export async function DELETE(req: NextRequest) {
     const updatedAddons = existingAddons.filter((_, i) => i !== index);
     const newTotalPrice = Math.max(
       0,
-      booking.totalPrice - (removedAddon.totalPrice || 0)
+      Number(booking.totalPrice || 0) - Number(removedAddon.totalPrice || 0)
     );
 
     await prisma.booking.update({

@@ -266,3 +266,29 @@ model ReservationLink {
 
   @@index([expiresAt])
 }
+
+// Routes management - allows admin to define custom routes
+model Route {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g. "Gaborone to OR Tambo Airport"
+  origin      String   // e.g. "Gaborone"
+  destination String   // e.g. "OR Tambo Airport"
+  active      Boolean  @default(true)
+  isStopover  Boolean  @default(false) // e.g. Rustenburg intermediate stop
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active])
+  @@index([origin, destination])
+}
+
+// Departure times management - allows admin to define custom times
+model DepartureTime {
+  id        String   @id @default(uuid())
+  time      String   @unique // e.g. "07:00"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+}

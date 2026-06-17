@@ -77,6 +77,7 @@ interface TripFormProps {
   routes: Route[];
   times: Time[];
   allTrips?: Trip[];
+  isSimpleMode?: boolean;
 }
 
 interface AutomateTripsModalProps {
@@ -546,7 +547,7 @@ const AutomateTripsModal: React.FC<AutomateTripsModalProps> = ({
   );
 };
 
-const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTrips }) => {
+const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTrips, isSimpleMode = false }) => {
   const [formData, setFormData] = useState<Trip>(
     trip || {
       routeName: '',
@@ -568,6 +569,11 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
       rustenburgFare: 350,
     }
   );
+  
+  // Hooks for simple mode - must be called unconditionally
+  const [departureCity, setDepartureCity] = useState('');
+  const [destinationCity, setDestinationCity] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
@@ -580,8 +586,192 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
+    // For simple mode, ensure route data is populated
+    if (isSimpleMode) {
+      // The route name should have been set by the form
+      if (!formData.routeName) {
+        alert('Please enter departure and destination cities');
+        return;
+      }
+    }
+    
+    setIsSubmitting(true);
     onSave(formData);
+    // Reset after a short delay to allow for potential error states
+    setTimeout(() => setIsSubmitting(false), 2000);
   };
+
+  // SIMPLE MODE - for quick custom trip creation
+  if (isSimpleMode) {
+    
+    const routeName = departureCity && destinationCity ? `${departureCity} to ${destinationCity}` : '';
+    const routeExists = routes.some(r => r.name.toLowerCase() === routeName.toLowerCase());
+
+    // Keep formData in sync with route info - always update if cities change
+    React.useEffect(() => {
+      if (routeName) {
+        setFormData(prev => ({
+          ...prev,
+          routeName: routeName,
+          routeOrigin: departureCity,
+          routeDestination: destinationCity,
+        }));
+      }
+    }, [routeName, departureCity, destinationCity]);
+
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Departure City */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Departure City*</label>
+            <Input
+              type="text"
+              placeholder="e.g., Maun, Gaborone, Kasane"
+              value={departureCity}
+              onChange={(e) => setDepartureCity(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* Destination City */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Destination City*</label>
+            <Input
+              type="text"
+              placeholder="e.g., Gaborone, Francistown, OR Tambo"
+              value={destinationCity}
+              onChange={(e) => setDestinationCity(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* Route Preview */}
+          {routeName && (
+            <div className="md:col-span-2 p-3 bg-teal-50 border border-teal-200 rounded-md">
+              <p className="text-xs text-teal-600 font-semibold">Route: <span className="text-sm">{routeName}</span></p>
+              {!routeExists && (
+                <p className="mt-2 text-xs text-teal-600">✓ Will be added to system when you save the trip</p>
+              )}
+              {routeExists && (
+                <p className="mt-2 text-xs text-green-600">✓ Route already in system</p>
+              )}
+            </div>
+          )}
+
+          {/* Departure Date */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Departure Date*</label>
+            <Input
+              type="date"
+              value={new Date(formData.departureDate).toLocaleDateString('en-CA')}
+              onChange={(e) => {
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                const localDate = new Date(year, month - 1, day);
+                setFormData({ 
+                  ...formData, 
+                  departureDate: localDate.toISOString(),
+                  routeName: routeName || formData.routeName,
+                  routeOrigin: departureCity || formData.routeOrigin,
+                  routeDestination: destinationCity || formData.routeDestination,
+                });
+              }}
+              required
+            />
+          </div>
+
+          {/* Departure Time */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Departure Time* (HH:MM)</label>
+            <Input
+              type="time"
+              value={formData.departureTime}
+              onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
+              placeholder="e.g., 05:00, 14:30"
+              required
+            />
+            <p className="text-xs text-gray-500">Tip: Enter any time (05:00, 14:30, etc.)</p>
+          </div>
+
+          {/* Fare */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Fare (Pula)*</label>
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-gray-400">P</span>
+              <Input
+                type="number"
+                value={formData.fare}
+                onChange={(e) => setFormData({ ...formData, fare: parseInt(e.target.value) || 0 })}
+                className="pl-7"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Total Seats */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Total Seats*</label>
+            <Input
+              type="number"
+              value={formData.totalSeats}
+              onChange={(e) => {
+                const total = parseInt(e.target.value) || 0;
+                setFormData({ ...formData, totalSeats: total, availableSeats: total });
+              }}
+              required
+            />
+          </div>
+
+          {/* Boarding Point */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Boarding Point</label>
+            <Input
+              value={formData.boardingPoint}
+              onChange={(e) => setFormData({ ...formData, boardingPoint: e.target.value })}
+              placeholder="e.g., Mogobe Plaza"
+            />
+          </div>
+
+          {/* Dropping Point */}
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-sm font-semibold">Dropping Point</label>
+            <Input
+              value={formData.droppingPoint}
+              onChange={(e) => setFormData({ ...formData, droppingPoint: e.target.value })}
+              placeholder="e.g., OR Tambo Airport"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-2">
+          <Checkbox
+            id="promoActive"
+            checked={formData.promoActive}
+            onCheckedChange={(checked) => setFormData({ ...formData, promoActive: checked })}
+          />
+          <label htmlFor="promoActive" className="text-sm font-medium">Promo Active</label>
+        </div>
+
+        <Button 
+          type="submit" 
+          className="w-full" 
+          style={{ backgroundColor: 'rgb(0,147,147)' }}
+          disabled={!routeName || !formData.routeName || isSubmitting}
+        >
+          {isSubmitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Saving...
+            </span>
+          ) : !routeName ? 'Enter Departure & Destination' : 'Create Custom Trip'}
+        </Button>
+      </form>
+    );
+  }
 
   useEffect(() => {
     if (trip?.id && allTrips) {
@@ -861,8 +1051,14 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
           type="submit" 
           className="px-8 shadow-lg shadow-[rgb(0,147,147)]/20 hover:scale-[1.02] transition-transform" 
           style={{ backgroundColor: 'rgb(0,147,147)' }}
+          disabled={isSubmitting}
         >
-          {trip ? 'Update Trip Schedule' : 'Create New Trip'}
+          {isSubmitting ? (
+            <span className="flex items-center gap-2">
+              <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Saving...
+            </span>
+          ) : trip ? 'Update Trip Schedule' : 'Create New Trip'}
         </Button>
       </div>
     </form>
@@ -1002,6 +1198,7 @@ const FleetManagementPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [autoDepart, setAutoDepart] = useState(true);
   const [lastTripDate, setLastTripDate] = useState<string | null>(null);
+  const [isSimpleMode, setIsSimpleMode] = useState(false);
 
   const routes: Route[] = [
     { id: '1', name: 'Gaborone to OR Tambo Airport' },
@@ -1184,21 +1381,65 @@ const FleetManagementPage = () => {
     }
   };
 
-  const handleOpenModal = (trip: Trip | null = null) => {
+  const handleOpenModal = (trip: Trip | null = null, simple: boolean = false) => {
     if (trip && trip.hasDeparted) return;
     setCurrentTrip(trip);
+    setIsSimpleMode(simple);
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setCurrentTrip(null);
+    setIsSimpleMode(false);
   };
 
   const handleSaveTrip = async (trip: Trip) => {
     setIsLoading(true);
     try {
-      // 1. Save the main trip
+      // 1. If this is a new custom route, add it to the database first
+      if (trip.routeName && trip.routeOrigin && trip.routeDestination) {
+        const routeExists = routes.some(r => r.name.toLowerCase() === trip.routeName.toLowerCase());
+        
+        if (!routeExists) {
+          console.log(`Creating new route: ${trip.routeName}`);
+          try {
+            await fetch('/api/admin/routes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: trip.routeName,
+                origin: trip.routeOrigin,
+                destination: trip.routeDestination,
+              }),
+            });
+          } catch (routeError) {
+            console.warn('Could not add route to system:', routeError);
+            // Don't fail the trip save if route creation fails
+          }
+        }
+      }
+
+      // 2. If this is a new custom departure time, add it to the database first
+      if (trip.departureTime) {
+        const timeExists = times.some(t => t.time === trip.departureTime);
+        
+        if (!timeExists) {
+          console.log(`Creating new departure time: ${trip.departureTime}`);
+          try {
+            await fetch('/api/admin/departure-times', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ time: trip.departureTime }),
+            });
+          } catch (timeError) {
+            console.warn('Could not add time to system:', timeError);
+            // Don't fail the trip save if time creation fails
+          }
+        }
+      }
+
+      // 3. Save the main trip
       const response = await fetch('/api/trips', {
         method: trip.id ? 'PUT' : 'POST',
         headers: {
@@ -1362,9 +1603,13 @@ const FleetManagementPage = () => {
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     Generate
                   </Button>
-                  <Button onClick={() => handleOpenModal()} style={{ backgroundColor: colors.primary }}>
+                  <Button onClick={() => handleOpenModal(null, true)} style={{ backgroundColor: colors.primary }}>
                     <PlusIcon className="mr-2 h-4 w-4" />
-                    Add Trip
+                    Quick Add Trip
+                  </Button>
+                  <Button onClick={() => handleOpenModal()} variant="outline" className="hidden md:flex" style={{ borderColor: colors.primary, color: colors.primary }}>
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Advanced
                   </Button>
                 </div>
               </div>
@@ -1741,9 +1986,13 @@ const FleetManagementPage = () => {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-2xl overflow-y-auto max-h-[80vh]" style={{ backgroundColor: colors.light }}>
           <DialogHeader>
-            <DialogTitle style={{ color: colors.dark }}>{currentTrip ? 'Edit Trip' : 'Create Trip'}</DialogTitle>
+            <DialogTitle style={{ color: colors.dark }}>
+              {isSimpleMode ? '⚡ Quick Add Trip' : (currentTrip ? 'Edit Trip' : 'Create Trip')}
+            </DialogTitle>
             <DialogDescription style={{ color: colors.accent }}>
-              {currentTrip ? 'Update the trip details' : 'Add a new trip to the schedule'}
+              {isSimpleMode 
+                ? 'Create a custom trip quickly'
+                : (currentTrip ? 'Update the trip details' : 'Add a new trip to the schedule')}
             </DialogDescription>
           </DialogHeader>
           {currentTrip && currentTrip.hasDeparted ? (
@@ -1763,6 +2012,7 @@ const FleetManagementPage = () => {
               routes={routes}
               times={times}
               allTrips={trips}
+              isSimpleMode={isSimpleMode}
             />
           )}
         </DialogContent>
