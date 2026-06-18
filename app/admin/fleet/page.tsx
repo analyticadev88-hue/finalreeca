@@ -1690,7 +1690,9 @@ const FleetManagementPage = () => {
         body: JSON.stringify(trip),
       });
       if (!response.ok) {
-        throw new Error('Failed to save trip');
+        const errData = await response.json().catch(() => ({}));
+        console.error('Backend save error:', errData);
+        throw new Error(`Failed to save trip: ${errData.error || errData.message || response.statusText}`);
       }
       const savedMainTrip = await response.json();
 
