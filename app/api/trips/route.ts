@@ -169,12 +169,42 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Fields that exist on frontend-enriched trip objects but are NOT real DB columns.
+// Always strip these before any Prisma create/update call.
+const COMPUTED_FIELDS = [
+  'computedAvailableSeats',
+  'computedBookedSeats',
+  'computedReservedSeats',
+  'computedTempLockedSeats',
+  'computedHasDeparted',
+  'computedOccupiedSeats',
+  'computedUnavailableSeats',
+  'computedTotalSeats',
+  'reservedSeatsCount',
+  // frontend-only helpers
+  'isRustenburgStopover',
+  'rustenburgFare',
+  'endDate',
+  // relations returned by GET – not writable
+  'bookings',
+  'returnBookings',
+  'passengers',
+  'reservations',
+];
+
+function stripNonDbFields(data: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(data).filter(([key]) => !COMPUTED_FIELDS.includes(key))
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Admin authentication required
     await requireAdminAuth(request);
 
-    const data = await request.json();
+    const raw = await request.json();
+    const data = stripNonDbFields(raw);
 
     // Ensure numeric fields are numbers
     if (typeof data.fare === "string") data.fare = parseFloat(data.fare);
@@ -182,21 +212,14 @@ export async function POST(request: NextRequest) {
     if (typeof data.totalSeats === "string") data.totalSeats = parseInt(data.totalSeats, 10);
     if (typeof data.availableSeats === "string") data.availableSeats = parseInt(data.availableSeats, 10);
 
-    // Filter out UI-only fields that shouldn't be saved to DB
-    const {
-      isRustenburgStopover,
-      rustenburgFare,
-      ...cleanData
-    } = data;
-
     const tripData = {
-      ...cleanData,
+      ...data,
       // Ensure totalSeats matches availableSeats for new trips
-      totalSeats: cleanData.totalSeats || cleanData.availableSeats,
+      totalSeats: data.totalSeats || data.availableSeats,
       // Properly format departure date
-      departureDate: new Date(cleanData.departureDate),
+      departureDate: new Date(data.departureDate),
       // Remove empty parentTripId
-      parentTripId: cleanData.parentTripId && cleanData.parentTripId.trim() ? cleanData.parentTripId : null
+      parentTripId: data.parentTripId && data.parentTripId.trim() ? data.parentTripId : null
     };
 
     // Duplicate guard
@@ -235,17 +258,14 @@ export async function PUT(request: NextRequest) {
     // Admin authentication required
     await requireAdminAuth(request);
 
-    const data = await request.json();
+    const raw = await request.json();
+    const data = stripNonDbFields(raw);
 
     // Ensure numeric fields are numbers
     if (typeof data.fare === "string") data.fare = parseFloat(data.fare);
     if (typeof data.durationMinutes === "string") data.durationMinutes = parseInt(data.durationMinutes, 10);
     if (typeof data.totalSeats === "string") data.totalSeats = parseInt(data.totalSeats, 10);
     if (typeof data.availableSeats === "string") data.availableSeats = parseInt(data.availableSeats, 10);
-
-    // Remove fields that are not part of the Trip model (like bookings, returnBookings)
-    delete data.bookings;
-    delete data.returnBookings;
 
     const updatedTrip = await prisma.trip.update({
       where: { id: data.id },
