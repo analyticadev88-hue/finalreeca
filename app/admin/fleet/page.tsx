@@ -47,6 +47,7 @@ interface Trip {
   routeDestination: string;
   departureDate: string | Date;
   departureTime: string;
+  endDate?: string | Date;  // For date range in quick add mode
   totalSeats: number;
   availableSeats: number;
   reservedSeatsCount?: number;
@@ -584,7 +585,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Prevent double submission
@@ -597,6 +598,70 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
         alert('Please enter departure and destination cities');
         return;
       }
+      
+      setIsSubmitting(true);
+      
+      // Handle date range and multiple times in simple mode
+      const startDate = new Date(formData.departureDate);
+      const endDate = formData.endDate ? new Date(formData.endDate) : new Date(formData.departureDate);
+      
+      // Parse departure times (can be single or comma-separated)
+      const timeStrings = formData.departureTime
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.match(/^\d{1,2}:\d{2}$/));
+      
+      if (timeStrings.length === 0) {
+        alert('Please enter at least one valid departure time (HH:MM format)');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Generate trips for each day and each time
+      const tripsToCreate = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const currentDate = new Date(d);
+        for (const time of timeStrings) {
+          tripsToCreate.push({
+            ...formData,
+            departureDate: currentDate.toISOString(),
+            departureTime: time,
+            endDate: undefined  // Don't send endDate to API
+          });
+        }
+      }
+      
+      // Create trips in sequence
+      let successCount = 0;
+      let errorCount = 0;
+      for (const trip of tripsToCreate) {
+        try {
+          const res = await fetch('/api/trips', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(trip)
+          });
+          if (res.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (err) {
+          console.error('Error creating trip:', err);
+          errorCount++;
+        }
+      }
+      
+      // Show summary
+      if (successCount > 0) {
+        alert(`✓ Successfully created ${successCount} trip(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
+        onSave(formData);
+      } else {
+        alert(`✗ Failed to create trips. Please check the form data.`);
+      }
+      
+      setTimeout(() => setIsSubmitting(false), 1000);
+      return;
     }
     
     setIsSubmitting(true);
@@ -663,18 +728,47 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             </div>
           )}
 
+          {/* Date Range Mode Toggle */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Date Selection Mode</label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="dateMode"
+                  value="single"
+                  checked={!formData.endDate}
+                  onChange={() => setFormData({ ...formData, endDate: '' })}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">Single Date</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="dateMode"
+                  value="range"
+                  checked={!!formData.endDate}
+                  onChange={() => setFormData({ ...formData, endDate: formData.departureDate })}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">Date Range</span>
+              </label>
+            </div>
+          </div>
+
           {/* Departure Date */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold">Departure Date*</label>
+            <label className="text-sm font-semibold">Start Date*</label>
             <Input
               type="date"
               value={new Date(formData.departureDate).toLocaleDateString('en-CA')}
               onChange={(e) => {
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                const localDate = new Date(year, month - 1, day);
+                const dateStr = e.target.value;
+                const utcDate = new Date(dateStr + 'T00:00:00Z');
                 setFormData({ 
                   ...formData, 
-                  departureDate: localDate.toISOString(),
+                  departureDate: utcDate.toISOString(),
                   routeName: routeName || formData.routeName,
                   routeOrigin: departureCity || formData.routeOrigin,
                   routeDestination: destinationCity || formData.routeDestination,
@@ -684,17 +778,35 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             />
           </div>
 
-          {/* Departure Time */}
+          {/* End Date (for date range mode) */}
+          {formData.endDate && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">End Date*</label>
+              <Input
+                type="date"
+                value={new Date(formData.endDate).toLocaleDateString('en-CA')}
+                onChange={(e) => {
+                  const dateStr = e.target.value;
+                  const utcDate = new Date(dateStr + 'T00:00:00Z');
+                  setFormData({ ...formData, endDate: utcDate.toISOString() });
+                }}
+                required
+                min={new Date(formData.departureDate).toLocaleDateString('en-CA')}
+              />
+            </div>
+          )}
+
+          {/* Departure Time(s) */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold">Departure Time* (HH:MM)</label>
+            <label className="text-sm font-semibold">Departure Time(s)* (HH:MM)</label>
             <Input
-              type="time"
+              type="text"
               value={formData.departureTime}
               onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
-              placeholder="e.g., 05:00, 14:30"
+              placeholder="e.g., 05:00 or 07:00,15:00 for multiple times"
               required
             />
-            <p className="text-xs text-gray-500">Tip: Enter any time (05:00, 14:30, etc.)</p>
+            <p className="text-xs text-gray-500">Tip: Enter single time (05:00) or comma-separated times (07:00,15:00,22:00)</p>
           </div>
 
           {/* Fare */}
@@ -722,6 +834,19 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
                 const total = parseInt(e.target.value) || 0;
                 setFormData({ ...formData, totalSeats: total, availableSeats: total });
               }}
+              required
+            />
+          </div>
+
+          {/* Duration */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Trip Duration (minutes)*</label>
+            <Input
+              type="number"
+              min="0"
+              value={formData.durationMinutes}
+              onChange={(e) => setFormData({ ...formData, durationMinutes: parseInt(e.target.value) || 0 })}
+              placeholder="e.g., 390 for 6.5 hours"
               required
             />
           </div>

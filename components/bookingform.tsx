@@ -26,7 +26,7 @@ interface Route {
 
 export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingFormProps) {
   const [fromLocation, setFromLocation] = useState("Gaborone");
-  const [toLocation, setToLocation] = useState("OR Tambo Airport");
+  const [toLocation, setToLocation] = useState("");  // Start empty - let user choose
   const [departureDate, setDepartureDate] = useState<Date>();
   const [returnDate, setReturnDate] = useState<Date>();
   const [isReturnTrip, setIsReturnTrip] = useState(false);
@@ -83,12 +83,14 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
     )
   ).sort();
 
-  // Auto-update destination if current selection is invalid
+  // Auto-update destination only if it becomes invalid (due to route changes)
+  // But don't auto-assign on initial load or when user hasn't selected yet
   useEffect(() => {
     if (toLocation && !destinationCities.includes(toLocation) && destinationCities.length > 0) {
-      setToLocation(destinationCities[0]);
+      // Only auto-update if they had a selection that's no longer valid
+      setToLocation("");  // Reset to let user choose new destination
     }
-  }, [fromLocation, toLocation, destinationCities]);
+  }, [destinationCities]);
 
   const getToday = () => {
     const today = new Date();
@@ -102,6 +104,16 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
   };
 
   const handleSearch = () => {
+    if (!fromLocation) {
+      alert("Please select a departure location");
+      return;
+    }
+    
+    if (!toLocation) {
+      alert("Please select a destination");
+      return;
+    }
+    
     if (!departureDate) {
       alert("Please select a departure date");
       return;
