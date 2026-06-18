@@ -25,14 +25,8 @@ export async function GET() {
           0
         );
 
-      // Calculate hasDeparted
-      let hasDeparted = false;
-      if (trip.departureDate && trip.departureTime) {
-        const depDate = new Date(trip.departureDate);
-        const [hours, minutes] = trip.departureTime.split(":").map(Number);
-        depDate.setHours(hours, minutes, 0, 0);
-        hasDeparted = depDate < new Date();
-      }
+      // Use the database hasDeparted value directly (respects manual admin overrides)
+      const hasDeparted = trip.hasDeparted;
 
       return {
         ...trip,

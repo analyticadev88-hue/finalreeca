@@ -235,14 +235,9 @@ export async function enrichTripsWithAvailability<T extends TripInput>(
       effectiveTotalSeats - unavailableSeats.length
     );
 
-    // Compute hasDeparted based on departureDate + departureTime
-    let computedHasDeparted = trip.hasDeparted;
-    if (trip.departureDate && trip.departureTime) {
-      const depDate = new Date(trip.departureDate);
-      const [hours, minutes] = trip.departureTime.split(':').map(Number);
-      depDate.setHours(hours, minutes, 0, 0);
-      computedHasDeparted = depDate < new Date();
-    }
+    // Use the database hasDeparted value directly (respects manual admin overrides)
+    // Admin can set this to false to "undeparted" a bus, overriding time-based calculation
+    const computedHasDeparted = trip.hasDeparted;
 
     return {
       ...trip,
