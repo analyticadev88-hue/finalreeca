@@ -382,10 +382,10 @@ export default function PassengerDetailsForm({
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [showBankDepositLoading, setShowBankDepositLoading] = useState(false);
   const [useFreeVoucher, setUseFreeVoucher] = useState(false);
-  const [departureBoardingPoint, setDepartureBoardingPoint] = useState("");
-  const [departureDroppingPoint, setDepartureDroppingPoint] = useState("");
-  const [returnBoardingPoint, setReturnBoardingPoint] = useState("");
-  const [returnDroppingPoint, setReturnDroppingPoint] = useState("");
+  const [departureBoardingPoint, setDepartureBoardingPoint] = useState(departureBus?.boardingPoint || "");
+  const [departureDroppingPoint, setDepartureDroppingPoint] = useState(departureBus?.droppingPoint || "");
+  const [returnBoardingPoint, setReturnBoardingPoint] = useState(returnBus?.boardingPoint || "");
+  const [returnDroppingPoint, setReturnDroppingPoint] = useState(returnBus?.droppingPoint || "");
 
   const [openSections, setOpenSections] = useState<SectionState>({
     passengers: true,
@@ -416,6 +416,13 @@ export default function PassengerDetailsForm({
   const [currentUnavailable, setCurrentUnavailable] = useState<string[]>([]);
   const { toast: makeToast } = useToast();
   const [showVoucherExpiredDialog, setShowVoucherExpiredDialog] = useState(false);
+
+  const requiresPassport = (isReturn: boolean) => {
+    const bus = isReturn ? returnBus : departureBus;
+    if (!bus?.routeName) return false;
+    const name = bus.routeName.toLowerCase();
+    return name.includes('tambo') && name.includes('gaborone');
+  };
 
   const requestVoucherAuth = async () => {
     try {
@@ -750,8 +757,12 @@ export default function PassengerDetailsForm({
   const departureDestinationKey = ((departureBus?.routeDestination || searchData.to || "") as string)
     .toLowerCase()
     .trim() || "default";
-  const departureOriginPoints = getBoardingPoints(departureOriginKey);
-  const departureDestinationPoints = getBoardingPoints(departureDestinationKey);
+  const departureOriginPoints = departureBus?.boardingPoint 
+    ? [{ id: 'admin-bp', name: departureBus.boardingPoint, times: [] }]
+    : getBoardingPoints(departureOriginKey);
+  const departureDestinationPoints = departureBus?.droppingPoint
+    ? [{ id: 'admin-dp', name: departureBus.droppingPoint, times: [] }]
+    : getBoardingPoints(departureDestinationKey);
 
   let returnOriginPoints: BoardingPoint[] = [];
   let returnDestinationPoints: BoardingPoint[] = [];
@@ -763,8 +774,12 @@ export default function PassengerDetailsForm({
     const returnDestinationKey = ((returnBus?.routeDestination || searchData.from || "") as string)
       .toLowerCase()
       .trim() || "default";
-    returnOriginPoints = getBoardingPoints(returnOriginKey);
-    returnDestinationPoints = getBoardingPoints(returnDestinationKey);
+    returnOriginPoints = returnBus?.boardingPoint
+      ? [{ id: 'admin-rt-bp', name: returnBus.boardingPoint, times: [] }]
+      : getBoardingPoints(returnOriginKey);
+    returnDestinationPoints = returnBus?.droppingPoint
+      ? [{ id: 'admin-rt-dp', name: returnBus.droppingPoint, times: [] }]
+      : getBoardingPoints(returnDestinationKey);
   }
 
   const updatePassenger = (id: string, field: string, value: string | boolean) => {
@@ -1536,11 +1551,13 @@ export default function PassengerDetailsForm({
                             </div>
                           )}
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              {requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
+                            </label>
                             <Input
                               value={passenger.passportNumber || ""}
                               onChange={(e) => updatePassenger(passenger.id, "passportNumber", e.target.value)}
-                              placeholder="Passport Number"
+                              placeholder={requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
                               required={!isCompanion}
                               disabled={isCompanion}
                               className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
@@ -1640,11 +1657,13 @@ export default function PassengerDetailsForm({
                                   </div>
                                 </div>
                                 <div className="mt-4">
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Passport Number</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    {requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
+                                  </label>
                                   <Input
                                     value={passenger.infantPassportNumber || ""}
                                     onChange={(e) => updatePassenger(passenger.id, "infantPassportNumber", e.target.value)}
-                                    placeholder="Passport Number"
+                                    placeholder={requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
                                     required
                                     className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
                                   />

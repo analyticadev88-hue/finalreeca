@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO, addDays } from 'date-fns';
-
+import { boardingPoints } from "@/lib/data";
 // Define color variables based on company colors
 const colors = {
   primary: '#009393',       // Teal
@@ -912,6 +912,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
           <div className="space-y-2">
             <label className="text-sm font-semibold">Boarding Point</label>
             <Input
+              list="adminBoardingPoints"
               value={formData.boardingPoint}
               onChange={(e) => setFormData({ ...formData, boardingPoint: e.target.value })}
               placeholder="e.g., Mogobe Plaza"
@@ -922,6 +923,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
           <div className="md:col-span-2 space-y-2">
             <label className="text-sm font-semibold">Dropping Point</label>
             <Input
+              list="adminBoardingPoints"
               value={formData.droppingPoint}
               onChange={(e) => setFormData({ ...formData, droppingPoint: e.target.value })}
               placeholder="e.g., OR Tambo Airport"
@@ -1084,6 +1086,18 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-500 ml-1">Duration (min)</label>
+            <Input
+              name="durationMinutes"
+              type="number"
+              value={formData.durationMinutes}
+              onChange={(e) => setFormData({ ...formData, durationMinutes: parseInt(e.target.value) || 0 })}
+              required
+              className="border-gray-200"
+            />
+          </div>
         </div>
       </div>
 
@@ -1225,6 +1239,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Boarding Point</label>
               <Input
+                list="adminBoardingPoints"
                 name="boardingPoint"
                 value={formData.boardingPoint || ''}
                 onChange={handleInputChange}
@@ -1234,6 +1249,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Dropping Point</label>
               <Input
+                list="adminBoardingPoints"
                 name="droppingPoint"
                 value={formData.droppingPoint || ''}
                 onChange={handleInputChange}
@@ -1242,6 +1258,12 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             </div>
           </div>
         </div>
+
+        <datalist id="adminBoardingPoints">
+          {Object.values(boardingPoints).flatMap(pts => pts.map(p => p.name)).map((name, i) => (
+            <option key={i} value={name} />
+          ))}
+        </datalist>
       </div>
 
       {/* FOOTER ACTIONS */}

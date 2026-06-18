@@ -545,7 +545,7 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
 
                         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>Passport/ID Number</Label>
+                            <Label>{trip?.routeOrigin?.toLowerCase().includes("tambo") && trip?.routeDestination?.toLowerCase().includes("gaborone") || trip?.routeDestination?.toLowerCase().includes("tambo") && trip?.routeOrigin?.toLowerCase().includes("gaborone") ? "Passport Number" : "ID Number"}</Label>
                             <Input value={passenger.passportNumber} onChange={(e) => updatePassenger(index, "passportNumber", e.target.value)} />
                           </div>
                           <div className="flex items-center gap-6 h-full pt-6">
@@ -573,7 +573,7 @@ export function QuickAddPassengerModal({ isOpen, onClose, trip, bookings, onSucc
                                 <Input className="h-8" value={passenger.infantName} onChange={(e) => updatePassenger(index, "infantName", e.target.value)} />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Passport/ID</Label>
+                                <Label className="text-xs">{trip?.routeOrigin?.toLowerCase().includes("tambo") && trip?.routeDestination?.toLowerCase().includes("gaborone") || trip?.routeDestination?.toLowerCase().includes("tambo") && trip?.routeOrigin?.toLowerCase().includes("gaborone") ? "Passport Number" : "ID Number"}</Label>
                                 <Input className="h-8" value={passenger.infantPassportNumber} onChange={(e) => updatePassenger(index, "infantPassportNumber", e.target.value)} />
                               </div>
                               <div className="space-y-1">
