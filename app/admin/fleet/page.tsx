@@ -23,7 +23,8 @@ import {
   Plus as PlusIcon,
   Edit2 as EditIcon,
   Trash2 as TrashIcon,
-  ArrowRight as ArrowRightIcon
+  ArrowRight as ArrowRightIcon,
+  ArrowLeft as ArrowLeftIcon
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO, addDays } from 'date-fns';
@@ -634,6 +635,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
       // Create trips in sequence
       let successCount = 0;
       let errorCount = 0;
+      const failedTrips = [];
       for (const trip of tripsToCreate) {
         try {
           const res = await fetch('/api/trips', {
@@ -645,6 +647,10 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
             successCount++;
           } else {
             errorCount++;
+            const errorData = await res.json().catch(() => ({}));
+            if (res.status === 409) {
+              failedTrips.push(`${format(new Date(trip.departureDate), 'MMM dd')} @ ${trip.departureTime} (already exists)`);
+            }
           }
         } catch (err) {
           console.error('Error creating trip:', err);
@@ -654,10 +660,11 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
       
       // Show summary
       if (successCount > 0) {
-        alert(`✓ Successfully created ${successCount} trip(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
+        const message = `✓ Successfully created ${successCount} trip(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}${failedTrips.length > 0 ? `\n\nAlready existing:\n${failedTrips.slice(0, 5).join('\n')}${failedTrips.length > 5 ? '\n...' : ''}` : ''}`;
+        alert(message);
         onSave(formData);
       } else {
-        alert(`✗ Failed to create trips. Please check the form data.`);
+        alert(`✗ Failed to create trips. Please check the form data.${failedTrips.length > 0 ? '\n\nAlready existing:\n' + failedTrips.join('\n') : ''}`);
       }
       
       setTimeout(() => setIsSubmitting(false), 1000);
@@ -797,16 +804,66 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
           )}
 
           {/* Departure Time(s) */}
-          <div className="space-y-2">
-            <label className="text-sm font-semibold">Departure Time(s)* (HH:MM)</label>
-            <Input
-              type="text"
-              value={formData.departureTime}
-              onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
-              placeholder="e.g., 05:00 or 07:00,15:00 for multiple times"
-              required
-            />
-            <p className="text-xs text-gray-500">Tip: Enter single time (05:00) or comma-separated times (07:00,15:00,22:00)</p>
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-sm font-semibold">Departure Times*</label>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Input
+                  type="time"
+                  id="timeInput"
+                  defaultValue="05:00"
+                  className="w-full"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const timeInput = (document.getElementById('timeInput') as HTMLInputElement)?.value;
+                  if (timeInput && timeInput.match(/^\d{2}:\d{2}$/)) {
+                    const times = formData.departureTime.split(',').map(t => t.trim()).filter(t => t);
+                    if (!times.includes(timeInput)) {
+                      setFormData({ ...formData, departureTime: times.length > 0 ? `${times.join(', ')}, ${timeInput}` : timeInput });
+                    }
+                  }
+                }}
+                className="whitespace-nowrap"
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
+                Add Time
+              </Button>
+            </div>
+            
+            {/* Display selected times as removable tags */}
+            {formData.departureTime && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {formData.departureTime.split(',').map((time, idx) => {
+                  const trimmedTime = time.trim();
+                  if (!trimmedTime) return null;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm"
+                    >
+                      <ClockIcon className="h-3 w-3" />
+                      {trimmedTime}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const times = formData.departureTime.split(',').map(t => t.trim()).filter((t, i) => i !== idx);
+                          setFormData({ ...formData, departureTime: times.join(', ') });
+                        }}
+                        className="ml-1 text-teal-700 hover:text-teal-900 font-bold"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-xs text-gray-500">Add multiple times as needed</p>
           </div>
 
           {/* Fare */}
@@ -881,9 +938,47 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
           <label htmlFor="promoActive" className="text-sm font-medium">Promo Active</label>
         </div>
 
+        {/* Trip Preview */}
+        {isSimpleMode && formData.departureTime && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm font-semibold text-blue-900 mb-2">Preview of trips to be created:</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+              {(() => {
+                const startDate = new Date(formData.departureDate);
+                const endDate = formData.endDate ? new Date(formData.endDate) : new Date(formData.departureDate);
+                const times = formData.departureTime.split(',').map(t => t.trim()).filter(t => t.match(/^\d{1,2}:\d{2}$/));
+                const trips = [];
+                
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                  for (const time of times) {
+                    trips.push({
+                      date: format(new Date(d), 'MMM dd, yyyy'),
+                      time: time
+                    });
+                  }
+                }
+                
+                return trips.map((t, idx) => (
+                  <div key={idx} className="text-xs text-blue-800 bg-white p-2 rounded border border-blue-100">
+                    <span className="font-medium">{t.date}</span> at <span className="font-medium">{t.time}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+            <p className="text-xs text-blue-600 mt-2">{(() => {
+              const startDate = new Date(formData.departureDate);
+              const endDate = formData.endDate ? new Date(formData.endDate) : new Date(formData.departureDate);
+              const times = formData.departureTime.split(',').map(t => t.trim()).filter(t => t.match(/^\d{1,2}:\d{2}$/));
+              const days = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              const total = days * times.length;
+              return `Total: ${total} trip${total !== 1 ? 's' : ''} (${days} day${days !== 1 ? 's' : ''} × ${times.length} time${times.length !== 1 ? 's' : ''})`;
+            })()}</p>
+          </div>
+        )}
+
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full mt-4" 
           style={{ backgroundColor: 'rgb(0,147,147)' }}
           disabled={!routeName || !formData.routeName || isSubmitting}
         >
@@ -1653,6 +1748,30 @@ const FleetManagementPage = () => {
     }
   };
 
+  const handleUndepart = async (tripId: string) => {
+    if (!confirm('Are you sure you want to mark this trip as NOT departed?')) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/trips', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: tripId, hasDeparted: false }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to mark trip as not departed');
+      }
+      const data = await response.json();
+      setTrips(prevTrips => prevTrips.map(t => t.id === tripId ? data : t));
+    } catch (error) {
+      console.error('Error unmarking trip as departed:', error);
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDeleteTrip = async (tripId: string) => {
     if (!confirm('Are you sure you want to delete this trip?')) return;
     setIsLoading(true);
@@ -1963,6 +2082,19 @@ const FleetManagementPage = () => {
                                           <TrashIcon className="h-4 w-4" />
                                         </Button>
                                       </>
+                                    )}
+
+                                    {trip.hasDeparted && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleUndepart(trip.id!)}
+                                        className="h-8 border-yellow-300 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-800"
+                                        title="Mark as NOT Departed (Undepart)"
+                                      >
+                                        <ArrowLeftIcon className="h-4 w-4 mr-1" />
+                                        Undepart
+                                      </Button>
                                     )}
                                   </div>
                               </TableCell>
