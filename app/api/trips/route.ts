@@ -176,6 +176,12 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
 
+    // Ensure numeric fields are numbers
+    if (typeof data.fare === "string") data.fare = parseFloat(data.fare);
+    if (typeof data.durationMinutes === "string") data.durationMinutes = parseInt(data.durationMinutes, 10);
+    if (typeof data.totalSeats === "string") data.totalSeats = parseInt(data.totalSeats, 10);
+    if (typeof data.availableSeats === "string") data.availableSeats = parseInt(data.availableSeats, 10);
+
     // Filter out UI-only fields that shouldn't be saved to DB
     const {
       isRustenburgStopover,
