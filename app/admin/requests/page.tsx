@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Eye, Search, CheckCircle, XCircle, Download, Users, ChevronLeft, ChevronRight,
-  CalendarDays, List, Mail, Send, Clock, MapPin, Phone, ArrowRightLeft
+  CalendarDays, List, Mail, Send, Clock, MapPin, Phone, ArrowRightLeft, Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -52,6 +52,11 @@ export default function InquiriesManagement() {
   const [emailAction, setEmailAction] = useState<EmailAction | null>(null);
   const [emailMessage, setEmailMessage] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [inquiryToDelete, setInquiryToDelete] = useState<Inquiry | null>(null);
+  const [deletingInquiry, setDeletingInquiry] = useState(false);
 
   useEffect(() => {
     async function fetchInquiries() {
@@ -171,10 +176,24 @@ export default function InquiriesManagement() {
   };
 
   const handleDeleteInquiry = async (inquiryId: string) => {
-    await fetch(`/api/inquiries/${inquiryId}/status`, {
-      method: "DELETE",
-    });
-    setInquiries((prev) => prev.filter((inquiry) => inquiry.id !== inquiryId));
+    setDeletingInquiry(true);
+    try {
+      const res = await fetch(`/api/inquiries/${inquiryId}/status`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setInquiries((prev) => prev.filter((inquiry) => inquiry.id !== inquiryId));
+        setDeleteConfirmOpen(false);
+        setInquiryToDelete(null);
+      }
+    } finally {
+      setDeletingInquiry(false);
+    }
+  };
+
+  const openDeleteConfirm = (inquiry: Inquiry) => {
+    setInquiryToDelete(inquiry);
+    setDeleteConfirmOpen(true);
   };
 
   const handleExportExcel = () => {
@@ -341,6 +360,9 @@ export default function InquiriesManagement() {
                         <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                           Date
                         </th>
+                        <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                          Passengers
+                        </th>
                         <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
@@ -372,6 +394,10 @@ export default function InquiriesManagement() {
                           <td className="px-3 py-3 whitespace-nowrap hidden sm:table-cell">
                             <div className="text-sm text-gray-900">{inquiry.date}</div>
                             <div className="text-xs text-gray-500">{inquiry.time}</div>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap hidden sm:table-cell">
+                            <div className="text-sm text-gray-900">{inquiry.passengers}</div>
+                            <div className="text-xs text-gray-500">pax</div>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap">
                             <Badge className={cn("text-xs border", statusColor(inquiry.status))}>
@@ -413,6 +439,15 @@ export default function InquiriesManagement() {
                                 title="View Details"
                               >
                                 <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openDeleteConfirm(inquiry)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 sm:p-2"
+                                title="Delete Inquiry"
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </td>
@@ -819,6 +854,48 @@ export default function InquiriesManagement() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg text-red-700">
+              Delete Inquiry
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              {inquiryToDelete && (
+                <>
+                  Are you sure you want to delete the inquiry from{" "}
+                  <strong>{inquiryToDelete.companyName}</strong>? This will not send
+                  any email.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
+            <Button
+              variant="destructive"
+              onClick={() => inquiryToDelete && handleDeleteInquiry(inquiryToDelete.id)}
+              disabled={deletingInquiry}
+              className="text-xs sm:text-sm"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {deletingInquiry ? "Deleting..." : "Delete"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setInquiryToDelete(null);
+              }}
+              disabled={deletingInquiry}
+              className="text-xs sm:text-sm"
+            >
+              Cancel
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
