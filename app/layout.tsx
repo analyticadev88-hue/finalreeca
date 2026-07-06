@@ -35,6 +35,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable}`}>
+      <head>
+        <link
+          rel="preload"
+          href="https://zo1zv0g4tz.ufs.sh/f/lfByGtJ28C7IbHzpOnk9QlB83EoGPhZW0F5fydUs1kuzgIp4"
+          as="video"
+          type="video/mp4"
+        />
+      </head>
       <body suppressHydrationWarning className="font-sans antialiased">
         {isSuspended ? <PaymentSuspension /> : children}
         <Analytics />
