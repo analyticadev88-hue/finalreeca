@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Users, Bus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BookingFormProps {
@@ -134,13 +134,19 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="space-y-2">
-          <Label className="text-gray-700">From</Label>
+    <div className="space-y-4">
+      <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-0">
+        {/* From */}
+        <div className="flex-1 min-w-0 px-0 lg:px-4 py-1">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5 block">
+            From
+          </Label>
           <Select value={fromLocation} onValueChange={setFromLocation} disabled={loadingRoutes}>
-            <SelectTrigger className="h-12 border border-gray-300 bg-white">
-              <SelectValue placeholder={loadingRoutes ? "Loading routes..." : "Select origin"} />
+            <SelectTrigger className="h-12 border-0 bg-transparent shadow-none p-0 text-base font-medium text-gray-900 focus:ring-0 [&>svg]:hidden">
+              <div className="flex items-center gap-2 w-full">
+                <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                <SelectValue placeholder={loadingRoutes ? "Loading..." : "Select origin"} />
+              </div>
             </SelectTrigger>
             <SelectContent>
               {originCities.map((city) => (
@@ -149,11 +155,20 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label className="text-gray-700">To</Label>
+
+        <div className="hidden lg:block w-px h-14 bg-gray-200 self-center" />
+
+        {/* To */}
+        <div className="flex-1 min-w-0 px-0 lg:px-4 py-1">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5 block">
+            To
+          </Label>
           <Select value={toLocation} onValueChange={setToLocation} disabled={loadingRoutes || destinationCities.length === 0}>
-            <SelectTrigger className="h-12 border border-gray-300 bg-white">
-              <SelectValue placeholder={loadingRoutes ? "Loading routes..." : "Select destination"} />
+            <SelectTrigger className="h-12 border-0 bg-transparent shadow-none p-0 text-base font-medium text-gray-900 focus:ring-0 [&>svg]:hidden">
+              <div className="flex items-center gap-2 w-full">
+                <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                <SelectValue placeholder={loadingRoutes ? "Loading..." : "Select destination"} />
+              </div>
             </SelectTrigger>
             <SelectContent>
               {destinationCities.map((city) => (
@@ -162,22 +177,34 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label className="text-gray-700">Departure Date</Label>
+
+        <div className="hidden lg:block w-px h-14 bg-gray-200 self-center" />
+
+        {/* Departure Date */}
+        <div className="flex-1 min-w-0 px-0 lg:px-4 py-1">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5 block">
+            Departure
+          </Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
-                variant="outline"
+                variant="ghost"
                 className={cn(
-                  "h-12 w-full justify-start text-left font-normal border border-gray-300 bg-white",
+                  "h-12 w-full justify-start p-0 text-left font-normal hover:bg-transparent focus-visible:ring-0",
                   !departureDate && "text-gray-500"
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {departureDate ? format(departureDate, "PPP") : <span>Pick a date</span>}
+                <CalendarIcon className="mr-2 h-4 w-4 text-gray-400 shrink-0" />
+                {departureDate ? (
+                  <span className="text-base font-medium text-gray-900">
+                    {format(departureDate, "dd MMM yyyy")}
+                  </span>
+                ) : (
+                  <span className="text-base">Pick date</span>
+                )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={departureDate}
@@ -188,17 +215,23 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
             </PopoverContent>
           </Popover>
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-gray-700">Return Date</Label>
+
+        <div className="hidden lg:block w-px h-14 bg-gray-200 self-center" />
+
+        {/* Return Date */}
+        <div className="flex-1 min-w-0 px-0 lg:px-4 py-1">
+          <div className="flex items-center justify-between mb-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Return
+            </Label>
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="returnTrip"
                 checked={isReturnTrip}
                 onCheckedChange={(checked) => setIsReturnTrip(!!checked)}
-                className="border-gray-300 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                className="border-gray-300 data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900"
               />
-              <Label htmlFor="returnTrip" className="text-sm font-normal">
+              <Label htmlFor="returnTrip" className="text-xs font-medium text-gray-500">
                 Return
               </Label>
             </div>
@@ -206,19 +239,25 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
           <Popover>
             <PopoverTrigger asChild>
               <Button
-                variant="outline"
+                variant="ghost"
                 className={cn(
-                  "h-12 w-full justify-start text-left font-normal border border-gray-300 bg-white",
+                  "h-12 w-full justify-start p-0 text-left font-normal hover:bg-transparent focus-visible:ring-0",
                   !returnDate && "text-gray-500",
                   !isReturnTrip && "opacity-50 cursor-not-allowed"
                 )}
                 disabled={!isReturnTrip}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {returnDate ? format(returnDate, "PPP") : <span>Pick a date</span>}
+                <CalendarIcon className="mr-2 h-4 w-4 text-gray-400 shrink-0" />
+                {returnDate ? (
+                  <span className="text-base font-medium text-gray-900">
+                    {format(returnDate, "dd MMM yyyy")}
+                  </span>
+                ) : (
+                  <span className="text-base">Pick date</span>
+                )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={returnDate}
@@ -234,49 +273,46 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
             </PopoverContent>
           </Popover>
         </div>
-      </div>
 
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center space-x-4 w-full md:w-auto">
-          <div className="space-y-2">
-            <Label className="text-gray-700">Passengers</Label>
-            <Select value={totalSeats} onValueChange={setTotalSeats}>
-              <SelectTrigger className="h-12 border border-gray-300 bg-white w-24">
+        <div className="hidden lg:block w-px h-14 bg-gray-200 self-center" />
+
+        {/* Passengers */}
+        <div className="px-0 lg:px-4 py-1 w-full lg:w-28">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5 block">
+            Passengers
+          </Label>
+          <Select value={totalSeats} onValueChange={setTotalSeats}>
+            <SelectTrigger className="h-12 border-0 bg-transparent shadow-none p-0 text-base font-medium text-gray-900 focus:ring-0 [&>svg]:hidden">
+              <div className="flex items-center gap-2 w-full">
+                <Users className="w-4 h-4 text-gray-400 shrink-0" />
                 <SelectValue placeholder="1" />
-              </SelectTrigger>
-              <SelectContent>
-                {[...Array(60)].map((_, i) => (
-                  <SelectItem key={i + 1} value={(i + 1).toString()}>
-                    {i + 1}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {[...Array(60)].map((_, i) => (
+                <SelectItem key={i + 1} value={(i + 1).toString()}>
+                  {i + 1}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="flex gap-4 w-full md:w-auto">
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-3 px-0 lg:pl-4 py-1 w-full lg:w-auto">
           {onHireBus && (
             <Button
               onClick={onHireBus}
               variant="outline"
-              className="w-full md:w-auto h-12 font-medium"
-              style={{
-                borderColor: "#FFD700",
-                color: "#FFD700"
-              }}
+              className="h-12 px-5 rounded-full border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
             >
+              <Bus className="w-4 h-4 mr-2" />
               Hire a Coach
             </Button>
           )}
           <Button
             onClick={handleSearch}
-            className="w-full md:w-auto h-12 font-medium"
-            style={{
-              backgroundColor: "#FFD700",
-              color: "#fff",
-              borderColor: "rgb(243,193,39)"
-            }}
+            className="h-12 px-8 rounded-full bg-[#FFD700] hover:bg-[#e6c200] text-gray-900 font-medium border-0 shadow-sm"
           >
             Book Now
           </Button>
@@ -284,8 +320,8 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
       </div>
 
       {agentInfo && (
-        <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
-          <p className="text-amber-800">
+        <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-100">
+          <p className="text-amber-800 text-sm">
             Booking as agent: <span className="font-semibold">{agentInfo.name}</span>
           </p>
         </div>

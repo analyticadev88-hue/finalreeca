@@ -5,13 +5,17 @@ import Image from "next/image";
 import { Booking, SearchData, BoardingPoint } from "@/lib/types";
 import { boardingPoints } from "@/lib/data";
 import SeatSelection from "./booking/seatselection";
-import ThemeToggle from "@/components/theme-toggle";
 import InquirySidebar from "@/components/InquirySidebar";
 import BusSchedules from "./booking/busschedule";
 import PassengerPassengerDetailsForm from "./booking/passengerdetails/page";
 import HireBusModal from "./booking/hirebusmodal";
-import { Bus, User, Menu, Facebook, Instagram } from "lucide-react";
+import { User, Menu } from "lucide-react";
 import BookingForm from "@/components/bookingform";
+import HeroSection from "@/components/landing/HeroSection";
+import AboutSection from "@/components/landing/AboutSection";
+import FeaturedRoutes from "@/components/landing/FeaturedRoutes";
+import ServicesSection from "@/components/landing/ServicesSection";
+import LandingFooter from "@/components/landing/LandingFooter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -305,30 +309,32 @@ export default function BookingApp() {
   const NavLinks = () => (
     <>
       <a
-        href="/aboutus"
-
-        className="text-teal-800 hover:text-amber-600 font-medium"
+        href="/"
+        className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
+      >
+        Home
+      </a>
+      <a
+        href="#about"
+        className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
       >
         About Us
       </a>
       <a
-        href="/ourfleet"
-        className="text-teal-800 hover:text-amber-600 font-medium"
+        href="#routes"
+        className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
       >
-        Our Fleet
-      </a>
-      <a href="/help" className="text-teal-800 hover:text-amber-600 font-medium">Help</a>
-      <a
-        href="https://reecatravel.co.bw/?cat=5"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-teal-800 hover:text-amber-600 font-medium"
-      >
-        Reeca Holidays
+        Routes
       </a>
       <a
-        href="/contactus"
-        className="text-teal-800 hover:text-amber-600 font-medium"
+        href="#services"
+        className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
+      >
+        Services
+      </a>
+      <a
+        href="#contact"
+        className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
       >
         Contact Us
       </a>
@@ -337,239 +343,126 @@ export default function BookingApp() {
 
   if (currentStep === "search") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 to-teal-50">
+      <div className="min-h-screen bg-slate-100">
         {agent && (
-          <div className="w-full bg-yellow-200 border-b border-yellow-300 py-2 px-4 flex items-center justify-between">
-            <span className="text-yellow-800 font-semibold text-lg">
+          <div className="w-full bg-amber-100 border-b border-amber-200 py-2 px-4 flex items-center justify-between">
+            <span className="text-amber-900 font-semibold text-sm md:text-base">
               Booking as Agent: {agent.name}
             </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="bg-teal-600 text-white"
-                onClick={async () => {
-                  await handleLogout();
-                  window.location.href = "/agent/dashboard";
-                }}
-              >
-                Leave Booking
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              className="bg-gray-900 hover:bg-gray-800 text-white rounded-full"
+              onClick={async () => {
+                await handleLogout();
+                window.location.href = "/agent/dashboard";
+              }}
+            >
+              Leave Booking
+            </Button>
           </div>
         )}
         {!agent && consultant && (
-          <div className="w-full bg-yellow-200 border-b border-yellow-300 py-2 px-4 flex items-center justify-between">
-            <span className="text-yellow-800 font-semibold text-lg">
+          <div className="w-full bg-amber-100 border-b border-amber-200 py-2 px-4 flex items-center justify-between">
+            <span className="text-amber-900 font-semibold text-sm md:text-base">
               Booking as Consultant: {consultant.name}
             </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="bg-teal-600 text-white"
-                onClick={async () => {
-                  await handleLogout();
-                  window.location.href = "/consultant/dashboard";
-                }}
-              >
-                Leave Booking
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              className="bg-gray-900 hover:bg-gray-800 text-white rounded-full"
+              onClick={async () => {
+                await handleLogout();
+                window.location.href = "/consultant/dashboard";
+              }}
+            >
+              Leave Booking
+            </Button>
           </div>
         )}
-        <header className="bg-white border-b shadow-sm">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
+
+        <header className="bg-white border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <a href="/" className="flex items-center">
+                <Image
+                  src="/images/reeca-travel-logo.png"
+                  alt="Reeca Travel"
+                  width={160}
+                  height={64}
+                  className="h-12 w-auto object-contain"
+                  priority
+                />
+              </a>
+
+              <nav className="hidden lg:flex items-center gap-8 xl:gap-10">
+                <NavLinks />
+              </nav>
+
+              <div className="flex items-center gap-2">
                 <Sheet>
-                  <SheetTrigger asChild className="md:hidden">
-                    <Button variant="outline" size="icon">
-                      <Menu className="h-4 w-4" />
+                  <SheetTrigger asChild className="lg:hidden">
+                    <Button variant="ghost" size="icon" className="rounded-full">
+                      <Menu className="h-5 w-5" />
                     </Button>
                   </SheetTrigger>
                   <SheetContent>
-                    <div className="flex flex-col space-y-3 mt-6">
+                    <div className="flex flex-col space-y-4 mt-8">
                       <NavLinks />
+                      <hr className="border-gray-200" />
+                      <a
+                        href="/agent/auth"
+                        className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
+                      >
+                        Agent Portal
+                      </a>
+                      <a
+                        href="/consultant/auth"
+                        className="text-sm font-medium text-gray-700 hover:text-black transition-colors"
+                      >
+                        Consultant Portal
+                      </a>
                     </div>
                   </SheetContent>
                 </Sheet>
-                <div
-                  className="bg-white rounded-lg flex items-center justify-center p-1"
-                  style={{ width: 180, height: 72 }}
-                >
-                  <Image
-                    src="/images/reeca-travel-logo.png"
-                    alt="Reeca Travel"
-                    width={900}
-                    height={360}
-                    style={{ width: "100%", height: "auto" }}
-                    priority
-                  />
+                <div className="hidden lg:block">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button className="h-10 px-5 rounded-full font-medium bg-[#FFD700] hover:bg-[#e6c200] text-gray-900 border-0 shadow-sm">
+                        <User className="h-4 w-4 mr-2" />
+                        Sign In
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => window.location.href = "/agent/auth"}>
+                        Agent Portal
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => window.location.href = "/consultant/auth"}>
+                        Consultant Portal
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              </div>
-              <nav className="hidden md:flex gap-6">
-                <NavLinks />
-              </nav>
-              <div className="flex items-center gap-2">
-                <ThemeToggle />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="rounded-full">
-                      <User className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => window.location.href = "/agent/auth"}>
-                      Agent Portal
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => window.location.href = "/consultant/auth"}>
-                      Consultant Portal
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
           </div>
         </header>
-        <div className="relative h-[500px] w-full bg-gray-900 overflow-hidden">
-          <Image
-            src="/images/1.webp"
-            alt="REECA Travel Premium Bus"
-            fill
-            className="object-cover object-center"
-            priority
-            quality={100}
-            style={{
-              objectFit: "cover",
-              objectPosition: "center center",
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 to-transparent flex items-end">
-            <div className="container mx-auto px-4 pb-12 text-white">
-              <h1 className="text-3xl md:text-3xl font-bold mb-4">
-                Travel in Comfort & Style
-              </h1>
-              <p className="text-xl md:text-2xl max-w-2xl">
-                Seamless Shuttle, Daily Departures between{" "}
-                <br className="md:hidden" />
-                Gaborone and OR Tambo airport
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="container mx-auto px-4 py-8 -mt-16 relative z-10">
-          <div className="bg-white rounded-xl shadow-xl overflow-hidden mb-12 border border-gray-200">
-            <div className="p-6 text-white" style={{ backgroundColor: 'rgb(0, 153, 153)' }}>
-              <h2 className="text-2xl font-bold">Book Your Journey</h2>
-              <p className="opacity-90">Find and book your perfect trip</p>
-            </div>
-            <div className="p-6">
+
+        <main>
+          <HeroSection>
+            <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl shadow-black/10 border border-gray-100 p-4 md:p-6">
               <BookingForm
                 onSearch={handleSearch}
                 agentInfo={agent}
                 onHireBus={() => setShowHireModal(true)}
               />
             </div>
-          </div>
-        </div>
-        <footer className="bg-gray-900 text-white py-12">
-          <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-              <div>
-                <h3 className="text-lg font-bold mb-4">REECA TRAVEL</h3>
-                <p className="text-gray-400">
-                  Premium bus services between Botswana and South Africa.
-                </p>
-                <div className="flex space-x-4 mt-4">
-                  <a
-                    href="https://www.facebook.com/ReecaTravel/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <Facebook className="h-5 w-5" />
-                  </a>
-                  <a
-                    href="https://www.instagram.com/ReecaTravel/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <Instagram className="h-5 w-5" />
-                  </a>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-bold mb-4">Quick Links</h4>
-                <ul className="space-y-2">
-                  <li>
-                    <a href="/" className="text-gray-400 hover:text-white">
-                      Home
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/schedulebuspage" className="text-gray-400 hover:text-white">
-                      Bus Schedule
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/lostnfound" className="text-gray-400 hover:text-white">
-                      Lost & Found
-                    </a>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-bold mb-4">Information</h4>
-                <ul className="space-y-2">
-                  <li>
-                    <a href="/terms" className="text-gray-400 hover:text-white">
-                      Terms & Conditions
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/privacypolicy" className="text-gray-400 hover:text-white">
-                      Privacy Policy
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/traveldocs" className="text-gray-400 hover:text-white">
-                      Travel Documents
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/faq" className="text-gray-400 hover:text-white">
-                      FAQ
-                    </a>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-bold mb-4">Sales Office</h4>
-                <address className="not-italic text-gray-400">
-                  <p>Mogobe Plaza, Gaborone CBD, 4th Floor</p>
-                  <p>Emergency Phone: +267 77655348</p>
-                  <p>Office Line: +267 73061124</p>
-                  <p>WhatsApp: +267 76506348</p>
-                  <p>Bus Tickets: tickets@reecatravel.co.bw</p>
-                  <p>Travel Services: traveltalk@reecatravel.co.bw</p>
-                </address>
-              </div>
-            </div>
-            <div className="mt-8 text-center">
-              <a
-                href="https://toporapula.vercel.app/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-500 hover:text-gray-400"
-              >
-                Developed by Topo Rapula
-              </a>
-            </div>
-            <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-500">
-              <p>© {new Date().getFullYear()} REECA Travel. All rights reserved.</p>
-            </div>
-          </div>
-        </footer>
+          </HeroSection>
+
+          <AboutSection />
+          <FeaturedRoutes />
+          <ServicesSection onHireBus={() => setShowHireModal(true)} />
+        </main>
+
+        <LandingFooter />
 
         {showHireModal && (
           <HireBusModal
@@ -657,7 +550,6 @@ export default function BookingApp() {
                 />
               </div>
             </div>
-            <ThemeToggle />
           </div>
         </div>
       </header>
