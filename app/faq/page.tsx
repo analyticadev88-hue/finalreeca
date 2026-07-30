@@ -129,7 +129,7 @@ export default function FAQ() {
     },
     {
       question: "Can I cancel or change my booking?",
-      answer: "Yes, cancellations or changes must be made at least 24 hours in advance. Cancellation fees may apply.",
+      answer: "Yes, cancellations or changes must be made at least 24 hours in advance. Cancellation fees may apply. Bus hire bookings are non-refundable once confirmed, invoiced, and availability is blocked out.",
       icon: <Info className="text-teal-600" size={20} />
     },
     {

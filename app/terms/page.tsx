@@ -204,7 +204,8 @@ export default function TermsAndConditions() {
                   <p><strong>3.2.</strong> No refunds are given for cancellations made within 24 hours of departure or for no-shows or after departure.</p>
                   <p><strong>3.3.</strong> Notify the office for any cancellation at tickets@reecatravel.co.bw or call 267 73061124.</p>
                   <p><strong>3.4.</strong> Refunds will be processed within 7–14 business working days.</p>
-                  <p><strong>3.5.</strong> Rescheduling a ticket can only be done once by notifying us at least 12 hours before departure time or manage your booking online to rescheduled. Once a ticket is rescheduled, it cannot be cancelled or refunded.</p>
+                  <p><strong>3.5.</strong> For bus hire bookings, once the booking is confirmed, invoiced, and availability is blocked out, it is non-refundable.</p>
+                  <p><strong>3.6.</strong> Rescheduling a ticket can only be done once by notifying us at least 12 hours before departure time or manage your booking online to rescheduled. Once a ticket is rescheduled, it cannot be cancelled or refunded.</p>
                 </div>
               </section>
 
