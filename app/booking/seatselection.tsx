@@ -561,9 +561,10 @@ export default function SeatSelection({
   }
   const totalPrice = pricePerSeat * selectedSeats.length;
   const resolvedServiceType = getServiceTypeFromDepartureTime(selectedBus.departureTime || selectedBus.serviceType || '00:00');
+  const displayServiceType = resolvedServiceType || selectedBus.serviceType || 'Standard';
   const isMorning = resolvedServiceType === 'Morning Bus';
-  const isEvening = resolvedServiceType === 'Evening Bus';
-  const busImg = isMorning ? morningBusImg : isEvening ? afternoonBusImg : afternoonBusImg;
+  const isNightBus = resolvedServiceType === 'Night Bus';
+  const busImg = isMorning ? morningBusImg : isNightBus ? afternoonBusImg : afternoonBusImg;
 
   const renderSeatBtn = (seat: Seat, isSelected: boolean) => {
     const isHighlighted = highlightedPairs.includes(seat.id);
@@ -871,7 +872,7 @@ export default function SeatSelection({
               <div className="w-12 h-10 md:w-20 md:h-14 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                 <Image
                   src={busImg}
-                  alt={`${selectedBus.serviceType} bus`}
+                  alt={`${displayServiceType} bus`}
                   width={80}
                   height={56}
                   className="object-contain"
@@ -881,7 +882,7 @@ export default function SeatSelection({
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl md:text-2xl font-bold text-white break-words">
                   {isReturnTrip ? 'RETURN TRIP: ' : ''}
-                  {isPrivateTour ? 'Private Tour Fleet' : selectedBus.routeName || selectedBus.serviceType}
+                  {isPrivateTour ? 'Private Tour Fleet' : selectedBus.routeName || displayServiceType}
                 </h1>
                 <p className="text-white/90 mt-1 text-sm md:text-base">
                   {selectedBus.routeOrigin} → {selectedBus.routeDestination}

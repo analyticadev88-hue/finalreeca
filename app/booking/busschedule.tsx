@@ -387,9 +387,10 @@ export default function BusSchedules({
 
   const TripCard = useCallback(({ trip }: { trip: Trip }) => {
     const resolvedServiceType = getServiceTypeFromDepartureTime(trip.departureTime || trip.serviceType || '00:00');
+    const displayServiceType = resolvedServiceType || trip.serviceType || 'Standard';
     const isMorning = resolvedServiceType === 'Morning Bus';
-    const isEvening = resolvedServiceType === 'Evening Bus';
-    const busImg = isMorning ? morningBusImg : isEvening ? afternoonBusImg : afternoonBusImg;
+    const isNightBus = resolvedServiceType === 'Night Bus';
+    const busImg = isMorning ? morningBusImg : isNightBus ? afternoonBusImg : afternoonBusImg;
     const durationHours = Math.floor(trip.durationMinutes / 60);
     const durationMinutes = trip.durationMinutes % 60;
     let departureDate: Date | null = null;
@@ -450,10 +451,10 @@ export default function BusSchedules({
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold"
                   style={{ backgroundColor: colors.primary }}
                 >
-                  {trip.serviceType.charAt(0)}
+                  {displayServiceType.charAt(0)}
                 </div>
                 <div>
-                  <div className="font-semibold text-gray-900 text-sm">{trip.serviceType}</div>
+                  <div className="font-semibold text-gray-900 text-sm">{displayServiceType}</div>
                   <div className="text-xs text-gray-500">{trip.totalSeats} seats</div>
                 </div>
               </div>
@@ -472,7 +473,7 @@ export default function BusSchedules({
               <div className="w-16 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
                 <Image
                   src={busImg}
-                  alt={`${trip.serviceType} bus`}
+                  alt={`${displayServiceType} bus`}
                   width={64}
                   height={48}
                   className="object-contain"
@@ -569,7 +570,7 @@ export default function BusSchedules({
               <div className="w-20 md:w-28 h-16 md:h-20 bg-gray-100 rounded-lg flex items-center justify-center relative overflow-hidden">
                 <Image
                   src={busImg}
-                  alt={`${trip.serviceType} bus`}
+                  alt={`${displayServiceType} bus`}
                   width={84}
                   height={56}
                   className="object-contain"
@@ -578,7 +579,7 @@ export default function BusSchedules({
               </div>
               <div>
                 <div className="font-semibold text-gray-900 flex items-center">
-                  {trip.serviceType}
+                  {displayServiceType}
                   {isDeparted && (
                     <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                       Departed
