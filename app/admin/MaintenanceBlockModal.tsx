@@ -77,6 +77,14 @@ export default function MaintenanceBlockModal({ isOpen, onClose, onBlocked }: { 
                   <div className="text-sm text-gray-600">Blocks: 15:00 Gabs→JHB & 08:00 JHB→Gabs</div>
                 </div>
               </label>
+
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={selectedBuses.includes('Evening Bus')} onChange={() => toggleBus('Evening Bus')} />
+                <div className="ml-2">
+                  <div className="font-medium">Evening Bus</div>
+                  <div className="text-sm text-gray-600">Blocks: 18:00 Gaborone→Maun & 17:30 Maun→Gaborone</div>
+                </div>
+              </label>
             </div>
           </div>
 

@@ -262,6 +262,7 @@ const BulkUpdateModal: React.FC<BulkUpdateModalProps> = ({ isOpen, onClose, onSa
                       <SelectItem value="keep-current">Keep current</SelectItem>
                       <SelectItem value="Morning Bus">Morning Bus</SelectItem>
                       <SelectItem value="Afternoon Bus">Afternoon Bus</SelectItem>
+                      <SelectItem value="Evening Bus">Evening Bus</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1083,6 +1084,7 @@ const TripForm: React.FC<TripFormProps> = ({ trip, onSave, routes, times, allTri
               <SelectContent>
                 <SelectItem value="Morning Bus">Morning Bus</SelectItem>
                 <SelectItem value="Afternoon Bus">Afternoon Bus</SelectItem>
+                <SelectItem value="Evening Bus">Evening Bus</SelectItem>
               </SelectContent>
             </Select>
           </div>

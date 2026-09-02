@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { getServiceTypeFromDepartureTime } from "@/lib/busRoutes";
 import { format, addDays, parseISO, isValid } from "date-fns";
 import Image from "next/image";
 import { BoardingPoint, SearchData } from "@/lib/types";
@@ -385,8 +386,10 @@ export default function BusSchedules({
   }, [trips, selectedDay, days, searchData]);
 
   const TripCard = useCallback(({ trip }: { trip: Trip }) => {
-    const isMorning = trip.serviceType.includes("Morning");
-    const busImg = isMorning ? morningBusImg : afternoonBusImg;
+    const resolvedServiceType = getServiceTypeFromDepartureTime(trip.departureTime || trip.serviceType || '00:00');
+    const isMorning = resolvedServiceType === 'Morning Bus';
+    const isEvening = resolvedServiceType === 'Evening Bus';
+    const busImg = isMorning ? morningBusImg : isEvening ? afternoonBusImg : afternoonBusImg;
     const durationHours = Math.floor(trip.durationMinutes / 60);
     const durationMinutes = trip.durationMinutes % 60;
     let departureDate: Date | null = null;

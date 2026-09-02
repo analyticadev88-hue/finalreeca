@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminAuth } from '@/lib/adminAuth';
 import { prisma } from '@/lib/prisma';
 import { enrichTripsWithAvailability } from '@/lib/tripAvailability';
+import { getServiceTypeFromDepartureTime } from '@/lib/busRoutes';
 
 function isValidDate(date: any): date is Date | string {
   return date && !isNaN(new Date(date).getTime());
@@ -212,14 +213,18 @@ export async function POST(request: NextRequest) {
     if (typeof data.totalSeats === "string") data.totalSeats = parseInt(data.totalSeats, 10);
     if (typeof data.availableSeats === "string") data.availableSeats = parseInt(data.availableSeats, 10);
 
-    const tripData = {
+    const derivedServiceType = getServiceTypeFromDepartureTime(data.departureTime || '00:00');
+
+    const tripData: any = {
       ...data,
-      // Ensure totalSeats matches availableSeats for new trips
+      routeName: data.routeName || `${data.routeOrigin} to ${data.routeDestination}`,
+      routeOrigin: data.routeOrigin,
+      routeDestination: data.routeDestination,
+      departureTime: data.departureTime || '00:00',
+      serviceType: data.serviceType && data.serviceType !== 'Standard' ? data.serviceType : derivedServiceType,
       totalSeats: data.totalSeats || data.availableSeats,
-      // Properly format departure date
       departureDate: new Date(data.departureDate),
-      // Remove empty parentTripId
-      parentTripId: data.parentTripId && data.parentTripId.trim() ? data.parentTripId : null
+      parentTripId: data.parentTripId && data.parentTripId.trim() ? data.parentTripId : null,
     };
 
     // Duplicate guard
@@ -267,9 +272,16 @@ export async function PUT(request: NextRequest) {
     if (typeof data.totalSeats === "string") data.totalSeats = parseInt(data.totalSeats, 10);
     if (typeof data.availableSeats === "string") data.availableSeats = parseInt(data.availableSeats, 10);
 
+    const normalizedData: any = {
+      ...data,
+      serviceType: data.serviceType && data.serviceType !== 'Standard'
+        ? data.serviceType
+        : getServiceTypeFromDepartureTime(data.departureTime || '00:00')
+    };
+
     const updatedTrip = await prisma.trip.update({
       where: { id: data.id },
-      data: data,
+      data: normalizedData as any,
     });
     return NextResponse.json(updatedTrip);
   } catch (error: any) {

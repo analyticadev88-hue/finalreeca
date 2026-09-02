@@ -9,7 +9,7 @@ interface Props {
   onCreated: () => void;
 }
 
-const serviceOptions = ["Morning Bus", "Afternoon Bus"];
+const serviceOptions = ["Morning Bus", "Afternoon Bus", "Evening Bus"];
 const vehicleTypes = [
   { id: 'hiace', name: 'Toyota Hiace', seats: 14, defaultCount: 2 },
   { id: 'sprinter', name: 'Mercedes Sprinter', seats: 25, defaultCount: 1 },
