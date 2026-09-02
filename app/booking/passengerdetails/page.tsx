@@ -417,12 +417,35 @@ export default function PassengerDetailsForm({
   const { toast: makeToast } = useToast();
   const [showVoucherExpiredDialog, setShowVoucherExpiredDialog] = useState(false);
 
+  const isMaunGaboroneDomesticRoute = (isReturn: boolean) => {
+    const bus = isReturn ? returnBus : departureBus;
+    if (!bus) return false;
+
+    const origin = (bus.routeOrigin || "").toLowerCase().trim();
+    const destination = (bus.routeDestination || "").toLowerCase().trim();
+    const routeName = (bus.routeName || "").toLowerCase().trim();
+
+    const isMaunGaboronePair =
+      (origin.includes("gaborone") && destination.includes("maun")) ||
+      (origin.includes("maun") && destination.includes("gaborone")) ||
+      (routeName.includes("gaborone") && routeName.includes("maun"));
+
+    return isMaunGaboronePair;
+  };
+
   const requiresPassport = (isReturn: boolean) => {
+    if (isMaunGaboroneDomesticRoute(isReturn)) return false;
+
     const bus = isReturn ? returnBus : departureBus;
     if (!bus?.routeName) return false;
     const name = bus.routeName.toLowerCase();
     return name.includes('tambo') && name.includes('gaborone');
   };
+
+  const shouldShowPassengerIdField = (isReturn: boolean) => !isMaunGaboroneDomesticRoute(isReturn);
+  const shouldShowNextOfKinFields = (isReturn: boolean) => !isMaunGaboroneDomesticRoute(isReturn);
+  const shouldHidePersonalizeTrip =
+    isMaunGaboroneDomesticRoute(false) || (returnBus ? isMaunGaboroneDomesticRoute(true) : false);
 
   const requestVoucherAuth = async () => {
     try {
@@ -977,8 +1000,11 @@ export default function PassengerDetailsForm({
       return `Please select a title for passenger in seat ${formatSeat(missingTitle.seatNumber)}`;
     }
 
-    // 3. Passport numbers (skip for companion/neighbour free seats)
-    const missingPassport = primaryPassengers.find((p) => !p.passportNumber.trim());
+    // 3. Passport numbers (skip for companion/neighbour free seats and domestic Maun/Gaborone trips)
+    const missingPassport = primaryPassengers.find((p) => {
+      if (isMaunGaboroneDomesticRoute(p.isReturn)) return false;
+      return !p.passportNumber.trim();
+    });
     if (missingPassport) {
       return `Please provide a passport/ID number for passenger in seat ${formatSeat(missingPassport.seatNumber)}`;
     }
@@ -1014,14 +1040,16 @@ export default function PassengerDetailsForm({
       return "Please provide the contact mobile number";
     }
 
-    // 7. Next of kin (only shown when there's exactly 1 passenger)
+    // 7. Next of kin (only required for cross-border routes, not for domestic Maun/Gaborone trips)
     if (primaryPassengers.length === 1) {
       const solePassenger = primaryPassengers[0];
-      if (!solePassenger.nextOfKinName?.trim()) {
-        return "Please provide a next of kin name";
-      }
-      if (!solePassenger.nextOfKinPhone?.trim()) {
-        return "Please provide a next of kin phone number";
+      if (shouldShowNextOfKinFields(solePassenger.isReturn)) {
+        if (!solePassenger.nextOfKinName?.trim()) {
+          return "Please provide a next of kin name";
+        }
+        if (!solePassenger.nextOfKinPhone?.trim()) {
+          return "Please provide a next of kin phone number";
+        }
       }
     }
 
@@ -1550,19 +1578,21 @@ export default function PassengerDetailsForm({
                               />
                             </div>
                           )}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              {requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
-                            </label>
-                            <Input
-                              value={passenger.passportNumber || ""}
-                              onChange={(e) => updatePassenger(passenger.id, "passportNumber", e.target.value)}
-                              placeholder={requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
-                              required={!isCompanion}
-                              disabled={isCompanion}
-                              className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
-                            />
-                          </div>
+                          {shouldShowPassengerIdField(passenger.isReturn) && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                {requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
+                              </label>
+                              <Input
+                                value={passenger.passportNumber || ""}
+                                onChange={(e) => updatePassenger(passenger.id, "passportNumber", e.target.value)}
+                                placeholder={requiresPassport(passenger.isReturn) ? "Passport Number" : "ID Number"}
+                                required={!isCompanion}
+                                disabled={isCompanion}
+                                className="focus:ring-[rgb(0,153,153)] focus:border-[rgb(0,153,153)] border-gray-300"
+                              />
+                            </div>
+                          )}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Passenger Phone</label>
                             <div className="flex gap-2">
@@ -1579,7 +1609,7 @@ export default function PassengerDetailsForm({
                               />
                             </div>
                           </div>
-                          {passengers.length === 1 && (
+                          {passengers.length === 1 && shouldShowNextOfKinFields(passenger.isReturn) && (
                             <>
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Next of Kin Name</label>
@@ -1845,26 +1875,26 @@ export default function PassengerDetailsForm({
             )}
           </div>
 
-          {/* Add-ons Section - Same as before */}
-          <div className="border-2 border-[rgb(255,199,33)] rounded-xl overflow-hidden mt-6 bg-gray-50">
-            <button
-              onClick={() => openOnlySection("addons")}
-              className="w-full p-4 bg-gray-100 text-left flex justify-between items-center hover:bg-gray-200 transition-all"
-            >
-              <h3 className="font-bold text-lg text-[rgb(148,138,84)] flex items-center gap-2">
-                <span className="bg-[rgb(148,138,84)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
-                  5
-                </span>
-                Personalize Your Trip
-              </h3>
-              {openSections.addons ? (
-                <ChevronUp className="text-[rgb(148,138,84)]" />
-              ) : (
-                <ChevronDown className="text-[rgb(148,138,84)]" />
-              )}
-            </button>
-            {openSections.addons && (
-              <div className="p-4 space-y-4">
+          {!shouldHidePersonalizeTrip && (
+            <div className="border-2 border-[rgb(255,199,33)] rounded-xl overflow-hidden mt-6 bg-gray-50">
+              <button
+                onClick={() => openOnlySection("addons")}
+                className="w-full p-4 bg-gray-100 text-left flex justify-between items-center hover:bg-gray-200 transition-all"
+              >
+                <h3 className="font-bold text-lg text-[rgb(148,138,84)] flex items-center gap-2">
+                  <span className="bg-[rgb(148,138,84)] text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                    5
+                  </span>
+                  Personalize Your Trip
+                </h3>
+                {openSections.addons ? (
+                  <ChevronUp className="text-[rgb(148,138,84)]" />
+                ) : (
+                  <ChevronDown className="text-[rgb(148,138,84)]" />
+                )}
+              </button>
+              {openSections.addons && (
+                <div className="p-4 space-y-4">
                 <div className="text-sm text-[rgb(0,153,153)] mb-4 font-medium bg-gray-100 p-3 rounded-lg border border-gray-200">
                   Select extras for each passenger. Prices are per passenger, per trip.
                 </div>
@@ -2170,6 +2200,7 @@ export default function PassengerDetailsForm({
               </div>
             )}
           </div>
+          )}
 
           {/* FIXED: Addon Summary - Shows clear breakdown of all addon charges */}
           {buildAddonItems().length > 0 && (
