@@ -40,6 +40,8 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
     { id: 'default-2', name: 'OR Tambo Airport to Gaborone', origin: 'OR Tambo Airport', destination: 'Gaborone', active: true },
     { id: 'default-3', name: 'Gaborone to Rustenburg', origin: 'Gaborone', destination: 'Rustenburg', active: true },
     { id: 'default-4', name: 'Rustenburg to Gaborone', origin: 'Rustenburg', destination: 'Gaborone', active: true },
+    { id: 'default-5', name: 'Gaborone to Maun', origin: 'Gaborone', destination: 'Maun', active: true },
+    { id: 'default-6', name: 'Maun to Gaborone', origin: 'Maun', destination: 'Gaborone', active: true },
   ];
 
   // Fetch available routes on mount
