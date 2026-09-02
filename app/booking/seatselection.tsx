@@ -945,7 +945,7 @@ export default function SeatSelection({
                 <div className="font-bold text-lg" style={{ color: colors.dark }}>
                   {Math.floor(durationMinutes / 60)}h {durationMinutes % 60}m
                 </div>
-                <div className="text-xs text-gray-500 mt-1">Non-stop journey</div>
+                <div className="text-xs text-gray-500 mt-1">Direct journey</div>
               </div>
             </div>
           </div>
@@ -983,7 +983,7 @@ export default function SeatSelection({
                       <div className="font-bold text-2xl" style={{ color: colors.dark }}>
                         {Math.floor(durationMinutes / 60)}h {durationMinutes % 60}m
                       </div>
-                      <div className="text-sm text-gray-500">Non-stop journey</div>
+                      <div className="text-sm text-gray-500">Direct journey</div>
                     </div>
                   </div>
                   <div className="absolute -bottom-2 left-0 right-0 h-1 bg-gray-200 rounded-full">

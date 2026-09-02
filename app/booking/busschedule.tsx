@@ -614,7 +614,7 @@ export default function BusSchedules({
             <div className="font-medium text-gray-900">
               {durationHours}h {durationMinutes > 0 ? `${durationMinutes}min` : ''}
             </div>
-            <div className="text-xs text-gray-500">Non-stop</div>
+            <div className="text-xs text-gray-500">Direct</div>
           </div>
           {/* Desktop Arrival */}
           <div className="hidden md:block">
