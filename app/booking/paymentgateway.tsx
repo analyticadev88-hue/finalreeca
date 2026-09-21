@@ -49,9 +49,12 @@ export default function PaymentGateway({
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const isProcessingRef = useRef(false);
 
   const sessionCreatedRef = useRef(false);
+  const upRef = useRef<any>(null);
+  const cancelRejectRef = useRef<((e: Error) => void) | null>(null);
 
   const createSession = async (paymentData: BookingData) => {
     if (isProcessingRef.current || sessionCreatedRef.current) return;
@@ -116,6 +119,7 @@ export default function PaymentGateway({
       // Accept is a factory returning a Promise (NOT a constructor in this build)
       const accept = await w.Accept(captureContext);
       const up = await accept.unifiedPayments();
+      upRef.current = up;
 
       setIsProcessing(false);
       setShowCheckout(true);
@@ -124,19 +128,84 @@ export default function PaymentGateway({
 
       // Sidebar mode: only paymentSelection is allowed; the payment
       // screen opens as a Cybersource-hosted overlay.
-      const tt = await up.show({
-        containers: { paymentSelection: '#unified-checkout-buttons' },
+      const tt = await new Promise((resolve, reject) => {
+        cancelRejectRef.current = reject;
+        up.show({
+          containers: { paymentSelection: '#unified-checkout-buttons' },
+        }).then(resolve).catch(reject);
       });
+      cancelRejectRef.current = null;
       const completeResponse = await up.complete(tt);
 
       await verifyPayment(completeResponse, orderId);
     } catch (err: any) {
+      cancelRejectRef.current = null;
       console.error('Unified Checkout Error:', err?.reason, err?.message, err);
-      setError('Payment was cancelled or could not be completed. Please try again.');
+      if (err?.message === 'CANCELLED_BY_USER') {
+        setError('You cancelled the payment.');
+      } else {
+        setError('Payment was cancelled or could not be completed. Please try again.');
+      }
       setShowCheckout(false);
       setIsProcessing(false);
     }
   };
+
+  const handleConfirmCancel = () => {
+    setConfirmCancel(false);
+    if (cancelRejectRef.current) {
+      // Cancel mid-checkout: tear down the Cybersource UI and reject the
+      // pending show() promise so the flow lands in the catch handler.
+      try { upRef.current?.hide?.(); } catch {}
+      try { upRef.current?.dispose?.(); } catch {}
+      cancelRejectRef.current(new Error('CANCELLED_BY_USER'));
+      cancelRejectRef.current = null;
+    } else {
+      // Cancelled while the checkout was still loading.
+      sessionCreatedRef.current = false;
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+      setError('You cancelled the payment.');
+    }
+  };
+
+  // While a payment is in progress, block every page interaction. Any click
+  // outside the Cybersource UI asks the user whether they want to cancel, so
+  // the payment can never be dismissed by an accidental click. Clicks inside
+  // the Cybersource sidebar iframe never reach this page, and the in-page
+  // payment buttons are explicitly allowed.
+  const paymentLocked = (isProcessing || showCheckout) && !error;
+  useEffect(() => {
+    if (!paymentLocked) return;
+
+    const isAllowed = (t: HTMLElement | null) =>
+      !!t?.closest('#unified-checkout-buttons') ||
+      !!t?.closest('#payment-cancel-confirm') ||
+      !!t?.closest('#payment-cancel-backdrop');
+
+    const onClick = (e: MouseEvent) => {
+      if (isAllowed(e.target as HTMLElement)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setConfirmCancel(true);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setConfirmCancel(true);
+      }
+    };
+
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.body.style.overflow = '';
+    };
+  }, [paymentLocked]);
 
   const verifyPayment = async (paymentResult: any, orderId: string) => {
     setIsProcessing(true);
@@ -222,6 +291,40 @@ export default function PaymentGateway({
         />
 
       </div>
+
+      {/* Cancel-payment confirmation */}
+      {confirmCancel && (
+        <div
+          id="payment-cancel-backdrop"
+          className="fixed inset-0 z-[99998] bg-black/50 flex items-center justify-center px-4"
+          onClick={() => setConfirmCancel(false)}
+        >
+          <div
+            id="payment-cancel-confirm"
+            className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-gray-900">Cancel payment?</h3>
+            <p className="mt-3 text-gray-600">
+              A payment is currently in progress. If you cancel now, this booking will not be paid and your seats may be released.
+            </p>
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                onClick={() => setConfirmCancel(false)}
+                className="px-4 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-semibold"
+              >
+                Continue Paying
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                className="px-4 py-3 bg-white text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors font-semibold"
+              >
+                Yes, Cancel Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
