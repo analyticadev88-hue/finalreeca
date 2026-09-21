@@ -69,11 +69,18 @@ export async function POST(request: NextRequest) {
     const apiClient = new cybersourceRestApi.ApiClient();
     const instance = new cybersourceRestApi.UnifiedCheckoutCaptureContextApi(configObj, apiClient);
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://reecabus.co.bw';
-    const sanitizedUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    // Accept the calling page's origin so deploy previews / dev domains work;
+    // always include the configured app URL as well.
+    const requestOrigin = request.headers.get('origin');
+    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://reecabus.co.bw';
+    const sanitizedConfigured = configuredUrl.endsWith('/') ? configuredUrl.slice(0, -1) : configuredUrl;
+    const sanitizedOrigin = requestOrigin && /^https:\/\//.test(requestOrigin)
+      ? requestOrigin.replace(/\/$/, '')
+      : null;
+    const targetOrigins = [...new Set([sanitizedOrigin, sanitizedConfigured].filter(Boolean))];
 
     const captureContextRequest = new cybersourceRestApi.GenerateUnifiedCheckoutCaptureContextRequest();
-    captureContextRequest.targetOrigins = [sanitizedUrl];
+    captureContextRequest.targetOrigins = targetOrigins;
     captureContextRequest.country = 'BW';
     captureContextRequest.locale = 'en_US';
     captureContextRequest.clientVersion = '0.35';

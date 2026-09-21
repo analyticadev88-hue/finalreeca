@@ -52,9 +52,10 @@ export default function PaymentGateway({
   const isProcessingRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const sessionCreatedRef = useRef(false);
 
   const createSession = async (paymentData: BookingData) => {
-    if (isProcessingRef.current) return;
+    if (isProcessingRef.current || sessionCreatedRef.current) return;
     isProcessingRef.current = true;
     try {
       // 1. Fetch Capture Context from backend
@@ -73,6 +74,8 @@ export default function PaymentGateway({
         return;
       }
 
+      sessionCreatedRef.current = true;
+
       const captureContext = data.captureContext;
       const orderId = data.orderId;
 
@@ -81,8 +84,13 @@ export default function PaymentGateway({
       const payload = JSON.parse(atob(payloadBase64));
       const clientLibraryUrl = payload.ctx[0].data.clientLibrary;
 
-      // 3. Dynamically inject the Unified Checkout script
+      // 3. Dynamically inject the Unified Checkout script (once)
+      if (document.getElementById('cybersource-upe')) {
+        initializeUnifiedCheckout(captureContext, orderId);
+        return;
+      }
       const script = document.createElement('script');
+      script.id = 'cybersource-upe';
       script.src = clientLibraryUrl;
       script.async = true;
       script.onload = () => {
@@ -103,52 +111,30 @@ export default function PaymentGateway({
     }
   };
 
-  const initializeUnifiedCheckout = (captureContext: string, orderId: string) => {
-    // Wait for the Accept function to be available on window
-    const timeout = setTimeout(() => {
-      clearInterval(checkInterval);
-      setError('Payment gateway timed out. Please try again.');
+  const initializeUnifiedCheckout = async (captureContext: string, orderId: string) => {
+    try {
+      const w = window as any;
+      const accept = await w.Accept(captureContext);
+      // false = embedded payment screen (not sidebar)
+      const up = await accept.unifiedPayments(false);
+
       setIsProcessing(false);
-    }, 10000);
+      setShowCheckout(true);
+      // Let the container become visible before the library measures it
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
-    const checkInterval = setInterval(() => {
-      if ((window as any).Accept) {
-        clearInterval(checkInterval);
-        clearTimeout(timeout);
+      const tt = await up.show({
+        containers: { paymentScreen: '#unified-checkout-container' },
+      });
+      const completeResponse = await up.complete(tt);
 
-        setIsProcessing(false);
-        setShowCheckout(true);
-
-        // Accept() is async — it returns a Promise resolving to the accept instance
-        (window as any).Accept(captureContext)
-          .then((accept: any) => {
-            // unifiedPayments() initialises the embedded payment form
-            return accept.unifiedPayments();
-          })
-          .then((up: any) => {
-            up.on('paymentComplete', (res: any) => {
-              console.log('Payment Completed:', res);
-              verifyPayment(res, orderId);
-            });
-
-            up.on('cancel', () => {
-              setError('Payment was cancelled.');
-              setShowCheckout(false);
-            });
-
-            up.on('error', (err: any) => {
-              console.error('Unified Checkout Error:', err);
-              setError('An error occurred with the payment form.');
-              setShowCheckout(false);
-            });
-          })
-          .catch((err: any) => {
-            console.error('Unified Checkout Setup Error:', err);
-            setError('Could not initialize payment gateway.');
-            setShowCheckout(false);
-          });
-      }
-    }, 100);
+      await verifyPayment(completeResponse, orderId);
+    } catch (err: any) {
+      console.error('Unified Checkout Error:', err);
+      setError('Payment was cancelled or could not be completed. Please try again.');
+      setShowCheckout(false);
+      setIsProcessing(false);
+    }
   };
 
   const verifyPayment = async (paymentResult: any, orderId: string) => {
