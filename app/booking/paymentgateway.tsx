@@ -51,7 +51,6 @@ export default function PaymentGateway({
   const [showCheckout, setShowCheckout] = useState(false);
   const isProcessingRef = useRef(false);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const sessionCreatedRef = useRef(false);
 
   const createSession = async (paymentData: BookingData) => {
@@ -123,11 +122,10 @@ export default function PaymentGateway({
       // Let the containers become visible before the library measures them
       await new Promise((resolve) => setTimeout(resolve, 50));
 
+      // Sidebar mode: only paymentSelection is allowed; the payment
+      // screen opens as a Cybersource-hosted overlay.
       const tt = await up.show({
-        containers: {
-          paymentSelection: '#unified-checkout-buttons',
-          paymentScreen: '#unified-checkout-container',
-        },
+        containers: { paymentSelection: '#unified-checkout-buttons' },
       });
       const completeResponse = await up.complete(tt);
 
@@ -216,17 +214,11 @@ export default function PaymentGateway({
           </div>
         ) : null}
 
-        {/* Cybersource renders the payment-method buttons here */}
+        {/* Cybersource renders the payment-method buttons here; the form
+            opens in a hosted sidebar overlay */}
         <div
           id="unified-checkout-buttons"
-          className={showCheckout ? 'block' : 'hidden'}
-        />
-
-        {/* Cybersource renders the embedded payment form here */}
-        <div 
-          id="unified-checkout-container" 
-          ref={containerRef}
-          className={showCheckout ? 'block min-h-[400px]' : 'hidden'}
+          className={showCheckout ? 'block min-h-[60px]' : 'hidden'}
         />
 
       </div>
