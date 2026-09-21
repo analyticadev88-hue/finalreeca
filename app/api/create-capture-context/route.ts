@@ -49,12 +49,12 @@ export async function POST(request: NextRequest) {
     const configObj = {
       authenticationType: 'http_signature',
       runEnvironment: 'apitest.cybersource.com',
-      merchantID: process.env.CYBERSOURCE_MERCHANT_ID,
-      merchantKeyId: process.env.CYBERSOURCE_KEY_ID,
-      merchantsecretKey: process.env.CYBERSOURCE_SECRET_KEY,
-      keyAlias: process.env.CYBERSOURCE_MERCHANT_ID,
-      keyPass: process.env.CYBERSOURCE_MERCHANT_ID,
-      keyFileName: process.env.CYBERSOURCE_MERCHANT_ID,
+      merchantID: process.env.CYBERSOURCE_MERCHANT_ID || 'absa_1303403_reecatrvl_testbwp',
+      merchantKeyId: process.env.CYBERSOURCE_KEY_ID || '83ad42ef-1a9d-46eb-86dd-cff9f28a6c6e',
+      merchantsecretKey: process.env.CYBERSOURCE_SECRET_KEY || 'vyCvKlBKOCWrIJCb8pK92nj30b4bq4A7eO8wVGQX3j0=',
+      keyAlias: process.env.CYBERSOURCE_MERCHANT_ID || 'absa_1303403_reecatrvl_testbwp',
+      keyPass: process.env.CYBERSOURCE_MERCHANT_ID || 'absa_1303403_reecatrvl_testbwp',
+      keyFileName: process.env.CYBERSOURCE_MERCHANT_ID || 'absa_1303403_reecatrvl_testbwp',
       keysDirectory: './',
       logConfiguration: {
         enableLog: false,
