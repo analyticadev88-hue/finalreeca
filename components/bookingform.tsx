@@ -42,6 +42,27 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
     { id: 'default-4', name: 'Rustenburg to Gaborone', origin: 'Rustenburg', destination: 'Gaborone', active: true },
     { id: 'default-5', name: 'Gaborone to Maun', origin: 'Gaborone', destination: 'Maun', active: true },
     { id: 'default-6', name: 'Maun to Gaborone', origin: 'Maun', destination: 'Gaborone', active: true },
+    // Gaborone departures
+    { id: 'default-7', name: 'Gaborone to Sandfire', origin: 'Gaborone', destination: 'Sandfire', active: true },
+    { id: 'default-8', name: 'Gaborone to Toteng', origin: 'Gaborone', destination: 'Toteng', active: true },
+    { id: 'default-9', name: 'Gaborone to Sehithwa', origin: 'Gaborone', destination: 'Sehithwa', active: true },
+    { id: 'default-10', name: 'Gaborone to Ghanzi', origin: 'Gaborone', destination: 'Ghanzi', active: true },
+    // Maun departures
+    { id: 'default-11', name: 'Maun to Kanye', origin: 'Maun', destination: 'Kanye', active: true },
+    { id: 'default-12', name: 'Maun to Ghanzi', origin: 'Maun', destination: 'Ghanzi', active: true },
+    { id: 'default-13', name: 'Maun to Jwaneng', origin: 'Maun', destination: 'Jwaneng', active: true },
+    // Return legs
+    { id: 'default-14', name: 'Sandfire to Gaborone', origin: 'Sandfire', destination: 'Gaborone', active: true },
+    { id: 'default-15', name: 'Toteng to Gaborone', origin: 'Toteng', destination: 'Gaborone', active: true },
+    { id: 'default-16', name: 'Sehithwa to Gaborone', origin: 'Sehithwa', destination: 'Gaborone', active: true },
+    { id: 'default-17', name: 'Ghanzi to Gaborone', origin: 'Ghanzi', destination: 'Gaborone', active: true },
+    { id: 'default-18', name: 'Ghanzi to Maun', origin: 'Ghanzi', destination: 'Maun', active: true },
+    { id: 'default-19', name: 'Jwaneng to Maun', origin: 'Jwaneng', destination: 'Maun', active: true },
+    { id: 'default-20', name: 'Jwaneng to Toteng', origin: 'Jwaneng', destination: 'Toteng', active: true },
+    { id: 'default-21', name: 'Toteng to Jwaneng', origin: 'Toteng', destination: 'Jwaneng', active: true },
+    { id: 'default-22', name: 'Kanye to Toteng', origin: 'Kanye', destination: 'Toteng', active: true },
+    { id: 'default-23', name: 'Toteng to Kanye', origin: 'Toteng', destination: 'Kanye', active: true },
+    { id: 'default-24', name: 'Kanye to Maun', origin: 'Kanye', destination: 'Maun', active: true },
   ];
 
   // Fetch available routes on mount

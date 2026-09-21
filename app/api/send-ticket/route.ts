@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PrismaClient } from "@prisma/client";
 import TicketPdf from "@/email-templates/TicketPdf";
+import { getServiceTypeFromDepartureTime } from "@/lib/busRoutes";
 import React from "react";
 
 const prisma = new PrismaClient();
@@ -82,7 +83,9 @@ export async function POST(req: NextRequest) {
       route: booking.trip.routeName,
       date: booking.trip.departureDate,
       time: booking.trip.departureTime,
-      bus: booking.trip.serviceType,
+      bus: booking.trip.departureTime
+        ? getServiceTypeFromDepartureTime(booking.trip.departureTime)
+        : booking.trip.serviceType,
       boardingPoint: booking.boardingPoint || "Not specified",
       droppingPoint: booking.droppingPoint || "Not specified",
       seats: JSON.parse(booking.seats),
@@ -94,7 +97,9 @@ export async function POST(req: NextRequest) {
           route: booking.returnTrip.routeName,
           date: booking.returnTrip.departureDate,
           time: booking.returnTrip.departureTime,
-          bus: booking.returnTrip.serviceType,
+          bus: booking.returnTrip.departureTime
+            ? getServiceTypeFromDepartureTime(booking.returnTrip.departureTime)
+            : booking.returnTrip.serviceType,
           boardingPoint: booking.returnBoardingPoint || "Not specified",
           droppingPoint: booking.returnDroppingPoint || "Not specified",
           seats: booking.returnSeats ? JSON.parse(booking.returnSeats) : [],
