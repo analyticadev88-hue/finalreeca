@@ -114,23 +114,25 @@ export default function PaymentGateway({
   const initializeUnifiedCheckout = async (captureContext: string, orderId: string) => {
     try {
       const w = window as any;
-      const accept = await w.Accept(captureContext);
-      // false = embedded payment screen (not sidebar)
-      const up = await accept.unifiedPayments(false);
+      const accept = new w.Accept(captureContext);
+      const up = accept.unifiedPayments();
 
       setIsProcessing(false);
       setShowCheckout(true);
-      // Let the container become visible before the library measures it
+      // Let the containers become visible before the library measures them
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const tt = await up.show({
-        containers: { paymentScreen: '#unified-checkout-container' },
+        containers: {
+          paymentSelection: '#unified-checkout-buttons',
+          paymentScreen: '#unified-checkout-container',
+        },
       });
       const completeResponse = await up.complete(tt);
 
       await verifyPayment(completeResponse, orderId);
     } catch (err: any) {
-      console.error('Unified Checkout Error:', err);
+      console.error('Unified Checkout Error:', err?.reason, err?.message, err);
       setError('Payment was cancelled or could not be completed. Please try again.');
       setShowCheckout(false);
       setIsProcessing(false);
@@ -213,7 +215,13 @@ export default function PaymentGateway({
           </div>
         ) : null}
 
-        {/* This div is where Cybersource injects the Unified Checkout UI */}
+        {/* Cybersource renders the payment-method buttons here */}
+        <div
+          id="unified-checkout-buttons"
+          className={showCheckout ? 'block' : 'hidden'}
+        />
+
+        {/* Cybersource renders the embedded payment form here */}
         <div 
           id="unified-checkout-container" 
           ref={containerRef}
