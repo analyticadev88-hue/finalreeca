@@ -225,26 +225,18 @@ export default function BookingApp() {
 
   useEffect(() => {
     const fetchAuthStatus = () => {
-      fetch("/api/agent/me")
+      fetch("/api/auth/status")
         .then(async (res) => {
           if (res.ok) {
-            const agentData = await res.json();
-            setAgent(agentData);
-          } else {
-            setAgent(null);
+            const { agent: agentData, consultant: consultantData } = await res.json();
+            setAgent(agentData ?? null);
+            setConsultant(consultantData ?? null);
           }
         })
-        .catch(() => setAgent(null));
-      fetch("/api/consultant/me")
-        .then(async (res) => {
-          if (res.ok) {
-            const consultantData = await res.json();
-            setConsultant(consultantData);
-          } else {
-            setConsultant(null);
-          }
-        })
-        .catch(() => setConsultant(null));
+        .catch(() => {
+          setAgent(null);
+          setConsultant(null);
+        });
     };
     fetchAuthStatus();
     window.addEventListener("focus", fetchAuthStatus);

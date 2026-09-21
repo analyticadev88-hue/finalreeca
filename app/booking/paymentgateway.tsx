@@ -29,7 +29,7 @@ export interface BookingData {
   returnDroppingPoint?: string;
   discountAmount?: number;
   agentId?: string;
-  consultantId?: string; // <-- Add this line
+  consultantId?: string;
   addons?: any;
 }
 
@@ -48,91 +48,52 @@ export default function PaymentGateway({
 }: PaymentGatewayProps) {
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState('');
+  const [showCheckout, setShowCheckout] = useState(false);
   const isProcessingRef = useRef(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const createSession = async (paymentData: BookingData) => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
     try {
-      // Attempt to reserve seats optimistically for this orderId
-      try {
-        const seatsToReserve = paymentData.selectedSeats || paymentData.departureSeats || [];
-        const res = await fetch('/api/reserve-seat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripId: paymentData.tripId, seats: seatsToReserve, reservedBy: paymentData.orderId }),
-        });
-        if (res.status === 409) {
-          const err = await res.json();
-          const msg = err?.error || 'Selected seats are no longer available.';
-          setError(msg);
-          setIsProcessing(false);
-          isProcessingRef.current = false;
-          if (onReservationConflict) onReservationConflict(msg);
-          return;
-        }
-        if (!res.ok) {
-          const err = await res.json();
-          setError(err?.error || 'Failed to reserve seats. Please try again.');
-          setIsProcessing(false);
-          isProcessingRef.current = false;
-          return;
-        }
-      } catch (err) {
-        console.warn('Reservation call failed, proceeding without reservation', err);
-      }
+      // 1. Fetch Capture Context from backend
+      const response = await fetch('/api/create-capture-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentData),
+      });
 
-      // If payment mode is Reservation Paid (client already paid) or Cash (agent collected), skip DPO and mark as paid.
-      // Bank Deposit should NOT be treated as paid — it requires confirmation and possibly manual reconciliation.
-      if (paymentData.paymentMode === "Reservation Paid" || paymentData.paymentMode === "Cash") {
-        const response = await fetch('/api/create-dpo-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...paymentData, skipDPO: true }),
-        });
-        const data = await response.json();
-        if (data.success && data.orderId) {
-          // Redirect to the ticket page for download/print
-          window.location.href = `/ticket/${data.orderId}`;
-          return;
-        } else {
-          setError(data.error || 'Failed to create booking. Please try again.');
-          setIsProcessing(false);
-        }
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        setError(data.error || 'Failed to initialize checkout. Please try again.');
+        setIsProcessing(false);
+        isProcessingRef.current = false;
         return;
       }
 
-      // Prepare DPO request with all booking data, including both seat arrays
-      const requestData = {
-        ...paymentData,
-        departureSeats: paymentData.departureSeats,
-        returnSeats: paymentData.returnSeats,
-      };
+      const captureContext = data.captureContext;
+      const orderId = data.orderId;
 
-      // Call DPO session API
-      const response = await fetch('/api/create-dpo-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData),
-      });
-      const data = await response.json();
-      console.log('DPO payment API response:', data);
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setError(data.error || 'Failed to create DPO session. Please try again.');
-        // release reservation if API indicates failure
-        try {
-          await fetch('/api/release-reservation', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tripId: paymentData.tripId, reservedBy: paymentData.orderId }),
-          });
-        } catch (e) {
-          console.warn('Failed to release reservations after DPO failure', e);
-        }
+      // 2. Extract client library URL from capture context JWT
+      const payloadBase64 = captureContext.split('.')[1];
+      const payload = JSON.parse(atob(payloadBase64));
+      const clientLibraryUrl = payload.ctx[0].data.clientLibrary;
+
+      // 3. Dynamically inject the Unified Checkout script
+      const script = document.createElement('script');
+      script.src = clientLibraryUrl;
+      script.async = true;
+      script.onload = () => {
+        initializeUnifiedCheckout(captureContext, orderId);
+      };
+      script.onerror = () => {
+        setError('Failed to load payment gateway. Please check your connection.');
         setIsProcessing(false);
-      }
+      };
+      document.body.appendChild(script);
+
     } catch (err) {
       setError('An unexpected error occurred during payment processing');
       setIsProcessing(false);
@@ -142,31 +103,102 @@ export default function PaymentGateway({
     }
   };
 
+  const initializeUnifiedCheckout = (captureContext: string, orderId: string) => {
+    // Wait for the Accept function to be available on window
+    const timeout = setTimeout(() => {
+      clearInterval(checkInterval);
+      setError('Payment gateway timed out. Please try again.');
+      setIsProcessing(false);
+    }, 10000);
+
+    const checkInterval = setInterval(() => {
+      if ((window as any).Accept) {
+        clearInterval(checkInterval);
+        clearTimeout(timeout);
+
+        setIsProcessing(false);
+        setShowCheckout(true);
+
+        // Accept() is async — it returns a Promise resolving to the accept instance
+        (window as any).Accept(captureContext)
+          .then((accept: any) => {
+            // unifiedPayments() initialises the embedded payment form
+            return accept.unifiedPayments();
+          })
+          .then((up: any) => {
+            up.on('paymentComplete', (res: any) => {
+              console.log('Payment Completed:', res);
+              verifyPayment(res, orderId);
+            });
+
+            up.on('cancel', () => {
+              setError('Payment was cancelled.');
+              setShowCheckout(false);
+            });
+
+            up.on('error', (err: any) => {
+              console.error('Unified Checkout Error:', err);
+              setError('An error occurred with the payment form.');
+              setShowCheckout(false);
+            });
+          })
+          .catch((err: any) => {
+            console.error('Unified Checkout Setup Error:', err);
+            setError('Could not initialize payment gateway.');
+            setShowCheckout(false);
+          });
+      }
+    }, 100);
+  };
+
+  const verifyPayment = async (paymentResult: any, orderId: string) => {
+    setIsProcessing(true);
+    setShowCheckout(false);
+    try {
+      // In a full integration, you would send paymentResult to your backend
+      // to finalize the capture/authorization with the token.
+      // For now, assume webhook handles fulfillment or backend verifies.
+      
+      const res = await fetch('/api/unified-checkout-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          paymentResult,
+        }),
+      });
+
+      if (res.ok) {
+        window.location.href = `/payment/success?order_id=${orderId}`;
+      } else {
+        window.location.href = `/payment/failed?order_id=${orderId}`;
+      }
+    } catch (err) {
+      setError('Failed to verify payment.');
+      setIsProcessing(false);
+    }
+  };
+
   const debouncedCreateSession = useCallback(
     debounce(createSession, 1000),
     []
   );
 
   useEffect(() => {
-    // Log for debugging
-    console.log('Booking data passengers:', bookingData.passengers);
-    console.log('Departure passengers:', bookingData.passengers.filter(p => !p.isReturn));
-    console.log('Return passengers:', bookingData.passengers.filter(p => p.isReturn));
-    // Ensure both seat arrays are sent
     debouncedCreateSession(bookingData);
   }, [bookingData, debouncedCreateSession]);
 
   return (
     <div className="max-w-6xl mx-auto my-8 px-4">
-      <div className="p-6 max-w-md mx-auto bg-white rounded-lg">
-        {isProcessing ? (
+      <div className="p-6 max-w-md mx-auto bg-white rounded-lg shadow-sm border border-gray-100">
+        {isProcessing && !showCheckout ? (
           <div className="flex flex-col items-center justify-center py-8">
             <Loader2 className="w-12 h-12 text-teal-600 animate-spin mb-4" />
             <p className="text-lg font-medium text-gray-800">
-              Redirecting to payment gateway...
+              Initializing payment gateway...
             </p>
-            <p className="text-sm text-gray-600 mt-2">
-              Please wait while we connect to our secure payment processor
+            <p className="text-sm text-gray-600 mt-2 text-center">
+              Please wait while we securely connect.
             </p>
           </div>
         ) : error ? (
@@ -178,25 +210,30 @@ export default function PaymentGateway({
               <h3 className="text-xl font-bold mt-2">Payment Failed</h3>
             </div>
             <p className="text-gray-700 mb-2">{error}</p>
-            <p className="text-sm text-gray-600 mb-6">
-              Please try again or contact support if the problem persists
-            </p>
-            <div className="flex justify-center gap-3">
+            <div className="flex justify-center gap-3 mt-6">
               <button
                 onClick={() => setShowPayment(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
               >
                 Go Back
               </button>
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
+                className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors"
               >
                 Try Again
               </button>
             </div>
           </div>
         ) : null}
+
+        {/* This div is where Cybersource injects the Unified Checkout UI */}
+        <div 
+          id="unified-checkout-container" 
+          ref={containerRef}
+          className={showCheckout ? 'block min-h-[400px]' : 'hidden'}
+        />
+
       </div>
     </div>
   );

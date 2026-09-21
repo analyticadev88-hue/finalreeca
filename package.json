@@ -57,6 +57,7 @@
     "cmdk": "1.0.4",
     "cookie": "^1.0.2",
     "cookies-next": "^6.1.0",
+    "cybersource-rest-client": "^0.0.79",
     "date-fns": "latest",
     "docx": "^9.5.1",
     "embla-carousel-react": "8.5.1",

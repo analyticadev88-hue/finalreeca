@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     const tripIds = idsParam.split(',');
 
-    // Get all trips with their seat reservation counts
+    // Get all trips with their current seat availability
     const trips = await prisma.trip.findMany({
       where: {
         id: {
@@ -25,18 +25,15 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         totalSeats: true,
-        _count: {
-          select: {
-            seatReservations: true
-          }
-        }
+        availableSeats: true,
+        occupiedSeats: true,
       }
     });
 
-    // Calculate available seats for each trip
+    // Return available seats directly from the Trip record
     const result = trips.map(trip => ({
       id: trip.id,
-      availableSeats: Math.max(0, trip.totalSeats - trip._count.seatReservations)
+      availableSeats: Math.max(0, trip.availableSeats),
     }));
 
     return NextResponse.json(result, { status: 200 });

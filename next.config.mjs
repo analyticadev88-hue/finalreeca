@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ['cybersource-rest-client'],
 }
 
 export default nextConfig

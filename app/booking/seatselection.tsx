@@ -876,6 +876,7 @@ export default function SeatSelection({
                   width={80}
                   height={56}
                   className="object-contain"
+                  style={{ width: '100%', height: 'auto' }}
                   priority={true}
                 />
               </div>

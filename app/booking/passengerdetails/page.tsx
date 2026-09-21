@@ -667,12 +667,14 @@ export default function PassengerDetailsForm({
   };
 
   useEffect(() => {
-    fetch("/api/agent/me")
+    fetch("/api/auth/status")
       .then(async (res) => {
-        if (res.ok) {
-          const agentData = await res.json();
+        if (!res.ok) return;
+        const { agent: agentData, consultant: consultantData } = await res.json();
+
+        if (agentData) {
           setAgent(agentData);
-          if (agentData && agentData.name && agentData.email) {
+          if (agentData.name && agentData.email) {
             setContactDetails((prev) => ({
               ...prev,
               name: prev.name || agentData.name,
@@ -682,17 +684,10 @@ export default function PassengerDetailsForm({
         } else {
           setAgent(null);
         }
-      })
-      .catch(() => setAgent(null));
-  }, []);
 
-  useEffect(() => {
-    fetch("/api/consultant/me")
-      .then(async (res) => {
-        if (res.ok) {
-          const consultantData = await res.json();
+        if (consultantData) {
           setConsultant(consultantData);
-          if (consultantData && consultantData.name && consultantData.email) {
+          if (consultantData.name && consultantData.email) {
             setContactDetails((prev) => ({
               ...prev,
               name: prev.name || consultantData.name,
@@ -703,7 +698,10 @@ export default function PassengerDetailsForm({
           setConsultant(null);
         }
       })
-      .catch(() => setConsultant(null));
+      .catch(() => {
+        setAgent(null);
+        setConsultant(null);
+      });
   }, []);
 
   useEffect(() => {
