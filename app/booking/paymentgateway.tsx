@@ -55,6 +55,7 @@ export default function PaymentGateway({
   const sessionCreatedRef = useRef(false);
   const upRef = useRef<any>(null);
   const cancelRejectRef = useRef<((e: Error) => void) | null>(null);
+  const orderIdRef = useRef<string>('');
 
   const createSession = async (paymentData: BookingData) => {
     if (isProcessingRef.current || sessionCreatedRef.current) return;
@@ -80,6 +81,7 @@ export default function PaymentGateway({
 
       const captureContext = data.captureContext;
       const orderId = data.orderId;
+      orderIdRef.current = orderId;
 
       // 2. Extract client library URL from capture context JWT
       const payloadBase64 = captureContext.split('.')[1];
@@ -146,9 +148,22 @@ export default function PaymentGateway({
       } else {
         setError('Payment was cancelled or could not be completed. Please try again.');
       }
+      releasePayment(err?.message === 'CANCELLED_BY_USER' ? 'cancelled' : 'failed');
       setShowCheckout(false);
       setIsProcessing(false);
     }
+  };
+
+  // Tell the backend the payment did not go through so the held seats are
+  // released immediately instead of lingering until reservation expiry.
+  const releasePayment = (status: 'cancelled' | 'failed') => {
+    const orderId = orderIdRef.current || bookingData.orderId;
+    if (!orderId) return;
+    fetch('/api/unified-checkout-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, status }),
+    }).catch((err) => console.warn('Failed to release held seats:', err));
   };
 
   const handleConfirmCancel = () => {
@@ -166,6 +181,7 @@ export default function PaymentGateway({
       isProcessingRef.current = false;
       setIsProcessing(false);
       setError('You cancelled the payment.');
+      releasePayment('cancelled');
     }
   };
 
@@ -220,6 +236,7 @@ export default function PaymentGateway({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId,
+          status: 'success',
           paymentResult,
         }),
       });

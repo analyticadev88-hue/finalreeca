@@ -11,13 +11,12 @@ export async function POST(request: NextRequest) {
     // 2. OR if this is called from the frontend, verify the transaction status
     //    by querying Cybersource API using the transactionId from paymentResult.
     
-    const { orderId, paymentResult } = body;
+    const { orderId, paymentResult, status } = body;
 
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    // Mark the booking as paid
     const booking = await prisma.booking.findFirst({
       where: { orderId },
     });
@@ -26,27 +25,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    // Determine status from the result (for Unified Checkout, ACCEPT means success)
-    const isSuccess = paymentResult && paymentResult.status === 'AUTHORIZED'; 
-    // Note: status field may vary based on exact integration. Often 'AUTHORIZED' or 'COMPLETED'
-    
-    // For Sandbox testing, we'll mark as paid to satisfy test cases
-    await prisma.booking.update({
-      where: { id: booking.id },
-      data: {
-        paymentStatus: 'paid', // Update status
-        paymentMode: 'Cybersource', // Update mode
-      },
-    });
-
-    // Consume the seat reservations since payment is complete
+    // Release the held seats in every outcome: consumed by a paid booking,
+    // or no longer needed after a cancel/failure.
     try {
       await reservationService.deleteReservationsByReservedBy(booking.tripId, orderId);
     } catch (err: any) {
       console.warn('Failed to clean up seat reservations for order', orderId, err);
     }
 
-    return NextResponse.json({ success: true, message: 'Payment recorded successfully' });
+    const outcome = status || 'success';
+
+    if (outcome === 'success') {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          paymentStatus: 'paid',
+          paymentMode: 'Cybersource',
+        },
+      });
+      return NextResponse.json({ success: true, message: 'Payment recorded successfully' });
+    }
+
+    // Payment was cancelled or failed — mark it and keep the seats released.
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        paymentStatus: outcome === 'cancelled' ? 'cancelled' : 'failed',
+      },
+    });
+
+    return NextResponse.json({ success: true, message: `Payment ${outcome}; seats released` });
 
   } catch (error: any) {
     console.error('Webhook processing error:', error);
