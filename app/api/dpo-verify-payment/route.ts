@@ -31,6 +31,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
+    // Already-paid bookings (Cybersource, Stripe, manual) are confirmed —
+    // no need to re-verify against DPO.
+    if (booking.paymentStatus === 'paid') {
+      const confirmedBooking = await prisma.booking.findUnique({
+        where: { id: booking.id },
+        include: { passengers: true },
+      });
+      return NextResponse.json({
+        success: true,
+        orderId: booking.orderId,
+        paymentStatus: 'paid',
+        booking: confirmedBooking,
+      });
+    }
+
     // Use transactionToken for verification
     const token = transactionToken || booking.transactionToken;
     if (!token) {
