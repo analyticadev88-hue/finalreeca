@@ -295,7 +295,7 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
               {routeDatesLoaded && availableDepartureDates.size > 0 && (
                 <div className="px-3 pb-2 text-xs text-gray-500 flex items-center gap-1.5">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400" />
-                  Days with available trips — other days are disabled
+                  Days with available trips
                 </div>
               )}
             </PopoverContent>
