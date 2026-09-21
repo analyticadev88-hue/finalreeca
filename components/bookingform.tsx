@@ -33,6 +33,47 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
   const [totalSeats, setTotalSeats] = useState("1");
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loadingRoutes, setLoadingRoutes] = useState(true);
+  // Days that actually have trips for the selected route (YYYY-MM-DD keys)
+  const [availableDepartureDates, setAvailableDepartureDates] = useState<Set<string>>(new Set());
+  const [routeDatesLoaded, setRouteDatesLoaded] = useState(false);
+
+  // Fetch bookable dates for the selected route so the calendar can show
+  // which days have trips before the user searches.
+  useEffect(() => {
+    if (!fromLocation || !toLocation) {
+      setAvailableDepartureDates(new Set());
+      setRouteDatesLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    const loadDates = async () => {
+      try {
+        const res = await fetch(
+          `/api/trips/available-dates?from=${encodeURIComponent(fromLocation)}&to=${encodeURIComponent(toLocation)}`
+        );
+        const data = await res.json();
+        if (!cancelled) {
+          const dates = Array.isArray(data?.dates) ? data.dates : [];
+          setAvailableDepartureDates(new Set(dates));
+          setRouteDatesLoaded(true);
+          // Clear a previously picked date that has no trips on the new route
+          setDepartureDate((prev) => {
+            if (prev && dates.length > 0 && !dates.includes(format(prev, "yyyy-MM-dd"))) {
+              return undefined;
+            }
+            return prev;
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableDepartureDates(new Set());
+          setRouteDatesLoaded(false);
+        }
+      }
+    };
+    loadDates();
+    return () => { cancelled = true; };
+  }, [fromLocation, toLocation]);
 
   // Default hardcoded routes (always available)
   const defaultRoutes: Route[] = [
@@ -124,6 +165,17 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
     const today = getToday();
     const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     return checkDate < today;
+  };
+
+  const hasTripOnDate = (date: Date) => availableDepartureDates.has(format(date, "yyyy-MM-dd"));
+
+  const isDepartureDateDisabled = (date: Date) => {
+    if (isDateBeforeToday(date)) return true;
+    // Once the route's dates are known, only allow days that have trips —
+    // unless the route has no upcoming trips at all, in which case keep
+    // dates enabled so the search can still tell the user nothing was found.
+    if (routeDatesLoaded && availableDepartureDates.size > 0) return !hasTripOnDate(date);
+    return false;
   };
 
   const handleSearch = () => {
@@ -233,8 +285,19 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
                 selected={departureDate}
                 onSelect={setDepartureDate}
                 initialFocus
-                disabled={isDateBeforeToday}
+                disabled={isDepartureDateDisabled}
+                modifiers={{ hasTrip: hasTripOnDate }}
+                modifiersClassNames={{
+                  hasTrip:
+                    "relative after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-yellow-400",
+                }}
               />
+              {routeDatesLoaded && availableDepartureDates.size > 0 && (
+                <div className="px-3 pb-2 text-xs text-gray-500 flex items-center gap-1.5">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                  Days with available trips — other days are disabled
+                </div>
+              )}
             </PopoverContent>
           </Popover>
         </div>
