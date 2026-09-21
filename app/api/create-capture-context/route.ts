@@ -86,6 +86,8 @@ export async function POST(request: NextRequest) {
     captureContextRequest.clientVersion = '0.35';
     captureContextRequest.allowedPaymentTypes = ['PANENTRY'];
     captureContextRequest.allowedCardNetworks = ['VISA', 'MASTERCARD', 'AMEX', 'DISCOVER'];
+    // Required so up.complete() is allowed client-side; CAPTURE = authorize + capture
+    (captureContextRequest as any).completeMandate = { type: 'CAPTURE' };
     captureContextRequest.data = {
       orderInformation: {
         amountDetails: {
