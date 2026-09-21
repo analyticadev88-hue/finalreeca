@@ -114,8 +114,9 @@ export default function PaymentGateway({
   const initializeUnifiedCheckout = async (captureContext: string, orderId: string) => {
     try {
       const w = window as any;
-      const accept = new w.Accept(captureContext);
-      const up = accept.unifiedPayments();
+      // Accept is a factory returning a Promise (NOT a constructor in this build)
+      const accept = await w.Accept(captureContext);
+      const up = await accept.unifiedPayments();
 
       setIsProcessing(false);
       setShowCheckout(true);
