@@ -138,6 +138,28 @@ export default function PaymentGateway({
       });
       cancelRejectRef.current = null;
       const completeResponse = await up.complete(tt);
+      console.log('Cybersource complete response:', JSON.stringify(completeResponse));
+
+      // Only an explicit accept counts as paid. Declines, 3DS failures and
+      // errors also resolve complete() — they must NOT be treated as success.
+      const status = String(completeResponse?.status || completeResponse?.decision || '').toUpperCase();
+      const acceptedStatuses = ['AUTHORIZED', 'COMPLETED', 'CAPTURED', 'ACCEPT', 'ACCEPTED'];
+      const isAccepted = acceptedStatuses.includes(status) && !completeResponse?.errorInformation;
+
+      if (!isAccepted) {
+        const reason =
+          completeResponse?.errorInformation?.reason ||
+          completeResponse?.reason ||
+          completeResponse?.reasonCode ||
+          status ||
+          'DECLINED';
+        console.error('Payment declined by Cybersource:', status, reason);
+        releasePayment('failed');
+        setError(`Your payment was declined (${reason}). No money was taken — please try a different card or contact support.`);
+        setShowCheckout(false);
+        setIsProcessing(false);
+        return;
+      }
 
       await verifyPayment(completeResponse, orderId);
     } catch (err: any) {
