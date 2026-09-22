@@ -2248,8 +2248,6 @@ export default function PassengerDetailsForm({
                   {(() => {
                     const canonical = [
                       { value: 'Credit Card', label: 'Pay online (credit/debit card)' },
-                      { value: 'Bank Deposit', label: 'Book Now Pay Later' },
-                      { value: 'Swipe in Person', label: 'Swipe onboard (limited)' },
                       // Consultant-only options
                       { value: 'Cash', label: 'Paid Cash (In Person)' },
                       { value: 'Free Voucher', label: 'Free Voucher (Request Auth)' },
@@ -2292,10 +2290,6 @@ export default function PassengerDetailsForm({
             </div>
             {paymentMode === 'Credit Card' && (
               <p className="mt-2 text-sm text-teal-700 font-medium">✓ Guaranteed seat — your booking is confirmed immediately upon payment.</p>
-            )}
-
-            {paymentMode === 'Swipe in Person' && (
-              <p className="mt-2 text-sm text-teal-700 font-medium">⚠️ Limited availability — only available if seats are still open at boarding time. Not guaranteed.</p>
             )}
           </div>
 
