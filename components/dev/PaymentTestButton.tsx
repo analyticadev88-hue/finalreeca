@@ -3,8 +3,8 @@
 import { useRef, useState } from 'react';
 import { Loader2, FlaskConical } from 'lucide-react';
 
-// DEV-ONLY Cybersource payment tester. Visible only when the deployment has
-// NEXT_PUBLIC_ENABLE_PAYMENT_TEST=true — never set that in production.
+// DEV-ONLY Cybersource payment tester.
+// ⚠️ DEV BRANCH ONLY — must NOT be merged to main/production.
 const SCENARIOS = [
   { label: 'ACCEPT (1000.00)', amount: '1000.00', hint: 'Expect ACCEPT / 100' },
   { label: 'System failure (4006.00)', amount: '4006.00', hint: 'Expect ERROR/DECLINE 150/233' },
@@ -23,8 +23,6 @@ export default function PaymentTestButton() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const scriptLoadedRef = useRef(false);
-
-  if (process.env.NEXT_PUBLIC_ENABLE_PAYMENT_TEST !== 'true') return null;
 
   const runTest = async () => {
     setBusy(true);

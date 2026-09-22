@@ -3,12 +3,9 @@ import cybersourceRestApi from 'cybersource-rest-client';
 
 // DEV-ONLY payment test endpoint. Generates a capture context WITHOUT creating
 // a booking or holding seats, so certification scenarios can be triggered
-// directly. Inert unless NEXT_PUBLIC_ENABLE_PAYMENT_TEST === 'true'.
+// directly.
+// ⚠️ DEV BRANCH ONLY — must NOT be merged to main/production.
 export async function POST(request: NextRequest) {
-  if (process.env.NEXT_PUBLIC_ENABLE_PAYMENT_TEST !== 'true') {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-
   try {
     const body = await request.json().catch(() => ({}));
     const amount = Number(body?.amount);
