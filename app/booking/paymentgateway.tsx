@@ -49,6 +49,7 @@ export default function PaymentGateway({
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const isProcessingRef = useRef(false);
 
@@ -115,6 +116,21 @@ export default function PaymentGateway({
     }
   };
 
+  // up.complete() resolves with a JWT STRING (header.payload.signature), not a
+  // parsed object — decode it before inspecting status/reason.
+  const decodeCompleteResult = (result: any): any => {
+    if (typeof result !== 'string') return result;
+    const parts = result.split('.');
+    if (parts.length !== 3) return result;
+    try {
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      return JSON.parse(atob(padded));
+    } catch {
+      return result;
+    }
+  };
+
   const initializeUnifiedCheckout = async (captureContext: string, orderId: string) => {
     try {
       const w = window as any;
@@ -137,24 +153,32 @@ export default function PaymentGateway({
         }).then(resolve).catch(reject);
       });
       cancelRejectRef.current = null;
-      const completeResponse = await up.complete(tt);
+      setPaymentProcessing(true);
+      const completeResponse = decodeCompleteResult(await up.complete(tt));
       console.log('Cybersource complete response:', JSON.stringify(completeResponse));
 
       // Only an explicit accept counts as paid. Declines, 3DS failures and
       // errors also resolve complete() — they must NOT be treated as success.
-      const status = String(completeResponse?.status || completeResponse?.decision || '').toUpperCase();
+      const status = String(completeResponse?.status || completeResponse?.outcome || completeResponse?.decision || '').toUpperCase();
       const acceptedStatuses = ['AUTHORIZED', 'COMPLETED', 'CAPTURED', 'ACCEPT', 'ACCEPTED'];
-      const isAccepted = acceptedStatuses.includes(status) && !completeResponse?.errorInformation;
+      const errorInfo = completeResponse?.details?.errorInformation;
+      const isAccepted = acceptedStatuses.includes(status) && !errorInfo;
 
       if (!isAccepted) {
         const reason =
-          completeResponse?.errorInformation?.reason ||
+          errorInfo?.reason ||
+          completeResponse?.message ||
           completeResponse?.reason ||
           completeResponse?.reasonCode ||
           status ||
           'DECLINED';
         console.error('Payment declined by Cybersource:', status, reason);
+        // Dismiss the Cybersource sidebar overlay so the decline message
+        // underneath is actually visible.
+        try { upRef.current?.hide?.(); } catch {}
+        try { upRef.current?.dispose?.(); } catch {}
         releasePayment('failed');
+        setPaymentProcessing(false);
         setError(`Your payment was declined (${reason}). No money was taken — please try a different card or contact support.`);
         setShowCheckout(false);
         setIsProcessing(false);
@@ -171,6 +195,7 @@ export default function PaymentGateway({
         setError('Payment was cancelled or could not be completed. Please try again.');
       }
       releasePayment(err?.message === 'CANCELLED_BY_USER' ? 'cancelled' : 'failed');
+      setPaymentProcessing(false);
       setShowCheckout(false);
       setIsProcessing(false);
     }
@@ -286,7 +311,17 @@ export default function PaymentGateway({
   return (
     <div className="max-w-6xl mx-auto my-8 px-4">
       <div className="p-6 max-w-md mx-auto bg-white rounded-lg shadow-sm border border-gray-100">
-        {isProcessing && !showCheckout ? (
+        {paymentProcessing ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <Loader2 className="w-12 h-12 text-teal-600 animate-spin mb-4" />
+            <p className="text-lg font-medium text-gray-800">
+              Processing your payment...
+            </p>
+            <p className="text-sm text-gray-600 mt-2 text-center">
+              Please do not close this window.
+            </p>
+          </div>
+        ) : isProcessing && !showCheckout ? (
           <div className="flex flex-col items-center justify-center py-8">
             <Loader2 className="w-12 h-12 text-teal-600 animate-spin mb-4" />
             <p className="text-lg font-medium text-gray-800">

@@ -53,16 +53,31 @@ export default function PaymentTestButton() {
             const tt = await up.show({
               containers: { paymentSelection: '#dev-test-buttons' },
             });
-            const completeResponse = await up.complete(tt);
+            const raw = await up.complete(tt);
+            // complete() resolves with a JWT string — decode before reading status.
+            const decode = (r: any) => {
+              if (typeof r !== 'string') return r;
+              const p = r.split('.');
+              if (p.length !== 3) return r;
+              try {
+                const b = p[1].replace(/-/g, '+').replace(/_/g, '/');
+                return JSON.parse(atob(b + '='.repeat((4 - (b.length % 4)) % 4)));
+              } catch { return r; }
+            };
+            const completeResponse = decode(raw);
             console.log('DEV TEST complete response:', JSON.stringify(completeResponse));
 
-            const status = String(completeResponse?.status || completeResponse?.decision || '').toUpperCase();
+            const status = String(completeResponse?.status || completeResponse?.outcome || completeResponse?.decision || '').toUpperCase();
+            const details = completeResponse?.details || {};
             const reason =
-              completeResponse?.errorInformation?.reason ||
+              details?.errorInformation?.reason ||
+              completeResponse?.message ||
               completeResponse?.reason ||
               completeResponse?.reasonCode ||
               status;
-            setResult(`COMPLETE — status: ${status || 'unknown'} | reason: ${reason}\n(full JSON logged to console)`);
+            const txnId = details?.processorInformation?.transactionId || '';
+            const rc = details?.processorInformation?.responseCode || '';
+            setResult(`COMPLETE — status: ${status || 'unknown'} | reason: ${reason}\ntxn: ${txnId} | responseCode: ${rc}\n(full JSON logged to console)`);
           } catch (err: any) {
             console.log('DEV TEST complete response:', JSON.stringify(err));
             setResult(`FAILED — ${err?.reason || ''} ${err?.message || String(err)}`);
