@@ -4,6 +4,7 @@ import BookingApp from "./bookingapp";
 import ComingSoon from "@/components/coming-soon";
 
 import WhatsAppButton from "@/components/WhatsAppButton";
+import PaymentTestButton from "@/components/dev/PaymentTestButton";
 
 // ⚡ SIMPLE TOGGLE - Change this to false when ready to launch
 const SHOW_COMING_SOON = false;
@@ -13,6 +14,7 @@ export default function App() {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       {SHOW_COMING_SOON ? <ComingSoon /> : <BookingApp />}
       <WhatsAppButton />
+      <PaymentTestButton />
     </ThemeProvider>
   );
 }
