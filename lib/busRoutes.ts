@@ -7,6 +7,8 @@ export type RouteDescriptor = {
   display: string;
 };
 
+import { isCorridorRoute } from './tripParent';
+
 export function getServiceTypeFromDepartureTime(departureTime: string): string {
   const time = (departureTime || '00:00').trim();
   const [hourText] = time.split(':');
@@ -16,6 +18,24 @@ export function getServiceTypeFromDepartureTime(departureTime: string): string {
   if (hour < 12) return 'Morning Bus';
   if (hour < 17) return 'Afternoon Bus';
   return 'Night Bus';
+}
+
+/**
+ * Label a trip for display. The Gaborone ↔ Maun corridor runs a single night
+ * bus per direction — even segment trips that board just after midnight
+ * (e.g. Kang 00:00) are part of that night run, so time-of-day derivation
+ * alone would mislabel them "Morning Bus".
+ */
+export function resolveDisplayServiceType(trip: {
+  departureTime?: string;
+  serviceType?: string;
+  routeOrigin?: string;
+  routeDestination?: string;
+}): string {
+  if (trip.routeOrigin && trip.routeDestination && isCorridorRoute(trip.routeOrigin, trip.routeDestination)) {
+    return 'Night Bus';
+  }
+  return getServiceTypeFromDepartureTime(trip.departureTime || trip.serviceType || '00:00');
 }
 
 const BUS_TIME_MAP: Record<string, Array<{ departureTime: string; origin: string; destination: string }>> = {

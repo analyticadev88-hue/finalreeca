@@ -50,6 +50,7 @@ async function main() {
       departureDate: true,
       departureTime: true,
       parentTripId: true,
+      serviceType: true,
     },
   });
 
@@ -85,6 +86,19 @@ async function main() {
   let alreadyLinked = 0;
   let missingParent = 0;
   let conflicts = 0;
+  let serviceTypeFixed = 0;
+
+  // Corridor trips are all one night run per direction — fix any that were
+  // stored with a time-derived label (e.g. "Morning Bus" for 00:00 departures)
+  for (const t of trips) {
+    if (directionFor(t.routeOrigin, t.routeDestination) && t.serviceType !== 'Night Bus') {
+      console.log(`[SERVICE TYPE] ${dayKey(t.departureDate)} ${t.routeOrigin} → ${t.routeDestination}: "${t.serviceType}" → "Night Bus"`);
+      if (APPLY) {
+        await prisma.trip.update({ where: { id: t.id }, data: { serviceType: 'Night Bus' } });
+      }
+      serviceTypeFixed++;
+    }
+  }
 
   for (const [key, group] of [...groups.entries()].sort()) {
     const parentOrigin = key.endsWith('|north') ? 'Gaborone' : 'Maun';
@@ -156,8 +170,8 @@ async function main() {
   }
   if (conflicts === 0) console.log('None.');
 
-  console.log(`\nSummary: ${groups.size} bus-day groups | ${linked} trips to link (${alreadyLinked} already linked, ${missingParent} missing parent) | ${conflicts} seat conflicts`);
-  if (!APPLY && linked > 0) console.log('\nDRY-RUN — re-run with --apply to write the links.');
+  console.log(`\nSummary: ${groups.size} bus-day groups | ${linked} trips to link (${alreadyLinked} already linked, ${missingParent} missing parent) | ${serviceTypeFixed} serviceType labels to fix | ${conflicts} seat conflicts`);
+  if (!APPLY && (linked > 0 || serviceTypeFixed > 0)) console.log('\nDRY-RUN — re-run with --apply to write the changes.');
 }
 
 main()

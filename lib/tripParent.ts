@@ -48,7 +48,7 @@ export const SOUTH_STOPS = [
   'Thamaga', 'Kumakwane', 'Gaborone',
 ] as const;
 
-const ALL_CORRIDOR_STOPS = new Set<string>([...NORTH_STOPS, ...SOUTH_STOPS]);
+const ALL_CORRIDOR_STOPS = new Set<string>([...NORTH_STOPS, ...SOUTH_STOPS].map(s => s.toLowerCase()));
 
 export type CorridorDirection = 'north' | 'south';
 
@@ -68,7 +68,14 @@ export function corridorDirectionFor(origin: string, destination: string): Corri
 }
 
 export function isCorridorStop(stop: string): boolean {
-  return ALL_CORRIDOR_STOPS.has(stop);
+  return ALL_CORRIDOR_STOPS.has(stop.trim().toLowerCase());
+}
+
+/**
+ * True when both endpoints are on the Gaborone ↔ Maun corridor (any direction).
+ */
+export function isCorridorRoute(origin: string, destination: string): boolean {
+  return corridorDirectionFor(origin, destination) !== null;
 }
 
 /**

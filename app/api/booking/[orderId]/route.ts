@@ -1,6 +1,7 @@
 // app/api/booking/[orderId]/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { resolveDisplayServiceType } from '@/lib/busRoutes';
 
 const prisma = new PrismaClient();
 
@@ -77,7 +78,14 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
       route: booking.trip?.routeName || "Unknown Route",
       date: booking.trip?.departureDate || new Date().toISOString(),
       time: booking.trip?.departureTime || "00:00",
-      bus: booking.trip?.serviceType || "Standard Bus",
+      bus: booking.trip
+        ? resolveDisplayServiceType({
+            departureTime: booking.trip.departureTime,
+            serviceType: booking.trip.serviceType,
+            routeOrigin: booking.trip.routeOrigin,
+            routeDestination: booking.trip.routeDestination,
+          })
+        : "Standard Bus",
       boardingPoint: booking.boardingPoint,
       droppingPoint: booking.droppingPoint,
       seats: departureSeats,
@@ -88,7 +96,14 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
       route: booking.returnTrip?.routeName || "Unknown Route",
       date: booking.returnTrip?.departureDate || new Date().toISOString(),
       time: booking.returnTrip?.departureTime || "00:00",
-      bus: booking.returnTrip?.serviceType || "Standard Bus",
+      bus: booking.returnTrip
+        ? resolveDisplayServiceType({
+            departureTime: booking.returnTrip.departureTime,
+            serviceType: booking.returnTrip.serviceType,
+            routeOrigin: booking.returnTrip.routeOrigin,
+            routeDestination: booking.returnTrip.routeDestination,
+          })
+        : "Standard Bus",
       boardingPoint: booking.returnBoardingPoint,
       droppingPoint: booking.returnDroppingPoint,
       seats: returnSeats,

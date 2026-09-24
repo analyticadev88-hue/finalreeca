@@ -3,7 +3,7 @@ import { requireAdminAuth } from '@/lib/adminAuth';
 import { prisma } from '@/lib/prisma';
 import { enrichTripsWithAvailability } from '@/lib/tripAvailability';
 import { getServiceTypeFromDepartureTime } from '@/lib/busRoutes';
-import { findCorridorParentTripId, isCorridorStop } from '@/lib/tripParent';
+import { findCorridorParentTripId, isCorridorRoute, isCorridorStop } from '@/lib/tripParent';
 
 function isValidDate(date: any): date is Date | string {
   return date && !isNaN(new Date(date).getTime());
@@ -227,6 +227,12 @@ export async function POST(request: NextRequest) {
       departureDate: new Date(data.departureDate),
       parentTripId: data.parentTripId && data.parentTripId.trim() ? data.parentTripId : null,
     };
+
+    // The corridor is a single night run per direction — segment trips boarding
+    // after midnight must not be stored as "Morning Bus".
+    if (isCorridorRoute(tripData.routeOrigin, tripData.routeDestination)) {
+      tripData.serviceType = 'Night Bus';
+    }
 
     // Auto-link corridor segment trips to the same-date full-route parent so
     // every trip row of a physical bus shares one seat inventory.

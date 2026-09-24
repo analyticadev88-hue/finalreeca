@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Loader2, Bus, UserPlus, X, Users, Clock, MapPin } from "lucide-react";
 import { SearchData } from "@/lib/types";
-import { getServiceTypeFromDepartureTime } from "@/lib/busRoutes";
+import { resolveDisplayServiceType } from "@/lib/busRoutes";
 import Image from "next/image";
 
 interface Seat {
@@ -560,7 +560,7 @@ export default function SeatSelection({
     pricePerSeat = selectedBus.promoPrice || pricePerSeat;
   }
   const totalPrice = pricePerSeat * selectedSeats.length;
-  const resolvedServiceType = getServiceTypeFromDepartureTime(selectedBus.departureTime || selectedBus.serviceType || '00:00');
+  const resolvedServiceType = resolveDisplayServiceType(selectedBus);
   const displayServiceType = resolvedServiceType || selectedBus.serviceType || 'Standard';
   const isMorning = resolvedServiceType === 'Morning Bus';
   const isNightBus = resolvedServiceType === 'Night Bus';
