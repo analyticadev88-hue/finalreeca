@@ -60,10 +60,14 @@ async function main() {
   function directionFor(originRaw, destRaw) {
     const origin = canon(originRaw);
     const destination = canon(destRaw);
-    const onNorth = NORTH.includes(origin) && NORTH.includes(destination);
-    const onSouth = SOUTH.includes(origin) && SOUTH.includes(destination);
-    if (onNorth && !onSouth) return 'north';
-    if (onSouth && !onNorth) return 'south';
+    // Most corridor stops appear on BOTH lists, so membership alone is
+    // ambiguous — direction is determined by stop ORDER.
+    const nO = NORTH.indexOf(origin);
+    const nD = NORTH.indexOf(destination);
+    const sO = SOUTH.indexOf(origin);
+    const sD = SOUTH.indexOf(destination);
+    if (nO !== -1 && nD !== -1 && nO < nD) return 'north';
+    if (sO !== -1 && sD !== -1 && sO < sD) return 'south';
     return null;
   }
 

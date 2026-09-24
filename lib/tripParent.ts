@@ -53,13 +53,17 @@ const ALL_CORRIDOR_STOPS = new Set<string>([...NORTH_STOPS, ...SOUTH_STOPS]);
 export type CorridorDirection = 'north' | 'south';
 
 export function corridorDirectionFor(origin: string, destination: string): CorridorDirection | null {
-  const onNorth = (NORTH_STOPS as readonly string[]).includes(origin) && (NORTH_STOPS as readonly string[]).includes(destination);
-  const onSouth = (SOUTH_STOPS as readonly string[]).includes(origin) && (SOUTH_STOPS as readonly string[]).includes(destination);
-  // A stop pair can only be on one list for a valid journey
-  if (onNorth && !onSouth) return 'north';
-  if (onSouth && !onNorth) return 'south';
-  // Ambiguous or off-corridor pairs (incl. the full route, which exists on both
-  // lists) — the caller decides (full-route trips are parents, not children)
+  const norm = (s: string) => (s || '').trim().toLowerCase();
+  const o = norm(origin);
+  const d = norm(destination);
+  const nO = (NORTH_STOPS as readonly string[]).map(norm).indexOf(o);
+  const nD = (NORTH_STOPS as readonly string[]).map(norm).indexOf(d);
+  const sO = (SOUTH_STOPS as readonly string[]).map(norm).indexOf(o);
+  const sD = (SOUTH_STOPS as readonly string[]).map(norm).indexOf(d);
+  // Most corridor stops appear on BOTH lists, so membership alone is
+  // ambiguous — direction is determined by stop ORDER.
+  if (nO !== -1 && nD !== -1 && nO < nD) return 'north';
+  if (sO !== -1 && sD !== -1 && sO < sD) return 'south';
   return null;
 }
 
