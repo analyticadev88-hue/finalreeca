@@ -3,6 +3,7 @@ import { requireAdminAuth } from '@/lib/adminAuth';
 import { prisma } from '@/lib/prisma';
 import { enrichTripsWithAvailability } from '@/lib/tripAvailability';
 import { getServiceTypeFromDepartureTime } from '@/lib/busRoutes';
+import { findCorridorParentTripId, isCorridorStop } from '@/lib/tripParent';
 
 function isValidDate(date: any): date is Date | string {
   return date && !isNaN(new Date(date).getTime());
@@ -226,6 +227,28 @@ export async function POST(request: NextRequest) {
       departureDate: new Date(data.departureDate),
       parentTripId: data.parentTripId && data.parentTripId.trim() ? data.parentTripId : null,
     };
+
+    // Auto-link corridor segment trips to the same-date full-route parent so
+    // every trip row of a physical bus shares one seat inventory.
+    const isFullCorridorRoute =
+      (tripData.routeOrigin === 'Gaborone' && tripData.routeDestination === 'Maun') ||
+      (tripData.routeOrigin === 'Maun' && tripData.routeDestination === 'Gaborone');
+    if (!tripData.parentTripId && !isFullCorridorRoute &&
+        isCorridorStop(tripData.routeOrigin) && isCorridorStop(tripData.routeDestination)) {
+      const parentId = await findCorridorParentTripId(prisma, {
+        routeOrigin: tripData.routeOrigin,
+        routeDestination: tripData.routeDestination,
+        departureDate: tripData.departureDate,
+      });
+      if (parentId) {
+        tripData.parentTripId = parentId;
+      } else {
+        console.warn(
+          `No corridor parent trip found for ${tripData.routeOrigin} → ${tripData.routeDestination} on ${tripData.departureDate}; ` +
+          `create the Gaborone ↔ Maun full-route trip first, then re-run scripts/link-corridor-trips.js`
+        );
+      }
+    }
 
     // Duplicate guard
     const existing = await prisma.trip.findFirst({

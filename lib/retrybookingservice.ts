@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { deduplicateRequest } from '@/utils/requestDeduplication';
+import { assertSeatsFree, markSeatsOccupied } from '@/lib/tripParent';
 
 export async function createBookingWithRetry(data: any, maxRetries = 3) {
   const orderId = data.orderId;
@@ -204,12 +205,23 @@ export async function createBookingWithRetry(data: any, maxRetries = 3) {
 
           let validConsultantId = null;
           if (data.consultantId && typeof data.consultantId === 'string' && data.consultantId.length > 0) {
-            const consultantExists = await tx.consultant.findUnique({ 
-              where: { id: data.consultantId } 
+            const consultantExists = await tx.consultant.findUnique({
+              where: { id: data.consultantId }
             });
             if (consultantExists) {
               validConsultantId = data.consultantId;
             }
+          }
+
+          // Cross-trip seat guard: all trips sharing this bus (via parentTripId)
+          // draw from one inventory. Lock the seat source and reject any seat
+          // already sold or held — the per-trip Passenger unique key alone
+          // cannot catch bookings made on sibling trip rows.
+          if (departureSeats.length > 0) {
+            await assertSeatsFree(tx, data.tripId, departureSeats, { excludeReservedBy: orderId });
+          }
+          if (returnSeats.length > 0 && data.returnTripId) {
+            await assertSeatsFree(tx, data.returnTripId, returnSeats, { excludeReservedBy: orderId });
           }
 
           // CRITICAL: Ensure addons are stored in proper array format with quantities
@@ -293,35 +305,13 @@ export async function createBookingWithRetry(data: any, maxRetries = 3) {
           }
 
           if (departureSeats.length > 0) {
-            const existingTrip = await tx.trip.findUnique({ where: { id: data.tripId } });
-            const seatSourceId = existingTrip?.parentTripId || data.tripId;
-            const seatSource = await tx.trip.findUnique({ where: { id: seatSourceId } });
-            const currentOccupied = JSON.parse(seatSource?.occupiedSeats || '[]');
-            const newOccupied = Array.from(new Set([...currentOccupied, ...departureSeats]));
-            await tx.trip.update({
-              where: { id: seatSourceId },
-              data: {
-                occupiedSeats: JSON.stringify(newOccupied),
-                availableSeats: (seatSource?.totalSeats || 0) - newOccupied.length - (seatSource?.tempLockedSeats ? seatSource.tempLockedSeats.split(',').filter(Boolean).length : 0)
-              }
-            });
-            console.log(`[${orderId}] ✓ Updated departure trip (${seatSourceId}): ${newOccupied.length} occupied seats`);
+            await markSeatsOccupied(tx, data.tripId, departureSeats);
+            console.log(`[${orderId}] ✓ Marked departure seats occupied on seat source for trip ${data.tripId}`);
           }
 
           if (returnSeats.length > 0 && data.returnTripId) {
-            const returnTrip = await tx.trip.findUnique({ where: { id: data.returnTripId } });
-            const seatSourceId = returnTrip?.parentTripId || data.returnTripId;
-            const seatSource = await tx.trip.findUnique({ where: { id: seatSourceId } });
-            const currentOccupied = JSON.parse(seatSource?.occupiedSeats || '[]');
-            const newOccupied = Array.from(new Set([...currentOccupied, ...returnSeats]));
-            await tx.trip.update({
-              where: { id: seatSourceId },
-              data: {
-                occupiedSeats: JSON.stringify(newOccupied),
-                availableSeats: (seatSource?.totalSeats || 0) - newOccupied.length - (seatSource?.tempLockedSeats ? seatSource.tempLockedSeats.split(',').filter(Boolean).length : 0)
-              }
-            });
-            console.log(`[${orderId}] ✓ Updated return trip (${seatSourceId}): ${newOccupied.length} occupied seats`);
+            await markSeatsOccupied(tx, data.returnTripId, returnSeats);
+            console.log(`[${orderId}] ✓ Marked return seats occupied on seat source for trip ${data.returnTripId}`);
           }
 
           if (reservationLinkRecord) {

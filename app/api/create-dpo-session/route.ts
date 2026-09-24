@@ -4,6 +4,7 @@ import { createBookingWithRetry } from '@/lib/retrybookingservice';
 import { createToken } from '@/lib/dpoService';
 import { prisma } from '@/lib/prisma';
 import * as reservationService from '@/lib/reservationService';
+import { resolveSeatSourceTripId } from '@/lib/tripParent';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 
@@ -92,7 +93,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, orderId });
     }
 
-    // Reserve seats optimistically to reduce race conditions (10 minute expiry)
+    // Reserve seats optimistically to reduce race conditions (10 minute expiry).
+    // Reservations MUST live on the seat source (parent trip) so the unique
+    // (tripId, seatNumber) key blocks holds across all trips of the same bus.
+    const seatSourceId = await resolveSeatSourceTripId(tripId);
     try {
       const seatsArray = Array.isArray(selectedSeats)
         ? selectedSeats.map((s: any) => (typeof s === 'object' ? s?.seatNumber ?? s : s))
@@ -100,7 +104,7 @@ export async function POST(request: NextRequest) {
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
       for (const seat of seatsArray) {
         try {
-          await reservationService.createReservation({ tripId, seatNumber: String(seat), reservedBy: orderId, expiresAt });
+          await reservationService.createReservation({ tripId: seatSourceId, seatNumber: String(seat), reservedBy: orderId, expiresAt });
         } catch (err: any) {
           if (err?.code === 'P2002' || /unique/i.test(err?.message || '')) {
             return NextResponse.json({ error: `Seat ${seat} is no longer available. Please refresh and try again.` }, { status: 409 });
@@ -119,8 +123,8 @@ export async function POST(request: NextRequest) {
       booking = await createBookingWithRetry(bookingData);
     } catch (err: any) {
       console.error('DPO create booking error:', err);
-      if (err?.type === 'UniqueConstraint') {
-        return NextResponse.json({ error: 'One or more seats are already booked for this trip. Please review your seats and try again.' }, { status: 409 });
+      if (err?.type === 'UniqueConstraint' || err?.code === 'SEATS_UNAVAILABLE') {
+        return NextResponse.json({ error: err?.seats ? `Seat(s) ${err.seats.join(', ')} are already booked on this bus. Please review your seats and try again.` : 'One or more seats are already booked for this trip. Please review your seats and try again.' }, { status: 409 });
       }
       if (err?.message === 'INVALID_RESERVATION_TOKEN' || err?.message === 'RESERVATION_TOKEN_TRIP_MISMATCH') {
         return NextResponse.json({ error: 'Invalid reservation token.' }, { status: 400 });
@@ -164,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     // Consume / remove reservations for this order (they are now booked)
     try {
-      await reservationService.deleteReservationsByReservedBy(tripId, orderId);
+      await reservationService.deleteReservationsByReservedBy(seatSourceId, orderId);
     } catch (err: any) {
       console.warn('Failed to clean up seat reservations for order', orderId, err);
     }

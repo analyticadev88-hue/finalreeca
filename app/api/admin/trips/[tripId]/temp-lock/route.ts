@@ -18,16 +18,26 @@ export async function POST(
       return NextResponse.json({ error: "Trip not found" }, { status: 404 });
     }
 
+    // Temp locks block seats for the whole physical bus — write them to the
+    // seat source (parent trip) so every trip row of the bus honours them.
+    const seatSourceId = trip.parentTripId || trip.id;
+    const seatSource = seatSourceId !== tripId
+      ? await prisma.trip.findUnique({ where: { id: seatSourceId } })
+      : trip;
+    if (!seatSource) {
+      return NextResponse.json({ error: "Seat source trip not found" }, { status: 404 });
+    }
+
     const tempLockedSeats = seats.join(",");
-    
+
     // Recalculate available seats: totalSeats - bookedSeats - lockedSeats
-    const bookedSeats = trip.occupiedSeats ? JSON.parse(trip.occupiedSeats).length : 0;
+    const bookedSeats = seatSource.occupiedSeats ? JSON.parse(seatSource.occupiedSeats).length : 0;
     const lockedSeatsCount = seats.length;
-    const newAvailableSeats = Math.max(0, trip.totalSeats - bookedSeats - lockedSeatsCount);
+    const newAvailableSeats = Math.max(0, seatSource.totalSeats - bookedSeats - lockedSeatsCount);
 
     const updatedTrip = await prisma.trip.update({
-      where: { id: tripId },
-      data: { 
+      where: { id: seatSourceId },
+      data: {
         tempLockedSeats,
         availableSeats: newAvailableSeats
       },

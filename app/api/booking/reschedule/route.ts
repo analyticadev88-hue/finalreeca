@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { assertSeatsFree } from "@/lib/tripParent";
 
 function parseSeats(seatsStr: string | null): string[] {
   if (!seatsStr) return [];
@@ -89,25 +90,23 @@ export async function POST(req: NextRequest) {
         const newTrip = await tx.trip.findUnique({ where: { id: newTripId } });
         if (!newTrip) throw new Error("Selected departure trip not found");
 
-        const occupied = parseSeats(newTrip.occupiedSeats);
-        const tempLocked = newTrip.tempLockedSeats
-          ? newTrip.tempLockedSeats.split(",").map((s) => s.trim()).filter(Boolean)
+        // Validate admin-selected seats against the shared bus inventory
+        // (seat source = parent trip when the new trip is a segment child)
+        await assertSeatsFree(tx, newTripId, newDepartureSeats);
+        const newSeatSourceId = newTrip.parentTripId || newTrip.id;
+
+        // Add new seats to the seat source
+        const newSeatSource = await tx.trip.findUnique({ where: { id: newSeatSourceId } });
+        const occupied = parseSeats(newSeatSource?.occupiedSeats || "[]");
+        const tempLocked = newSeatSource?.tempLockedSeats
+          ? newSeatSource.tempLockedSeats.split(",").map((s) => s.trim()).filter(Boolean)
           : [];
-        const blocked = Array.from(new Set([...occupied, ...tempLocked]));
-
-        // Validate admin-selected seats are actually available
-        const conflicts = newDepartureSeats.filter((s: string) => blocked.includes(s));
-        if (conflicts.length > 0) {
-          throw new Error(`Seat(s) ${conflicts.join(', ')} are already taken on the selected departure trip. Please choose different seats.`);
-        }
-
-        // Add new seats to new trip
         const newOccupied = Array.from(new Set([...occupied, ...newDepartureSeats]));
         await tx.trip.update({
-          where: { id: newTripId },
+          where: { id: newSeatSourceId },
           data: {
             occupiedSeats: JSON.stringify(newOccupied),
-            availableSeats: newTrip.totalSeats - newOccupied.length - tempLocked.length,
+            availableSeats: (newSeatSource?.totalSeats || newTrip.totalSeats) - newOccupied.length - tempLocked.length,
           },
         });
 
@@ -152,25 +151,21 @@ export async function POST(req: NextRequest) {
         const newReturnTrip = await tx.trip.findUnique({ where: { id: newReturnTripId } });
         if (!newReturnTrip) throw new Error("Selected return trip not found");
 
-        const occupied = parseSeats(newReturnTrip.occupiedSeats);
-        const tempLocked = newReturnTrip.tempLockedSeats
-          ? newReturnTrip.tempLockedSeats.split(",").map((s) => s.trim()).filter(Boolean)
+        // Validate against the shared bus inventory (seat source, not the child row)
+        await assertSeatsFree(tx, newReturnTripId, newReturnSeats);
+        const newReturnSeatSourceId = newReturnTrip.parentTripId || newReturnTrip.id;
+
+        const newReturnSeatSource = await tx.trip.findUnique({ where: { id: newReturnSeatSourceId } });
+        const occupied = parseSeats(newReturnSeatSource?.occupiedSeats || "[]");
+        const tempLocked = newReturnSeatSource?.tempLockedSeats
+          ? newReturnSeatSource.tempLockedSeats.split(",").map((s) => s.trim()).filter(Boolean)
           : [];
-        const blocked = Array.from(new Set([...occupied, ...tempLocked]));
-
-        // Validate admin-selected seats are actually available
-        const conflicts = newReturnSeats.filter((s: string) => blocked.includes(s));
-        if (conflicts.length > 0) {
-          throw new Error(`Seat(s) ${conflicts.join(', ')} are already taken on the selected return trip. Please choose different seats.`);
-        }
-
-        // Add new seats to new trip
         const newOccupied = Array.from(new Set([...occupied, ...newReturnSeats]));
         await tx.trip.update({
-          where: { id: newReturnTripId },
+          where: { id: newReturnSeatSourceId },
           data: {
             occupiedSeats: JSON.stringify(newOccupied),
-            availableSeats: newReturnTrip.totalSeats - newOccupied.length - tempLocked.length,
+            availableSeats: (newReturnSeatSource?.totalSeats || newReturnTrip.totalSeats) - newOccupied.length - tempLocked.length,
           },
         });
 

@@ -7,6 +7,7 @@ import crypto from "crypto";
 
 const prisma = new PrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY || "");
+import { assertSeatsFree, markSeatsOccupied } from "@/lib/tripParent";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,9 +17,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing booking data" }, { status: 400 });
     }
 
+    const selectedSeatNumbers = (data.selectedSeats || []).map((s: any) =>
+      typeof s === 'object' ? String(s?.seatNumber ?? s) : String(s)
+    );
+
     let booking;
     try {
-      booking = await prisma.booking.create({
+      booking = await prisma.$transaction(async (tx) => {
+        // Cross-trip guard: voucher bookings must respect the shared bus inventory
+        await assertSeatsFree(tx, data.tripId, selectedSeatNumbers);
+        const created = await tx.booking.create({
       data: {
         orderId: data.orderId,
         tripId: data.tripId,
@@ -67,11 +75,28 @@ export async function POST(req: NextRequest) {
       },
       include: { passengers: true },
       });
+
+        // Voucher bookings previously never marked seats occupied — record them
+        // on the seat source so the seat map and future conflict checks see them.
+        await markSeatsOccupied(tx, data.tripId, selectedSeatNumbers);
+        if (data.returnTripId && Array.isArray(data.returnSeats) && data.returnSeats.length > 0) {
+          const returnSeatNumbers = data.returnSeats.map((s: any) =>
+            typeof s === 'object' ? String(s?.seatNumber ?? s) : String(s)
+          );
+          await assertSeatsFree(tx, data.returnTripId, returnSeatNumbers);
+          await markSeatsOccupied(tx, data.returnTripId, returnSeatNumbers);
+        }
+
+        return created;
+      });
     } catch (dbErr: any) {
       // Handle common Prisma errors gracefully
       if (dbErr instanceof Prisma.PrismaClientKnownRequestError && dbErr.code === "P2002") {
         console.warn("[request-voucher-auth] seat already booked", dbErr.meta || dbErr.message);
         return NextResponse.json({ error: "One or more selected seats are no longer available" }, { status: 409 });
+      }
+      if (dbErr?.code === "SEATS_UNAVAILABLE") {
+        return NextResponse.json({ error: `Seat(s) ${(dbErr.seats || []).join(', ')} are already booked on this bus` }, { status: 409 });
       }
       throw dbErr;
     }
