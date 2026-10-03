@@ -262,8 +262,8 @@ export default function BusScheduleContent({ basePath = '/admin', onViewManifest
                         {bus.passengerCount} / {bus.totalSeats} seats
                       </span>
                     </div>
-                    <Progress 
-                      value={bus.totalSeats ? Math.round((bus.passengerCount / bus.totalSeats) * 100) : 0}
+                    <Progress
+                      value={bus.totalSeats ? Math.round(((bus.bookedSeats ?? bus.passengerCount) / bus.totalSeats) * 100) : 0}
                       className={`h-2 ${
                         bus.hasDeparted 
                           ? "bg-gray-400" 

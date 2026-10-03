@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enrichTripsWithAvailability } from "@/lib/tripAvailability";
+import { resolveDisplayServiceType } from "@/lib/busRoutes";
 
 // Case-insensitive status matching to handle both "confirmed" and "Confirmed"
 const VALID_BOOKING_STATUSES = [
@@ -150,15 +151,27 @@ export async function GET(request: NextRequest) {
       const revenue = outboundRevenue + returnRevenue;
       const allBookings = [...outboundBookings, ...returnBookings];
 
-      // Seats sold on THIS trip row only (used for per-segment counts when grouping)
+      // Seats sold on THIS trip row only (used for occupancy when grouping)
       const ownSeats = [
         ...outboundBookings.flatMap((b: any) => parseSeatList(b.seats)),
         ...returnBookings.flatMap((b: any) => parseSeatList(b.returnSeats || b.seats)),
       ];
 
+      // Passengers on THIS trip row only, counted per leg the same way the
+      // admin bookings page and the manifest count them: passenger rows with
+      // the isReturn flag matching the leg (seats strings include neighbour-free
+      // companion seats, which over-count people).
+      const ownPax =
+        outboundBookings.reduce((sum: number, b: any) =>
+          sum + (b.passengers || []).filter((p: any) => !p.isReturn).length, 0) +
+        returnBookings.reduce((sum: number, b: any) =>
+          sum + (b.passengers || []).filter((p: any) => p.isReturn).length, 0);
+
       return {
         id: trip.id,
-        busNumber: trip.serviceType, // Using serviceType as bus identifier
+        // Derive the label from route + departure time instead of trusting the
+        // stored serviceType (stale rows mislabel 18:00 corridor departures).
+        busNumber: resolveDisplayServiceType(trip),
         model: trip.routeName, // Using routeName as bus model/type
         routeOrigin: trip.routeOrigin,
         routeDestination: trip.routeDestination,
@@ -178,6 +191,7 @@ export async function GET(request: NextRequest) {
         parentTripId: trip.parentTripId || null,
         // Internal fields for grouping (stripped before responding)
         _ownSeats: Array.from(new Set(ownSeats)),
+        _ownPax: ownPax,
         _reservedCount: trip.computedReservedSeats,
       };
     });
@@ -236,8 +250,12 @@ function combineGroup(members: any[]) {
 
   const reservedCount = members.reduce((sum, m) => sum + (m._reservedCount || 0), 0);
   const totalSeats = parent.totalSeats;
-  const passengerCount = soldSeats.size;
-  const availableSeats = Math.max(0, totalSeats - passengerCount - reservedCount);
+  // Seats physically occupied (drives the occupancy bar / availability)
+  const bookedSeats = soldSeats.size;
+  const availableSeats = Math.max(0, totalSeats - bookedSeats - reservedCount);
+  // People on board, counted per leg exactly like the admin bookings page and
+  // the manifest (passenger rows; neighbour-free companion seats excluded)
+  const passengerCount = members.reduce((sum, m) => sum + (m._ownPax || 0), 0);
 
   const revenue = members.reduce((sum, m) => sum + (m.revenue || 0), 0);
   const bookingCount = members.reduce((sum, m) => sum + (m.bookingCount || 0), 0);
@@ -246,7 +264,7 @@ function combineGroup(members: any[]) {
     id: c.id,
     routeOrigin: c.routeOrigin,
     routeDestination: c.routeDestination,
-    passengerCount: (c._ownSeats || []).length,
+    passengerCount: c._ownPax || 0,
     revenue: c.revenue || 0,
   }));
 
@@ -259,7 +277,7 @@ function combineGroup(members: any[]) {
     departureDate: parent.departureDate,
     departureTime: parent.departureTime,
     totalSeats,
-    bookedSeats: passengerCount,
+    bookedSeats,
     availableSeats,
     occupiedSeats: Array.from(soldSeats),
     revenue,
