@@ -35,6 +35,8 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
   const [loadingRoutes, setLoadingRoutes] = useState(true);
   // Days that actually have trips for the selected route (YYYY-MM-DD keys)
   const [availableDepartureDates, setAvailableDepartureDates] = useState<Set<string>>(new Set());
+  // Days where the bus runs but every seat is taken — selectable, but flagged
+  const [soldOutDates, setSoldOutDates] = useState<Set<string>>(new Set());
   const [routeDatesLoaded, setRouteDatesLoaded] = useState(false);
 
   // Fetch bookable dates for the selected route so the calendar can show
@@ -42,6 +44,7 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
   useEffect(() => {
     if (!fromLocation || !toLocation) {
       setAvailableDepartureDates(new Set());
+      setSoldOutDates(new Set());
       setRouteDatesLoaded(false);
       return;
     }
@@ -54,7 +57,9 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
         const data = await res.json();
         if (!cancelled) {
           const dates = Array.isArray(data?.dates) ? data.dates : [];
+          const soldOut = Array.isArray(data?.soldOutDates) ? data.soldOutDates : [];
           setAvailableDepartureDates(new Set(dates));
+          setSoldOutDates(new Set(soldOut));
           setRouteDatesLoaded(true);
           // Clear a previously picked date that has no trips on the new route
           setDepartureDate((prev) => {
@@ -67,6 +72,7 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
       } catch {
         if (!cancelled) {
           setAvailableDepartureDates(new Set());
+          setSoldOutDates(new Set());
           setRouteDatesLoaded(false);
         }
       }
@@ -179,13 +185,16 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
   };
 
   const hasTripOnDate = (date: Date) => availableDepartureDates.has(format(date, "yyyy-MM-dd"));
+  const isSoldOutDate = (date: Date) => soldOutDates.has(format(date, "yyyy-MM-dd"));
 
   const isDepartureDateDisabled = (date: Date) => {
     if (isDateBeforeToday(date)) return true;
     // Once the route's dates are known, only allow days that have trips —
-    // unless the route has no upcoming trips at all, in which case keep
-    // dates enabled so the search can still tell the user nothing was found.
-    if (routeDatesLoaded && availableDepartureDates.size > 0) return !hasTripOnDate(date);
+    // available or sold out — unless the route has no upcoming trips at all,
+    // in which case keep dates enabled so the search can still tell the user
+    // nothing was found.
+    const hasAnyDates = availableDepartureDates.size > 0 || soldOutDates.size > 0;
+    if (routeDatesLoaded && hasAnyDates) return !hasTripOnDate(date) && !isSoldOutDate(date);
     return false;
   };
 
@@ -297,16 +306,26 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
                 onSelect={setDepartureDate}
                 initialFocus
                 disabled={isDepartureDateDisabled}
-                modifiers={{ hasTrip: hasTripOnDate }}
+                modifiers={{ hasTrip: hasTripOnDate, soldOut: isSoldOutDate }}
                 modifiersClassNames={{
                   hasTrip:
                     "relative after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-yellow-400",
+                  soldOut:
+                    "relative after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-red-400",
                 }}
               />
-              {routeDatesLoaded && availableDepartureDates.size > 0 && (
-                <div className="px-3 pb-2 text-xs text-gray-500 flex items-center gap-1.5">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400" />
-                  Days with available trips
+              {routeDatesLoaded && (availableDepartureDates.size > 0 || soldOutDates.size > 0) && (
+                <div className="px-3 pb-2 text-xs text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                    Days with available trips
+                  </span>
+                  {soldOutDates.size > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
+                      Sold out
+                    </span>
+                  )}
                 </div>
               )}
             </PopoverContent>

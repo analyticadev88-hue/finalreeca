@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getBusAvailabilityForTrips } from '@/lib/busAvailability';
 
+// Lightweight seat-count refresh used by the booking search list's periodic
+// polling. Counts are computed per physical bus run (seat source + children),
+// so the parent route and every child segment always agree with each other
+// and with the initial search payload.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -13,31 +18,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const tripIds = idsParam.split(',');
+    const tripIds = idsParam.split(',').filter(Boolean);
 
-    // Get all trips with their seat reservation counts
     const trips = await prisma.trip.findMany({
-      where: {
-        id: {
-          in: tripIds
-        }
-      },
-      select: {
-        id: true,
-        totalSeats: true,
-        _count: {
-          select: {
-            seatReservations: true
-          }
-        }
-      }
+      where: { id: { in: tripIds } },
+      select: { id: true, parentTripId: true, availableSeats: true },
     });
 
-    // Calculate available seats for each trip
-    const result = trips.map(trip => ({
-      id: trip.id,
-      availableSeats: Math.max(0, trip.totalSeats - trip._count.seatReservations)
-    }));
+    const availability = await getBusAvailabilityForTrips(trips);
+
+    const result = trips.map(trip => {
+      const a = availability.get(trip.id);
+      // Unknown seat source (orphaned parentTripId): keep the stored count so
+      // the UI doesn't jump to a bogus value.
+      if (!a || a.totalSeats === 0) {
+        return { id: trip.id, availableSeats: trip.availableSeats, soldOut: trip.availableSeats <= 0 };
+      }
+      return { id: trip.id, availableSeats: a.availableSeats, soldOut: a.soldOut };
+    });
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

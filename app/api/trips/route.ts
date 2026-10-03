@@ -132,6 +132,7 @@ export async function GET(request: NextRequest) {
         ...trip,
         totalSeats: trip.computedTotalSeats,
         availableSeats: trip.computedAvailableSeats,
+        soldOut: trip.computedAvailableSeats <= 0,
         occupiedSeats: JSON.stringify(trip.computedOccupiedSeats),
         tempLockedSeats: trip.tempLockedSeats || '',
         departureDate: departureDateISO,

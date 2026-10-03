@@ -11,6 +11,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QuickAddPassengerModal } from "@/components/admin/QuickAddPassengerModal";
 import { toast } from "sonner";
 
+// Corridor stop order (Gaborone → Maun). Southbound is the reverse.
+// Duplicated here (instead of importing lib/tripParent) because that module
+// pulls in the Prisma client, which cannot be bundled for the browser.
+const NORTH_STOPS = [
+  'Gaborone', 'Kumakwane', 'Thamaga', 'Moshupa', 'Kanye',
+  'Jwaneng', 'Kang', 'Ghanzi', "D'Kar", 'Sandfire',
+  'Sehithwa', 'Toteng', 'Maun',
+];
+const SOUTH_STOPS = [...NORTH_STOPS].reverse();
+
+function segmentSortKey(trip: any): number {
+  const norm = (s: any) => (s || '').trim().toLowerCase();
+  for (const list of [NORTH_STOPS, SOUTH_STOPS]) {
+    const oi = list.findIndex(s => norm(s) === norm(trip.routeOrigin));
+    const di = list.findIndex(s => norm(s) === norm(trip.routeDestination));
+    if (oi !== -1 && di !== -1 && oi < di) return oi * 100 + di;
+  }
+  return 10000; // non-corridor segments sort last, stable by arrival
+}
+
 interface ManifestContentProps {
   busId: string;
   onBack?: () => void;
@@ -23,6 +43,7 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
   const [loading, setLoading] = useState(true);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [tripData, setTripData] = useState<any>(null);
+  const [group, setGroup] = useState<{ parentId: string; tripIds: string[]; children: any[] } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   const fetchManifestData = () => {
@@ -39,6 +60,9 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
         if (data.trip) {
             setTripData(data.trip);
         }
+        if (data.group) {
+          setGroup(data.group);
+        }
         setLoading(false);
       })
       .catch(err => {
@@ -54,82 +78,120 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
 
   if (!isMounted) return <div className="p-8"><Skeleton className="h-12 w-full mb-4" /><Skeleton className="h-64 w-full" /></div>;
 
-  // Get trip info from first booking
-  const trip = bookings[0]?.trip || {};
-  const route = trip.routeOrigin && trip.routeDestination
-    ? `${trip.routeOrigin} → ${trip.routeDestination}`
-    : "";
-  const date = trip.departureDate
-    ? new Date(trip.departureDate).toLocaleDateString('en-US', {
+  // The whole physical bus run: the parent trip plus every child segment trip.
+  const groupTripIds = new Set<string>(group?.tripIds ?? [busId]);
+
+  // Lookup of trip info (route, times) for every trip on the bus
+  const tripInfoMap = new Map<string, any>();
+  if (tripData) tripInfoMap.set(tripData.id, tripData);
+  for (const c of group?.children ?? []) tripInfoMap.set(c.id, c);
+  for (const b of bookings) {
+    if (b.trip) tripInfoMap.set(b.trip.id, b.trip);
+    if (b.returnTrip) tripInfoMap.set(b.returnTrip.id, b.returnTrip);
+  }
+
+  const tripLabel = (t: any) =>
+    t?.routeOrigin && t?.routeDestination ? `${t.routeOrigin} → ${t.routeDestination}` : "";
+
+  // Header info comes from the parent trip (seat source for the whole bus)
+  const route = tripLabel(tripData);
+  const date = tripData?.departureDate
+    ? new Date(tripData.departureDate).toLocaleDateString('en-US', {
         weekday: 'short',
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       })
     : "";
-  const time = trip.departureTime || "";
+  const time = tripData?.departureTime || "";
 
-  // Flatten passengers and add booking info
+  // Flatten passengers and add booking info. A passenger belongs to this
+  // manifest when the leg they travel on (outbound or return) is one of the
+  // trips on this physical bus.
   const rawPassengers = bookings.flatMap((booking: any) =>
     (booking.passengers || [])
       .filter((p: any) => {
-        if (booking.tripId === busId) return !p.isReturn;
-        if (booking.returnTripId === busId) return p.isReturn;
-        return false;
+        const legTripId = p.isReturn ? booking.returnTripId : booking.tripId;
+        return groupTripIds.has(legTripId);
       })
-      .map((p: any) => ({
-        name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'No Name',
-        firstName: p.firstName,
-        lastName: p.lastName,
-        isReturn: p.isReturn,
-        seat: p.seatNumber,
-        title: p.title,
-        boarded: p.boarded,
-        agent: booking.agent?.name || "Client",
-        bookingRef: booking.orderId,
-        route,
-        date,
-        time,
-        hasInfant: p.hasInfant,
-        passportNumber: p.passportNumber,
-        type: p.type,
-        infantName: p.infantName,
-        infantBirthdate: p.infantBirthdate,
-        infantPassportNumber: p.infantPassportNumber,
-        phone: p.phone || "-",
-        nokName: p.nextOfKinName || "-",
-        nokPhone: p.nextOfKinPhone || "-",
-        paymentStatus: booking.paymentStatus,
-        bookingStatus: booking.bookingStatus,
-        specialRequests: booking.specialRequests,
-        addons: booking.addons,
-        boardingPoint: p.isReturn ? booking.returnBoardingPoint : booking.boardingPoint,
-      }))
+      .map((p: any) => {
+        const legTripId = p.isReturn ? booking.returnTripId : booking.tripId;
+        const legTrip = tripInfoMap.get(legTripId);
+        return {
+          name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'No Name',
+          firstName: p.firstName,
+          lastName: p.lastName,
+          isReturn: p.isReturn,
+          seat: p.seatNumber,
+          title: p.title,
+          boarded: p.boarded,
+          agent: booking.agent?.name || "Client",
+          bookingRef: booking.orderId,
+          route: tripLabel(legTrip),
+          legTripId,
+          date,
+          time,
+          hasInfant: p.hasInfant,
+          passportNumber: p.passportNumber,
+          type: p.type,
+          infantName: p.infantName,
+          infantBirthdate: p.infantBirthdate,
+          infantPassportNumber: p.infantPassportNumber,
+          phone: p.phone || "-",
+          nokName: p.nextOfKinName || "-",
+          nokPhone: p.nextOfKinPhone || "-",
+          paymentStatus: booking.paymentStatus,
+          bookingStatus: booking.bookingStatus,
+          specialRequests: booking.specialRequests,
+          addons: booking.addons,
+          boardingPoint: p.isReturn ? booking.returnBoardingPoint : booking.boardingPoint,
+          droppingPoint: p.isReturn ? booking.returnDroppingPoint : booking.droppingPoint,
+        };
+      })
   );
 
   // Raw passenger count (before grouping) — must match bus schedule count
   const rawPassengerCount = rawPassengers.length;
 
-  // Revenue from all valid bookings — split round-trip price by leg to avoid double counting
+  // Revenue from all valid bookings on the bus run. Round-trip bookings are
+  // split proportionally by the number of passengers travelling on this bus.
   const totalRevenue = bookings.reduce((sum, b) => {
     const price = Number(b.totalPrice) || 0;
-    if (!b.returnTripId || !b.returnTrip) {
-      // One-way booking: full price
+    const pax = b.passengers || [];
+    const totalCount = pax.length;
+    if (!b.returnTripId || totalCount === 0) {
+      // One-way booking (or no passenger rows): full price
       return sum + price;
     }
-    // Round-trip: split proportionally by passenger count on each leg
-    const outboundCount = (b.passengers || []).filter((p: any) => !p.isReturn).length;
-    const returnCount = (b.passengers || []).filter((p: any) => p.isReturn).length;
-    const totalCount = outboundCount + returnCount;
-    if (totalCount === 0) return sum + price;
-
-    const isViewingReturnTrip = b.returnTripId === busId;
-    if (isViewingReturnTrip) {
-      return sum + price * (returnCount / totalCount);
-    } else {
-      return sum + price * (outboundCount / totalCount);
-    }
+    const onBusCount = pax.filter((p: any) =>
+      groupTripIds.has(p.isReturn ? b.returnTripId : b.tripId)
+    ).length;
+    return sum + price * (onBusCount / totalCount);
   }, 0);
+
+  // Per-segment stats: which route each passenger booked, and the revenue
+  // each segment contributes (round-trip prices split across legs).
+  const segmentStats = new Map<string, { passengers: number; revenue: number }>();
+  for (const b of bookings) {
+    const price = Number(b.totalPrice) || 0;
+    const pax = b.passengers || [];
+    const totalCount = pax.length || 1;
+    const legIds = new Set<string>();
+    for (const p of pax) {
+      const legTripId = p.isReturn ? b.returnTripId : b.tripId;
+      if (groupTripIds.has(legTripId)) legIds.add(legTripId);
+    }
+    for (const legId of legIds) {
+      const legPax = pax.filter((p: any) =>
+        (p.isReturn ? b.returnTripId : b.tripId) === legId
+      ).length;
+      const contribution = price * (legPax / totalCount);
+      const stat = segmentStats.get(legId) || { passengers: 0, revenue: 0 };
+      stat.passengers += legPax;
+      stat.revenue += contribution;
+      segmentStats.set(legId, stat);
+    }
+  }
 
   // Group neighbour-free companion seats: same name + same booking ref = merge into one row
   // This prevents the same person appearing twice when they bought a "neighbour-free" extra seat.
@@ -160,13 +222,13 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
   })();
 
   // Get total seat count from trip data (default to 60 if missing)
-  const totalSeats = trip.totalSeats || trip.seatCount || 60;
+  const totalSeats = tripData?.totalSeats || tripData?.seatCount || 60;
 
   // Calculate blocked and reserved seats from trip data
   const occupiedSeatsList = tripData?.occupiedSeats ? JSON.parse(tripData.occupiedSeats) : [];
   const tempLockedList = tripData?.tempLockedSeats ? tripData.tempLockedSeats.split(',').filter(Boolean) : [];
-  
-  // Get list of all booked seat numbers for this trip (split companion seats)
+
+  // Get list of all booked seat numbers for this bus (split companion seats)
   const bookedSeatNumbers = currentTripPassengers.flatMap(p =>
     String(p.seat).split(',').map(s => s.trim())
   );
@@ -175,17 +237,38 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
   const blockedSeatsCount = Array.from(new Set([...occupiedSeatsList, ...tempLockedList]))
     .filter(seat => !bookedSeatNumbers.includes(String(seat))).length;
 
-  // Get valid passengers for exports (confirmed, completed, pending — matches bus schedule)
-  const confirmedPassengers = currentTripPassengers.filter(p =>
+  // Show all passengers who have a confirmed, completed, or pending booking (matches bus schedule)
+  const displayedPassengers = currentTripPassengers.filter(p =>
     ["confirmed", "completed", "pending"].includes(String(p.bookingStatus || '').toLowerCase())
   );
 
+  // Build the per-route manifest sections: parent route first, then each child
+  // segment in corridor travel order. Only segments with passengers are shown.
+  const childIdsSorted = (group?.children ?? [])
+    .slice()
+    .sort((a, b) => segmentSortKey(a) - segmentSortKey(b))
+    .map(c => c.id);
+  const sectionIds = [tripData?.id, ...childIdsSorted].filter(Boolean) as string[];
+  const passengersByLeg = new Map<string, any[]>();
+  for (const p of displayedPassengers) {
+    const list = passengersByLeg.get(p.legTripId) || [];
+    list.push(p);
+    passengersByLeg.set(p.legTripId, list);
+  }
+  const sections = sectionIds
+    .map(id => ({
+      trip: tripInfoMap.get(id),
+      passengers: passengersByLeg.get(id) ?? [],
+      isParent: id === tripData?.id,
+    }))
+    .filter(s => s.trip && s.passengers.length > 0);
+
   // Create full passenger list: confirmed passengers + empty rows up to totalSeats
   const paddedPassengerList = [
-    ...confirmedPassengers,
-    ...Array.from({ length: Math.max(0, totalSeats - confirmedPassengers.length) }, (_, i) => ({
+    ...displayedPassengers,
+    ...Array.from({ length: Math.max(0, totalSeats - displayedPassengers.length) }, (_, i) => ({
       name: "",
-      seat: String(confirmedPassengers.length + i + 1),
+      seat: String(displayedPassengers.length + i + 1),
       title: "",
       boarded: false,
       agent: "",
@@ -208,11 +291,6 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
     }))
   ];
 
-  // Show all passengers who have a confirmed, completed, or pending booking (matches bus schedule)
-  const displayedPassengers = currentTripPassengers.filter(p =>
-    ["confirmed", "completed", "pending"].includes(String(p.bookingStatus || '').toLowerCase())
-  );
-
   // PDF Export
   const handlePdfDownload = () => {
     const doc = new jsPDF({
@@ -220,11 +298,11 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
       unit: 'mm',
       format: 'a4'
     });
-    
+
     // Add watermark background
     doc.setFillColor(240, 240, 240);
     doc.rect(0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight(), 'F');
-    
+
     // Add logo
     const logoUrl = "/images/plog.png";
     const img = new Image();
@@ -233,13 +311,13 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
 
     const generatePdf = () => {
       doc.addImage(img, "PNG", 20, 15, 25, 25);
-      
+
       // Header
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42); // slate-900
       doc.setFontSize(20);
       doc.text("PASSENGER MANIFEST", 105, 25, { align: 'center' });
-      
+
       // Trip info
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(12);
@@ -248,12 +326,13 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
       doc.text(`Date: ${date}`, 20, 58);
       doc.text(`Time: ${time}`, 20, 66);
       doc.text(`Total Passengers: ${currentTripPassengers.length}`, 20, 74);
-      
+
       // Table
       autoTable(doc, {
-        head: [["Name", "Pick Up", "Seat", "Title", "Booking Ref", "Agent", "Infant", "Boarded"]],
+        head: [["Name", "Route", "Pick Up", "Seat", "Title", "Booking Ref", "Agent", "Infant", "Boarded"]],
         body: paddedPassengerList.map(p => [
           p.name,
+          p.route,
           p.boardingPoint || "-",
           p.seat,
           p.title,
@@ -287,13 +366,13 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
           // Highlight boarded rows
           if (
             data.section === 'body' &&
-            currentTripPassengers[data.row.index].boarded
+            paddedPassengerList[data.row.index]?.boarded
           ) {
             data.cell.styles.fillColor = [220, 252, 231]; // light green (tailwind green-100)
           }
         }
       });
-      
+
       // Footer
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
@@ -303,7 +382,7 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
         doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: 'center' });
         doc.text(`Generated on ${new Date().toLocaleString()}`, 105, 292, { align: 'center' });
       }
-      
+
       doc.save(`manifest-${route}-${date.replace(/\s+/g, '-')}.pdf`);
     };
 
@@ -319,34 +398,36 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
     const worksheet = XLSX.utils.json_to_sheet(
       paddedPassengerList.map(p => ({
         Name: p.name,
+        Route: p.route,
         Seat: p.seat,
         Title: p.title,
         "Booking Ref": p.bookingRef,
         Agent: p.agent,
         Boarded: p.boarded ? "Yes" : "No",
-        Route: p.route,
         Date: p.date,
         Time: p.time,
         "Has Infant": p.hasInfant ? "Yes" : "No",
         "Pick Up Point": p.boardingPoint || "-",
+        "Dropping Point": p.droppingPoint || "-",
       }))
     );
-    
+
     // Set column widths
     worksheet['!cols'] = [
       { wch: 25 }, // Name
+      { wch: 22 }, // Route
       { wch: 8 },  // Seat
       { wch: 10 }, // Title
       { wch: 15 }, // Booking Ref
       { wch: 20 }, // Agent
       { wch: 10 }, // Boarded
-      { wch: 30 }, // Route
       { wch: 15 }, // Date
       { wch: 10 }, // Time
       { wch: 10 }, // Has Infant
-      { wch: 25 }  // Pick Up Point
+      { wch: 25 }, // Pick Up Point
+      { wch: 25 }  // Dropping Point
     ];
-    
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Manifest");
     XLSX.writeFile(workbook, `manifest-${route}-${date.replace(/\s+/g, '-')}.xlsx`);
@@ -398,10 +479,11 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
 
       // Table (move down to avoid logo/trip info)
       autoTable(doc, {
-        head: [["#", "Full Name", "Pick Up", "Passport Number", "Seat", "Type", "Phone", "NOK Name", "NOK Number", "Infant"]],
+        head: [["#", "Full Name", "Route", "Pick Up", "Passport Number", "Seat", "Type", "Phone", "NOK Name", "NOK Number", "Infant"]],
         body: paddedPassengerList.map((p, idx) => [
           idx + 1,
           p.name || " ",
+          p.route || " ",
           p.boardingPoint || " ",
           p.passportNumber || " ",
           p.name ? p.seat : "", // Only show seat number if passenger name is present
@@ -451,6 +533,7 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
         children: [
           new TableCell({ children: [new Paragraph("#")] }),
           new TableCell({ children: [new Paragraph("Full Name")] }),
+          new TableCell({ children: [new Paragraph("Route")] }),
           new TableCell({ children: [new Paragraph("Pick Up")] }),
           new TableCell({ children: [new Paragraph("Passport Number")] }),
           new TableCell({ children: [new Paragraph("Seat")] }),
@@ -466,6 +549,7 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
           children: [
             new TableCell({ children: [new Paragraph(String(idx + 1))] }),
             new TableCell({ children: [new Paragraph(p.name || " ")] }),
+            new TableCell({ children: [new Paragraph(p.route || " ")] }),
             new TableCell({ children: [new Paragraph(p.boardingPoint || " ")] }),
             new TableCell({ children: [new Paragraph(p.passportNumber || " ")] }),
             new TableCell({ children: [new Paragraph(p.seat)] }),
@@ -552,7 +636,7 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
             <ArrowLeft className="w-4 h-4" />
             Back to Bus Schedule
           </button>
-          
+
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-6 gap-6">
             <div className="w-full">
               <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Passenger Manifest</h1>
@@ -577,7 +661,7 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
                 </span>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 md:flex flex-wrap gap-2 w-full md:w-auto">
               <button
                 onClick={handlePdfDownload}
@@ -619,14 +703,15 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
             </div>
           </div>
         </div>
-        
-        {/* Passenger Table */}
+
+        {/* Passenger Table — one section per route segment on this bus */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Passenger</th>
+                  <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Route</th>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Pick Up</th>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden md:table-cell">Seat</th>
                   <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider hidden lg:table-cell">Title</th>
@@ -641,106 +726,20 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {displayedPassengers.map((passenger, index) => (
-                  <tr key={index} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                          {passenger.name.charAt(0)}
-                        </div>
-                        <div className="ml-4 flex items-center gap-2">
-                          <div className="text-sm font-medium text-slate-900">{passenger.name}</div>
-                          {passenger.isReturn && (
-                            <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold uppercase">Return</span>
-                          )}
-                          {passenger.companionSeat && (
-                            <span className="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-bold uppercase">Neighbour Free</span>
-                          )}
-                          {(Array.isArray(passenger.addons) && passenger.addons.some((a: any) => a.name?.toLowerCase().includes('meal'))) && (
-                            <Utensils className="h-3 w-3 text-orange-500" />
-                          )}
-                          {String(passenger.bookingStatus || '').toLowerCase() === 'pending' && (
-                            <span className="text-[9px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-100 font-bold uppercase">Pending</span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-teal-700 font-semibold uppercase">
-                      {passenger.boardingPoint || "-"}
-                    </td>
-                    <td className="px-3 md:px-6 py-4 hidden md:table-cell">
-                      <div className="text-sm text-slate-900 font-mono">
-                        {passenger.companionSeat
-                          ? passenger.seat.split(', ').map((s: string, i: number) => (
-                              <span key={i} className={`inline-block mr-1 px-1.5 py-0.5 rounded text-xs font-bold ${
-                                i === 0 ? 'bg-slate-100 text-slate-700' : 'bg-purple-50 text-purple-600 border border-purple-100'
-                              }`}>{s}</span>
-                            ))
-                          : passenger.seat
-                        }
-                      </div>
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-800">
-                        {passenger.title}
-                      </span>
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden md:table-cell">
-                      {passenger.phone}
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden xl:table-cell">
-                      {passenger.nokName}
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden xl:table-cell">
-                      {passenger.nokPhone}
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono hidden sm:table-cell">
-                      {passenger.bookingRef}
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden lg:table-cell">
-                      {passenger.agent}
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                      <span className={`px-2 inline-flex text-[10px] leading-5 font-bold rounded-full ${String(passenger.paymentStatus || '').toLowerCase() === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {String(passenger.paymentStatus || '').toLowerCase() === 'paid' ? 'PAID' : 'DUE'}
-                      </span>
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden md:table-cell">
-                      {passenger.hasInfant ? (
-                        <span className="text-green-700 font-semibold">
-                          Yes
-                          {passenger.infantName && (
-                            <span className="block text-xs text-slate-700">
-                              Name: {passenger.infantName}
-                            </span>
-                          )}
-                          {passenger.infantBirthdate && (
-                            <span className="block text-xs text-slate-700">
-                              DOB: {passenger.infantBirthdate}
-                            </span>
-                          )}
-                          {passenger.infantPassportNumber && (
-                            <span className="block text-xs text-slate-700">
-                              Passport: {passenger.infantPassportNumber}
-                            </span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">No</span>
-                      )}
-                    </td>
-                    <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${passenger.boarded ? 'bg-green-100 text-green-800' : 'bg-rose-100 text-rose-800'}`}>
-                        {passenger.boarded ? 'Boarded' : 'Pending'}
-                      </span>
-                    </td>
-                  </tr>
+                {sections.map((section) => (
+                  <ManifestSection
+                    key={section.trip.id}
+                    title={tripLabel(section.trip)}
+                    isParent={section.isParent}
+                    passengerCount={section.passengers.length}
+                    passengers={section.passengers}
+                  />
                 ))}
               </tbody>
             </table>
           </div>
         </div>
-        
+
         {/* Summary Cards */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
           <h3 className="text-lg font-bold text-slate-900 mb-4">Trip Summary</h3>
@@ -774,6 +773,43 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
               </div>
             </div>
           </div>
+
+          {/* Per-segment breakdown */}
+          {sectionIds.filter(id => segmentStats.has(id)).length > 1 && (
+            <div className="mt-6 border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Revenue by Route Segment</h4>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {sectionIds
+                  .filter(id => segmentStats.has(id))
+                  .map(id => {
+                    const t = tripInfoMap.get(id);
+                    const stat = segmentStats.get(id)!;
+                    return (
+                      <div key={id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <span className="font-medium text-slate-800">
+                          {tripLabel(t)}
+                          {id === tripData?.id && (
+                            <span className="ml-2 text-[10px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded border border-teal-100 font-bold uppercase">Full Route</span>
+                          )}
+                        </span>
+                        <span className="text-slate-500">
+                          {stat.passengers} {stat.passengers === 1 ? 'passenger' : 'passengers'}
+                          <span className="mx-2 text-slate-300">|</span>
+                          <span className="font-semibold text-teal-700">BWP {stat.revenue.toLocaleString()}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                <div className="flex items-center justify-between px-4 py-2.5 text-sm bg-slate-50">
+                  <span className="font-bold text-slate-900">Total</span>
+                  <span className="font-bold text-slate-900">{rawPassengerCount} passengers | BWP {totalRevenue.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {(blockedSeatsCount + rawPassengerCount) > 0 && (
             <div className="mt-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500 border border-slate-100">
               Total Seats Taken: <span className="font-bold text-slate-700">{blockedSeatsCount + rawPassengerCount}</span> (Includes {rawPassengerCount} passengers and {blockedSeatsCount} seats blocked by admin)
@@ -783,7 +819,7 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
       </div>
 
       {allowWalkIn && (
-        <QuickAddPassengerModal 
+        <QuickAddPassengerModal
           isOpen={showQuickAdd}
           onClose={() => setShowQuickAdd(false)}
           trip={tripData}
@@ -792,5 +828,132 @@ export default function ManifestContent({ busId, onBack, allowWalkIn = false }: 
         />
       )}
     </div>
+  );
+}
+
+// Renders one route segment of the consolidated manifest: a full-width section
+// header followed by that segment's passenger rows.
+function ManifestSection({ title, isParent, passengerCount, passengers }: {
+  title: string;
+  isParent: boolean;
+  passengerCount: number;
+  passengers: any[];
+}) {
+  return (
+    <>
+      <tr className="bg-teal-700">
+        <td colSpan={13} className="px-3 md:px-6 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              {title}
+              {isParent && (
+                <span className="text-[9px] bg-teal-600 text-teal-50 px-1.5 py-0.5 rounded border border-teal-500 font-bold uppercase">Full Route</span>
+              )}
+            </span>
+            <span className="text-[10px] font-bold text-teal-100 uppercase tracking-wider">
+              {passengerCount} {passengerCount === 1 ? 'passenger' : 'passengers'}
+            </span>
+          </div>
+        </td>
+      </tr>
+      {passengers.map((passenger, index) => (
+        <tr key={`${passenger.bookingRef}-${passenger.seat}-${index}`} className="hover:bg-slate-50 transition-colors">
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                {passenger.name.charAt(0)}
+              </div>
+              <div className="ml-4 flex items-center gap-2">
+                <div className="text-sm font-medium text-slate-900">{passenger.name}</div>
+                {passenger.isReturn && (
+                  <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold uppercase">Return</span>
+                )}
+                {passenger.companionSeat && (
+                  <span className="text-[9px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-bold uppercase">Neighbour Free</span>
+                )}
+                {(Array.isArray(passenger.addons) && passenger.addons.some((a: any) => a.name?.toLowerCase().includes('meal'))) && (
+                  <Utensils className="h-3 w-3 text-orange-500" />
+                )}
+                {String(passenger.bookingStatus || '').toLowerCase() === 'pending' && (
+                  <span className="text-[9px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-100 font-bold uppercase">Pending</span>
+                )}
+              </div>
+            </div>
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-xs text-slate-600">
+            {passenger.route}
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-teal-700 font-semibold uppercase">
+            {passenger.boardingPoint || "-"}
+          </td>
+          <td className="px-3 md:px-6 py-4 hidden md:table-cell">
+            <div className="text-sm text-slate-900 font-mono">
+              {passenger.companionSeat
+                ? passenger.seat.split(', ').map((s: string, i: number) => (
+                    <span key={i} className={`inline-block mr-1 px-1.5 py-0.5 rounded text-xs font-bold ${
+                      i === 0 ? 'bg-slate-100 text-slate-700' : 'bg-purple-50 text-purple-600 border border-purple-100'
+                    }`}>{s}</span>
+                  ))
+                : passenger.seat
+              }
+            </div>
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-800">
+              {passenger.title}
+            </span>
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden md:table-cell">
+            {passenger.phone}
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden xl:table-cell">
+            {passenger.nokName}
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden xl:table-cell">
+            {passenger.nokPhone}
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono hidden sm:table-cell">
+            {passenger.bookingRef}
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden lg:table-cell">
+            {passenger.agent}
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+            <span className={`px-2 inline-flex text-[10px] leading-5 font-bold rounded-full ${String(passenger.paymentStatus || '').toLowerCase() === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+              {String(passenger.paymentStatus || '').toLowerCase() === 'paid' ? 'PAID' : 'DUE'}
+            </span>
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-slate-500 hidden md:table-cell">
+            {passenger.hasInfant ? (
+              <span className="text-green-700 font-semibold">
+                Yes
+                {passenger.infantName && (
+                  <span className="block text-xs text-slate-700">
+                    Name: {passenger.infantName}
+                  </span>
+                )}
+                {passenger.infantBirthdate && (
+                  <span className="block text-xs text-slate-700">
+                    DOB: {passenger.infantBirthdate}
+                  </span>
+                )}
+                {passenger.infantPassportNumber && (
+                  <span className="block text-xs text-slate-700">
+                    Passport: {passenger.infantPassportNumber}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="text-gray-400">No</span>
+            )}
+          </td>
+          <td className="px-3 md:px-6 py-4 whitespace-nowrap hidden md:table-cell">
+            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${passenger.boarded ? 'bg-green-100 text-green-800' : 'bg-rose-100 text-rose-800'}`}>
+              {passenger.boarded ? 'Boarded' : 'Pending'}
+            </span>
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }

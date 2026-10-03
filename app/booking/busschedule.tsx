@@ -42,6 +42,7 @@ interface Trip {
   durationMinutes: number;
   fare: number;
   availableSeats: number;
+  soldOut?: boolean;
   serviceType: string;
   totalSeats: number;
   promoActive?: boolean;
@@ -157,12 +158,15 @@ export default function BusSchedules({
           if (newSeatData) {
             // If this trip is maintenance-blocked, keep it full
             if (trip.isChartered && trip.charterCompany === 'MAINTENANCE') {
-              return { ...trip, availableSeats: 0, lastUpdated: Date.now() };
+              return { ...trip, availableSeats: 0, soldOut: true, lastUpdated: Date.now() };
             }
 
             return {
               ...trip,
               availableSeats: newSeatData.availableSeats,
+              soldOut: typeof newSeatData.soldOut === 'boolean'
+                ? newSeatData.soldOut
+                : newSeatData.availableSeats <= 0,
               lastUpdated: Date.now()
             };
           }
@@ -412,7 +416,9 @@ export default function BusSchedules({
     }
 
     const isDeparted = trip.hasDeparted || false;
-    const isFull = trip.availableSeats === 0;
+    // Negative counts can come from legacy stored data — treat anything at or
+    // below zero (or an explicit soldOut flag) as full.
+    const isFull = trip.soldOut === true || (trip.availableSeats ?? 0) <= 0;
 
     const handleSelectBus = () => {
       onSelectBus({
@@ -530,7 +536,7 @@ export default function BusSchedules({
                   isFull ? "text-red-600" : "text-green-600"
                 }`}>
                   {isDeparted ? "Departed" :
-                   isFull ? "Full" : `${trip.availableSeats} Avail`}
+                   isFull ? "Sold Out" : `${trip.availableSeats} Avail`}
                 </span>
               </div>
             </div>
@@ -640,7 +646,7 @@ export default function BusSchedules({
               isFull ? "text-red-600" : "text-green-600"
             }`}>
               {isDeparted ? "" :
-               isFull ? "Bus Full" : `✓ ${trip.availableSeats} seats available`}
+               isFull ? "Sold Out" : `✓ ${trip.availableSeats} seats available`}
             </div>
             {isDeparted ? (
               <div className="text-red-600 font-medium">Bus Departed</div>

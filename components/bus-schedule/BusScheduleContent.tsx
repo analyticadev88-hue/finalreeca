@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from "react";
-import { Download, Eye, ChevronRight, Clock, MapPin, Bus, Calendar as CalendarIcon, Lock } from "lucide-react";
+import { Download, Eye, ChevronRight, Clock, MapPin, Bus, Calendar as CalendarIcon, Lock, CornerDownRight } from "lucide-react";
 import { TempLockModal } from "@/components/admin/TempLockModal";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -36,6 +36,33 @@ export interface ScheduleBus {
   bookingCount: number;
   hasPassengers: boolean;
   tempLockedSeats: string[];
+  childTrips?: {
+    id: string;
+    routeOrigin: string;
+    routeDestination: string;
+    passengerCount: number;
+    revenue: number;
+  }[];
+}
+
+// Corridor stop order (Gaborone → Maun) used to list segment routes in
+// travel order. Duplicated here to avoid pulling server-only modules
+// (lib/tripParent imports Prisma) into the client bundle.
+const NORTH_STOPS = [
+  'Gaborone', 'Kumakwane', 'Thamaga', 'Moshupa', 'Kanye',
+  'Jwaneng', 'Kang', 'Ghanzi', "D'Kar", 'Sandfire',
+  'Sehithwa', 'Toteng', 'Maun',
+];
+const SOUTH_STOPS = [...NORTH_STOPS].reverse();
+
+function segmentSortKey(trip: { routeOrigin: string; routeDestination: string }): number {
+  const norm = (s: string) => (s || '').trim().toLowerCase();
+  for (const list of [NORTH_STOPS, SOUTH_STOPS]) {
+    const oi = list.findIndex(s => norm(s) === norm(trip.routeOrigin));
+    const di = list.findIndex(s => norm(s) === norm(trip.routeDestination));
+    if (oi !== -1 && di !== -1 && oi < di) return oi * 100 + di;
+  }
+  return 10000;
 }
 
 interface BusScheduleContentProps {
@@ -205,6 +232,26 @@ export default function BusScheduleContent({ basePath = '/admin', onViewManifest
                       <Clock className="w-3 h-3 text-gray-500 mr-1 flex-shrink-0" />
                       Departs at <span className="font-medium ml-1">{bus.departureTime}</span>
                     </div>
+                    {/* Child segment routes served by this same bus */}
+                    {bus.childTrips && bus.childTrips.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {bus.childTrips
+                          .slice()
+                          .sort((a, b) => segmentSortKey(a) - segmentSortKey(b))
+                          .map(child => (
+                            <div
+                              key={child.id}
+                              className="flex items-center gap-1.5 text-xs text-gray-600 bg-teal-50/60 border border-teal-100 rounded-md px-2 py-1"
+                            >
+                              <CornerDownRight className="w-3 h-3 text-teal-500 flex-shrink-0" />
+                              <span className="truncate">{child.routeOrigin} → {child.routeDestination}</span>
+                              <span className="ml-auto pl-2 text-gray-500 font-medium whitespace-nowrap">
+                                {child.passengerCount} {child.passengerCount === 1 ? 'pax' : 'pax'}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Occupancy */}
@@ -248,7 +295,12 @@ export default function BusScheduleContent({ basePath = '/admin', onViewManifest
                   {/* Revenue & Actions */}
                   <div className="md:col-span-3 flex flex-col sm:flex-row md:flex-col lg:flex-row justify-between items-start md:items-end lg:items-center gap-3">
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Revenue</div>
+                      <div className="text-xs text-gray-500 font-medium">
+                        Revenue
+                        {bus.childTrips && bus.childTrips.length > 0 && (
+                          <span className="block text-[10px] text-gray-400 font-normal">all segments combined</span>
+                        )}
+                      </div>
                       <div className="text-sm font-bold text-teal-700">
                         BWP {(bus.revenue ?? 0).toLocaleString()}
                       </div>

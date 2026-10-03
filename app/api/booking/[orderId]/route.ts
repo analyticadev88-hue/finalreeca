@@ -351,9 +351,16 @@ async function syncTripOccupancy(tripId: string) {
   const relevantTripIds = [seatSourceId, ...childTripIds.map(c => c.id)];
 
   const allPassengers = await prisma.passenger.findMany({
-    where: { 
+    where: {
       tripId: { in: relevantTripIds },
-      booking: { bookingStatus: 'confirmed' }
+      // Same status semantics as lib/tripParent.findSeatConflicts — a seat is
+      // sold unless the booking or its payment was cancelled. Filtering on
+      // 'confirmed' alone used to drop pending/completed passengers here and
+      // silently free their seats back into the pool.
+      booking: {
+        bookingStatus: { notIn: ['cancelled', 'nullified'] },
+        paymentStatus: { notIn: ['cancelled', 'failed', 'refunded'] },
+      },
     },
     select: { seatNumber: true }
   });
