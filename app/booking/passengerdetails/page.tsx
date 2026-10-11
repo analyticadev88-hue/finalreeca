@@ -375,6 +375,34 @@ export default function PassengerDetailsForm({
   });
 
   const [paymentMode, setPaymentMode] = useState(initialPaymentMode || "Credit Card");
+  const normalizePaymentMode = (value: string) => (value || '').trim().toLowerCase();
+  const consultantPaymentMethods = [
+    { value: 'Cash', label: 'Cash' },
+    { value: 'Swiped at the office', label: 'Swiped at the office' },
+    { value: 'Swiped on board', label: 'Swiped on board' },
+    { value: 'Pay2cell', label: 'Pay2cell' },
+    { value: 'Payment link', label: 'Payment link' },
+    { value: 'Cashplus', label: 'Cashplus' },
+    { value: 'Orange Money', label: 'Orange Money' },
+  ] as { value: string; label: string }[];
+  const isConsultantManualPayment = (value: string) => new Set([
+    'cash',
+    'swiped at the office',
+    'swiped on board',
+    'pay2cell',
+    'payment link',
+    'cashplus',
+    'orange money',
+    'swipe in person',
+  ]).has(normalizePaymentMode(value));
+  const isPaidConsultantPayment = (value: string) => new Set([
+    'cash',
+    'swiped at the office',
+    'swiped on board',
+    'pay2cell',
+    'cashplus',
+    'orange money',
+  ]).has(normalizePaymentMode(value));
   const [showBankDepositNotice, setShowBankDepositNotice] = useState(false);
   const [consultantDiscountType, setConsultantDiscountType] = useState<string>("none");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -976,8 +1004,17 @@ export default function PassengerDetailsForm({
       agentId: agent?.id || undefined,                       // ✅
       consultantId: consultant?.id || undefined,             // ✅
       reservationToken: reservationToken || undefined,
-      paymentStatus: (paymentMode === 'Bank Deposit' || paymentMode === 'Credit Card' || paymentMode === 'Swipe in Person') ? 'pending' :
-        (paymentMode === 'Reservation Paid' || paymentMode === 'Cash') ? 'paid' : 'pending',
+      paymentStatus: (
+        paymentMode === 'Bank Deposit' ||
+        paymentMode === 'Credit Card' ||
+        paymentMode === 'Swipe in Person' ||
+        paymentMode === 'Payment link' ||
+        paymentMode === 'payment link'
+      ) ? 'pending' :
+        (
+          paymentMode === 'Reservation Paid' ||
+          isPaidConsultantPayment(paymentMode)
+        ) ? 'paid' : 'pending',
     };
   };
 
@@ -2246,38 +2283,39 @@ export default function PassengerDetailsForm({
                 </SelectTrigger>
                 <SelectContent>
                   {(() => {
-                    const canonical = [
+                    const canonical = consultant ? consultantPaymentMethods : [
                       { value: 'Credit Card', label: 'Pay online (credit/debit card)' },
-                      // Consultant-only options
                       { value: 'Cash', label: 'Paid Cash (In Person)' },
                       { value: 'Free Voucher', label: 'Free Voucher (Request Auth)' },
                       { value: 'Reservation Paid', label: 'Already Paid (Reservation)' },
                     ] as { value: string; label: string }[];
 
                     const filtered = canonical.filter((opt) => {
-                      // Consultant check
+                      if (consultant) {
+                        if (allowedPaymentModes && allowedPaymentModes.length > 0) {
+                          return allowedPaymentModes.includes(opt.value);
+                        }
+                        return true;
+                      }
+
                       if ((opt.value === 'Cash' || opt.value === 'Free Voucher') && !consultant) {
-                        // Agents can have 'Cash' if explicitly allowed
                         if (agent && agent.allowedPaymentMethods?.includes('Cash') && opt.value === 'Cash') {
                           // Allow Cash for agent if configured
                         } else {
                           return false;
                         }
                       }
-                      
-                      // Reservation Paid is internal-only (never shown by default)
+
                       if (opt.value === 'Reservation Paid') return false;
 
-                      // If user is an agent, restrict to their allowed methods
                       if (agent && agent.allowedPaymentMethods && agent.allowedPaymentMethods.length > 0) {
-                         if (!agent.allowedPaymentMethods.includes(opt.value)) return false;
+                        if (!agent.allowedPaymentMethods.includes(opt.value)) return false;
                       }
 
-                      // If a restricted set of modes is passed from props, honour it
                       if (allowedPaymentModes && allowedPaymentModes.length > 0) {
                         return allowedPaymentModes.includes(opt.value);
                       }
-                      
+
                       return true;
                     });
 
@@ -2392,7 +2430,11 @@ export default function PassengerDetailsForm({
               }
 
               setIsProcessing(true);
-              if (paymentMode === "Bank Deposit" || paymentMode === "Swipe in Person") {
+              if (
+                paymentMode === "Bank Deposit" ||
+                paymentMode === "Swipe in Person" ||
+                isConsultantManualPayment(paymentMode)
+              ) {
                 try {
                   setShowBankDepositLoading(true);
                   const bookingPayload = createBookingPayload();
@@ -2472,11 +2514,11 @@ export default function PassengerDetailsForm({
                 : "Request Auth"
               : paymentMode === "Bank Deposit"
                 ? "Proceed"
-                : paymentMode === "Cash"
-                  ? "Mark as Paid (Cash)"
-                  : paymentMode === "Reservation Paid"
-                    ? "Submit"
-                    : `Pay (P ${finalTotal.toFixed(2)})`}
+                : isConsultantManualPayment(paymentMode)
+                ? "Mark as Paid"
+                : paymentMode === "Reservation Paid"
+                  ? "Submit"
+                  : `Pay (P ${finalTotal.toFixed(2)})`}
           </Button>
 
           {showBankDepositLoading && (

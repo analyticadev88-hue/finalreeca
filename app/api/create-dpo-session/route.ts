@@ -76,18 +76,27 @@ export async function POST(request: NextRequest) {
     bookingData.agentId = agentId;
     bookingData.consultantId = consultantId;
 
-    // If skipDPO is true (consultant paid in cash), just mark as paid and return success
-    if (body.skipDPO && body.paymentMode === "Cash") {
+    // If skipDPO is true and payment was collected manually/onsite, just mark as paid and return success.
+    const normalizedPaymentMode = (body.paymentMode || '').trim().toLowerCase();
+    const manualPaidModes = new Set([
+      'cash',
+      'swiped at the office',
+      'swiped on board',
+      'pay2cell',
+      'cashplus',
+      'orange money',
+      'reservation paid',
+    ]);
+    if (body.skipDPO && manualPaidModes.has(normalizedPaymentMode)) {
       const booking = await createBookingWithRetry(bookingData);
       if (!booking) {
         return NextResponse.json({ error: 'Booking creation failed. Please try again.' }, { status: 500 });
       }
-      // Mark as paid in DB
       await prisma.booking.update({
         where: { id: booking.id },
         data: {
           paymentStatus: "paid",
-          paymentMode: "Cash",
+          paymentMode: body.paymentMode,
         },
       });
       return NextResponse.json({ success: true, orderId });
