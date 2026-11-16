@@ -110,6 +110,14 @@ export async function GET(request: NextRequest) {
       ]
     });
 
+    // OR Tambo routes are suspended: customer route searches (from/to present)
+    // must never surface them, even via crafted URLs. Admin fleet fetches
+    // without params and still sees the trips.
+    const searchableTrips = (from && to)
+      ? trips.filter(t =>
+          !/or tambo/i.test(t.routeOrigin) && !/or tambo/i.test(t.routeDestination))
+      : trips;
+
     console.log('Found trips:', trips.map(t => ({
       id: t.id,
       date: t.departureDate,
@@ -118,7 +126,7 @@ export async function GET(request: NextRequest) {
     })));
 
     // Use shared availability calculation for consistency across Dashboard and Fleet Ops
-    const enrichedTrips = await enrichTripsWithAvailability(trips);
+    const enrichedTrips = await enrichTripsWithAvailability(searchableTrips);
 
     const tripsWithAvailability = enrichedTrips.map(trip => {
       let departureDateISO = "";

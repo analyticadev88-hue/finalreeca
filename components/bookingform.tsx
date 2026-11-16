@@ -81,10 +81,14 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
     return () => { cancelled = true; };
   }, [fromLocation, toLocation]);
 
-  // Default hardcoded routes (always available)
+  // OR Tambo routes are suspended — keep them out of the search options even
+  // if they still exist in the routes table.
+  const isOrTamboRoute = (route: Route) =>
+    /or tambo/i.test(route.name) || /or tambo/i.test(route.origin) || /or tambo/i.test(route.destination);
+
+  // Default hardcoded routes (always available). OR Tambo routes intentionally
+  // excluded — the route is blocked.
   const defaultRoutes: Route[] = [
-    { id: 'default-1', name: 'Gaborone to OR Tambo Airport', origin: 'Gaborone', destination: 'OR Tambo Airport', active: true },
-    { id: 'default-2', name: 'OR Tambo Airport to Gaborone', origin: 'OR Tambo Airport', destination: 'Gaborone', active: true },
     { id: 'default-3', name: 'Gaborone to Rustenburg', origin: 'Gaborone', destination: 'Rustenburg', active: true },
     { id: 'default-4', name: 'Rustenburg to Gaborone', origin: 'Rustenburg', destination: 'Gaborone', active: true },
     { id: 'default-5', name: 'Gaborone to Maun', origin: 'Gaborone', destination: 'Maun', active: true },
@@ -130,20 +134,21 @@ export default function BookingForm({ onSearch, agentInfo, onHireBus }: BookingF
         const response = await fetch('/api/admin/routes');
         if (response.ok) {
           const data = await response.json();
-          // Combine dynamic routes with defaults, removing duplicates
+          // Combine dynamic routes with defaults, removing duplicates and
+          // blocking OR Tambo (route suspended — must not be searchable)
           const combinedRoutes = [...defaultRoutes, ...data];
           const uniqueRoutes = combinedRoutes.filter((route, index, self) =>
             index === self.findIndex(r => r.name.toLowerCase() === route.name.toLowerCase())
-          );
+          ).filter((route) => !isOrTamboRoute(route));
           setRoutes(uniqueRoutes);
         } else {
           // Use only defaults if API fails
-          setRoutes(defaultRoutes);
+          setRoutes(defaultRoutes.filter((route) => !isOrTamboRoute(route)));
         }
       } catch (error) {
         console.error('Failed to fetch routes:', error);
         // Keep default hardcoded routes as fallback
-        setRoutes(defaultRoutes);
+        setRoutes(defaultRoutes.filter((route) => !isOrTamboRoute(route)));
       } finally {
         setLoadingRoutes(false);
       }
