@@ -105,3 +105,20 @@ export async function GET() {
   });
   return NextResponse.json({ inquiries });
 }
+
+// Bulk delete (admin "select all & delete" for pending inquiries)
+export async function DELETE(req: NextRequest) {
+  try {
+    const { ids } = await req.json();
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ success: false, error: "ids array is required" }, { status: 400 });
+    }
+    const result = await prisma.inquiry.deleteMany({
+      where: { id: { in: ids } },
+    });
+    return NextResponse.json({ success: true, deleted: result.count });
+  } catch (error: any) {
+    console.error("Bulk inquiry delete error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

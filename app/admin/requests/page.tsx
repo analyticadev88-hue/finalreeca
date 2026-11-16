@@ -58,6 +58,10 @@ export default function InquiriesManagement() {
   const [inquiryToDelete, setInquiryToDelete] = useState<Inquiry | null>(null);
   const [deletingInquiry, setDeletingInquiry] = useState(false);
 
+  // Bulk selection state (for selecting & deleting pending inquiries)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
   useEffect(() => {
     async function fetchInquiries() {
       const res = await fetch("/api/inquiries");
@@ -79,6 +83,57 @@ export default function InquiriesManagement() {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Pending inquiries currently visible — the ones eligible for bulk select/delete
+  const pendingInquiries = filteredInquiries.filter((i) => i.status.toLowerCase() === "pending");
+  const allPendingSelected =
+    pendingInquiries.length > 0 && pendingInquiries.every((i) => selectedIds.has(i.id));
+
+  // Clear the selection whenever the filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [searchTerm, statusFilter]);
+
+  const toggleSelectInquiry = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllPending = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPendingSelected) {
+        pendingInquiries.forEach((i) => next.delete(i.id));
+      } else {
+        pendingInquiries.forEach((i) => next.add(i.id));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeletingInquiry(true);
+    try {
+      const res = await fetch("/api/inquiries", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        const deleted = new Set(selectedIds);
+        setInquiries((prev) => prev.filter((i) => !deleted.has(i.id)));
+        setSelectedIds(new Set());
+        setBulkDeleteOpen(false);
+      }
+    } finally {
+      setDeletingInquiry(false);
+    }
+  };
 
   // Calendar data
   const approvedInquiries = useMemo(() => {
@@ -168,6 +223,13 @@ export default function InquiriesManagement() {
         inquiry.id === inquiryId ? { ...inquiry, status: newStatus } : inquiry
       )
     );
+    // No longer pending — drop it from the bulk selection
+    setSelectedIds((prev) => {
+      if (!prev.has(inquiryId)) return prev;
+      const next = new Set(prev);
+      next.delete(inquiryId);
+      return next;
+    });
     setModalClosing(true);
     setTimeout(() => {
       setShowInquiryDetails(false);
@@ -183,6 +245,12 @@ export default function InquiriesManagement() {
       });
       if (res.ok) {
         setInquiries((prev) => prev.filter((inquiry) => inquiry.id !== inquiryId));
+        setSelectedIds((prev) => {
+          if (!prev.has(inquiryId)) return prev;
+          const next = new Set(prev);
+          next.delete(inquiryId);
+          return next;
+        });
         setDeleteConfirmOpen(false);
         setInquiryToDelete(null);
       }
@@ -303,6 +371,18 @@ export default function InquiriesManagement() {
                 <span className="hidden sm:inline">Export</span>
               </Button>
 
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  className="border-red-600 text-red-600 hover:bg-red-50 text-xs sm:text-sm"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete Selected ({selectedIds.size})
+                </Button>
+              )}
+
               <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 bg-gray-50 rounded-md px-3 py-2">
                 <Users className="h-4 w-4 text-teal-600" />
                 <span className="font-medium">{filteredInquiries.length}</span>
@@ -348,6 +428,16 @@ export default function InquiriesManagement() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th scope="col" className="px-3 py-2 sm:px-4 sm:py-3 w-10 text-left">
+                          <input
+                            type="checkbox"
+                            checked={allPendingSelected}
+                            onChange={toggleSelectAllPending}
+                            disabled={pendingInquiries.length === 0}
+                            title={pendingInquiries.length === 0 ? "No pending inquiries to select" : "Select all pending inquiries"}
+                            className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        </th>
                         <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Company
                         </th>
@@ -374,6 +464,17 @@ export default function InquiriesManagement() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {currentItems.map((inquiry) => (
                         <tr key={inquiry.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-3 sm:px-4">
+                            {inquiry.status.toLowerCase() === "pending" ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(inquiry.id)}
+                                onChange={() => toggleSelectInquiry(inquiry.id)}
+                                aria-label={`Select inquiry from ${inquiry.companyName}`}
+                                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                              />
+                            ) : null}
+                          </td>
                           <td className="px-3 py-3 whitespace-nowrap">
                             <div className="text-xs sm:text-sm font-medium text-teal-600">{inquiry.companyName}</div>
                             <div className="text-xs text-gray-500 sm:hidden">{inquiry.contactPerson}</div>
@@ -857,9 +958,43 @@ export default function InquiriesManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      {/* Bulk Delete Confirmation Modal */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg text-red-700">
+              Delete {selectedIds.size} {selectedIds.size === 1 ? "Inquiry" : "Inquiries"}
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Are you sure you want to delete the {selectedIds.size} selected pending{" "}
+              {selectedIds.size === 1 ? "inquiry" : "inquiries"}? This cannot be undone and
+              no emails will be sent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={deletingInquiry}
+              className="text-xs sm:text-sm"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {deletingInquiry ? "Deleting..." : "Delete Selected"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteOpen(false)}
+              disabled={deletingInquiry}
+              className="text-xs sm:text-sm"
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base sm:text-lg text-red-700">
               Delete Inquiry

@@ -153,6 +153,13 @@ const SCANIA_ROW_DEFS = (() => {
   return defs;
 })();
 
+// On the physical Scania bus the two back-corner seats are numbered the
+// opposite way around to our layout map: the seat we hold as "55" is labeled
+// "57" in the bus, and vice versa. Swap DISPLAY labels only — seat IDs used
+// in bookings and availability stay exactly as stored.
+const BACK_ROW_LABEL_SWAP: Record<string, string> = { '55': '57', '57': '55' };
+const displaySeatLabel = (seatNumber: string) => BACK_ROW_LABEL_SWAP[seatNumber] || seatNumber;
+
 const generateRegularBusSeatLayout = (
   totalSeats: number = 57,
   occupiedSeats: string[] = [],
@@ -171,7 +178,7 @@ const generateRegularBusSeatLayout = (
       rd.back.forEach((n, i) => {
         const id = String(n);
         seats.push({
-          id, number: id,
+          id, number: displaySeatLabel(id),
           isAvailable: !unavailable.has(id),
           isSelected: false,
           row: rowNum, position: 'back', side: 'back',
@@ -189,7 +196,7 @@ const generateRegularBusSeatLayout = (
         [rd.la, 'la', 'left'],
       ] as [number, string, string][]).forEach(([n, pos, side]) => {
         const id = String(n);
-        seats.push({ id, number: id, isAvailable: !unavailable.has(id), isSelected: false, row: rowNum, position: pos, side, seatIndex: n - 1 });
+        seats.push({ id, number: displaySeatLabel(id), isAvailable: !unavailable.has(id), isSelected: false, row: rowNum, position: pos, side, seatIndex: n - 1 });
       });
     }
 
@@ -199,7 +206,7 @@ const generateRegularBusSeatLayout = (
         [rd.rw, 'rw', 'right'],
       ] as [number, string, string][]).forEach(([n, pos, side]) => {
         const id = String(n);
-        seats.push({ id, number: id, isAvailable: !unavailable.has(id), isSelected: false, row: rowNum, position: pos, side, seatIndex: n - 1 });
+        seats.push({ id, number: displaySeatLabel(id), isAvailable: !unavailable.has(id), isSelected: false, row: rowNum, position: pos, side, seatIndex: n - 1 });
       });
     }
   });
@@ -798,7 +805,7 @@ export default function SeatSelection({
     if (isPrivateTour) {
       return seatId.replace('V1-', '').replace('V2-', '').replace('V3-', '');
     }
-    return seatId;
+    return displaySeatLabel(seatId);
   };
 
   if (isLoadingSeats) {

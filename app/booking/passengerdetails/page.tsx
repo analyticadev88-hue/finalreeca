@@ -384,6 +384,8 @@ export default function PassengerDetailsForm({
     { value: 'Payment link', label: 'Payment link' },
     { value: 'Cashplus', label: 'Cashplus' },
     { value: 'Orange Money', label: 'Orange Money' },
+    { value: 'On Hold', label: 'On Hold' },
+    { value: 'To Pay Cash On Board', label: 'To Pay Cash On Board' },
   ] as { value: string; label: string }[];
   const isConsultantManualPayment = (value: string) => new Set([
     'cash',
@@ -394,6 +396,15 @@ export default function PassengerDetailsForm({
     'cashplus',
     'orange money',
     'swipe in person',
+    'on hold',
+    'to pay cash on board',
+  ]).has(normalizePaymentMode(value));
+  // Manual consultant modes where money has NOT changed hands yet — booking is
+  // created with paymentStatus 'pending' and settled later (on board / when
+  // the hold is released), unlike the paid manual modes above.
+  const isUnpaidConsultantPayment = (value: string) => new Set([
+    'on hold',
+    'to pay cash on board',
   ]).has(normalizePaymentMode(value));
   const isPaidConsultantPayment = (value: string) => new Set([
     'cash',
@@ -2514,6 +2525,10 @@ export default function PassengerDetailsForm({
                 : "Request Auth"
               : paymentMode === "Bank Deposit"
                 ? "Proceed"
+                : isUnpaidConsultantPayment(paymentMode)
+                ? paymentMode === "On Hold"
+                  ? "Place on Hold"
+                  : "Confirm (Pay Cash On Board)"
                 : isConsultantManualPayment(paymentMode)
                 ? "Mark as Paid"
                 : paymentMode === "Reservation Paid"
